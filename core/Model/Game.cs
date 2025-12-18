@@ -1,5 +1,6 @@
 using LegendOfThreeKingdoms.Core.Configuration;
 using LegendOfThreeKingdoms.Core.Model.Zones;
+using LegendOfThreeKingdoms.Core.Turns;
 
 namespace LegendOfThreeKingdoms.Core.Model;
 
@@ -28,6 +29,27 @@ public sealed class Game
     /// Optional turn counter for debugging and logging.
     /// </summary>
     public int TurnNumber { get; set; } = 1;
+
+    /// <summary>
+    /// Convenience immutable view that exposes the current turn/phase state
+    /// as a single value object for use by higher level engines.
+    /// Backed by <see cref="CurrentPlayerSeat"/>, <see cref="CurrentPhase"/> and <see cref="TurnNumber"/>.
+    /// </summary>
+    public TurnState Turn
+    {
+        get => new TurnState
+        {
+            CurrentPlayerSeat = CurrentPlayerSeat,
+            CurrentPhase = CurrentPhase,
+            TurnNumber = TurnNumber
+        };
+        set
+        {
+            CurrentPlayerSeat = value.CurrentPlayerSeat;
+            CurrentPhase = value.CurrentPhase;
+            TurnNumber = value.TurnNumber;
+        }
+    }
 
     /// <summary>
     /// Global draw pile zone.

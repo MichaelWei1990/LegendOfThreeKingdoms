@@ -1,4 +1,5 @@
 using LegendOfThreeKingdoms.Core.Configuration;
+using LegendOfThreeKingdoms.Core.Model;
 
 namespace LegendOfThreeKingdoms.Core.Abstractions;
 
@@ -18,7 +19,20 @@ public interface IGameMode
     /// </summary>
     string DisplayName { get; }
 
-    // Future phases will extend this interface with methods to
-    // build initial game state, drive phase progression and
-    // evaluate victory conditions based on the current state.
+    /// <summary>
+    /// Selects the seat index of the player who should take
+    /// the very first turn in a new game.
+    /// <para>
+    /// For identity mode this is typically the Emperor (Lord).
+    /// Implementations should return a valid seat for a player
+    /// that is expected to be alive at the beginning of the game.
+    /// </para>
+    /// </summary>
+    /// <param name="game">The game state after configuration has been mapped.</param>
+    /// <returns>The seat index of the first player.</returns>
+    int SelectFirstPlayerSeat(Game game);
+
+    // Future phases will extend this interface with additional methods to
+    // build initial game state, drive phase progression and evaluate
+    // victory conditions based on the current state.
 }
