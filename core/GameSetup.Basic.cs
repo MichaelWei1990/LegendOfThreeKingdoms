@@ -5,6 +5,7 @@ using LegendOfThreeKingdoms.Core.Configuration;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Model.Zones;
 using LegendOfThreeKingdoms.Core.Turns;
+using LegendOfThreeKingdoms.Core.Zones;
 
 namespace LegendOfThreeKingdoms.Core.GameSetup;
 
@@ -17,6 +18,27 @@ namespace LegendOfThreeKingdoms.Core.GameSetup;
 /// </summary>
 public sealed class BasicGameInitializer : IGameInitializer
 {
+    private readonly ICardMoveService _cardMoveService;
+
+    /// <summary>
+    /// Creates a basic initializer that uses <see cref="BasicCardMoveService"/>
+    /// for all card movement during setup.
+    /// </summary>
+    public BasicGameInitializer()
+        : this(new BasicCardMoveService())
+    {
+    }
+
+    /// <summary>
+    /// Creates an initializer that uses the provided <see cref="ICardMoveService"/>
+    /// for all card movement during setup. This overload exists primarily to
+    /// facilitate testing or future customisation.
+    /// </summary>
+    public BasicGameInitializer(ICardMoveService cardMoveService)
+    {
+        _cardMoveService = cardMoveService ?? throw new ArgumentNullException(nameof(cardMoveService));
+    }
+
     public GameInitializationResult Initialize(GameInitializationOptions options)
     {
         if (options is null) throw new ArgumentNullException(nameof(options));
@@ -104,7 +126,7 @@ public sealed class BasicGameInitializer : IGameInitializer
     /// </summary>
     /// <param name="game">Game whose draw pile and players will be mutated.</param>
     /// <param name="initialHandCardCount">Number of cards each player should receive.</param>
-    private static GameInitializationResult DealInitialHands(Game game, int initialHandCardCount)
+    private GameInitializationResult DealInitialHands(Game game, int initialHandCardCount)
     {
         if (initialHandCardCount <= 0)
         {
@@ -124,40 +146,11 @@ public sealed class BasicGameInitializer : IGameInitializer
                 errorMessage: $"Deck does not contain enough cards to deal {initialHandCardCount} initial cards to {game.Players.Count} players.");
         }
 
-        var drawIndex = 0;
         foreach (var player in game.Players)
         {
-            if (player.HandZone is not Zone handZone)
-            {
-                throw new InvalidOperationException("Player.HandZone must be a mutable Zone.");
-            }
-
-            for (var i = 0; i < initialHandCardCount; i++)
-            {
-                var card = drawZone.Cards[drawIndex++];
-                handZone.MutableCards.Add(card);
-            }
-        }
-
-        // Remove the dealt cards from the top of the draw pile.
-        var remaining = drawZone.Cards.Count - drawIndex;
-        if (remaining == 0)
-        {
-            drawZone.MutableCards.Clear();
-        }
-        else
-        {
-            var newList = new List<Card>(remaining);
-            for (var i = drawIndex; i < drawZone.Cards.Count; i++)
-            {
-                newList.Add(drawZone.Cards[i]);
-            }
-
-            drawZone.MutableCards.Clear();
-            foreach (var card in newList)
-            {
-                drawZone.MutableCards.Add(card);
-            }
+            // Use the shared card move service to draw the configured number
+            // of cards from the global draw pile into this player's hand.
+            _ = _cardMoveService.DrawCards(game, player, initialHandCardCount);
         }
 
         return GameInitializationResult.SuccessResult(game);
