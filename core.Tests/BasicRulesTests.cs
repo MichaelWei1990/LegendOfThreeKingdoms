@@ -317,5 +317,186 @@ public sealed class BasicRulesTests
         Assert.IsTrue(result.IsAllowed);
         Assert.AreEqual(RuleErrorCode.None, result.ErrorCode);
     }
+
+    /// <summary>
+    /// Verifies that ChoiceRequestFactory creates a target-selection request for UseSlash actions
+    /// with matching target constraints and card candidates.
+    /// Input: Play phase, player has one usable Slash and corresponding UseSlash action.
+    /// Expected: CreateForAction returns SelectTargets choice for the same player and constraints.
+    /// </summary>
+    [TestMethod]
+    public void choiceRequestFactoryCreatesSelectTargetsForUseSlash()
+    {
+        var game = CreateDefaultGame(2);
+        game.CurrentPhase = Phase.Play;
+        var player = game.Players[0];
+        var target = game.Players[1];
+
+        var slash = new Card
+        {
+            Id = 1,
+            DefinitionId = "slash_basic",
+            CardType = CardType.Basic,
+            CardSubType = CardSubType.Slash
+        };
+
+        Assert.IsInstanceOfType(player.HandZone, typeof(Zone));
+        ((Zone)player.HandZone).MutableCards.Add(slash);
+
+        var ruleService = new RuleService();
+        var context = new RuleContext(game, player);
+
+        var actionsResult = ruleService.GetAvailableActions(context);
+        Assert.IsTrue(actionsResult.HasAny);
+        var slashAction = actionsResult.Items.Single(a => a.ActionId == "UseSlash");
+
+        var factory = new ChoiceRequestFactory();
+        var choice = factory.CreateForAction(context, slashAction);
+
+        Assert.AreEqual(player.Seat, choice.PlayerSeat);
+        Assert.AreEqual(ChoiceType.SelectTargets, choice.ChoiceType);
+        Assert.IsNotNull(choice.TargetConstraints);
+        Assert.AreEqual(slashAction.TargetConstraints.MinTargets, choice.TargetConstraints!.MinTargets);
+        Assert.AreEqual(slashAction.TargetConstraints.MaxTargets, choice.TargetConstraints!.MaxTargets);
+        Assert.AreEqual(slashAction.TargetConstraints.FilterType, choice.TargetConstraints!.FilterType);
+        Assert.IsNotNull(choice.AllowedCards);
+        Assert.IsTrue(choice.AllowedCards!.Any(c => c.CardSubType == CardSubType.Slash));
+    }
+
+    /// <summary>
+    /// Verifies that ChoiceRequestFactory creates a SelectCards request for a Jink response
+    /// with the responder's Dodge cards as allowed cards.
+    /// Input: responder has one Dodge card and response type JinkAgainstSlash.
+    /// Expected: CreateForResponse returns SelectCards choice containing that Dodge card.
+    /// </summary>
+    [TestMethod]
+    public void choiceRequestFactoryCreatesSelectCardsForJinkResponse()
+    {
+        var game = CreateDefaultGame(2);
+        var responder = game.Players[1];
+
+        var dodge = new Card
+        {
+            Id = 2,
+            DefinitionId = "dodge_basic",
+            CardType = CardType.Basic,
+            CardSubType = CardSubType.Dodge
+        };
+
+        Assert.IsInstanceOfType(responder.HandZone, typeof(Zone));
+        ((Zone)responder.HandZone).MutableCards.Add(dodge);
+
+        var responseContext = new ResponseContext(
+            game,
+            responder,
+            ResponseType.JinkAgainstSlash,
+            SourceEvent: null);
+
+        var factory = new ChoiceRequestFactory();
+        var choice = factory.CreateForResponse(responseContext);
+
+        Assert.AreEqual(responder.Seat, choice.PlayerSeat);
+        Assert.AreEqual(ChoiceType.SelectCards, choice.ChoiceType);
+        Assert.IsNotNull(choice.AllowedCards);
+        Assert.AreEqual(1, choice.AllowedCards!.Count);
+        Assert.AreEqual(CardSubType.Dodge, choice.AllowedCards[0].CardSubType);
+    }
+
+    /// <summary>
+    /// Verifies that ActionExecutionValidator accepts a well-formed target selection choice
+    /// that satisfies the original target constraints.
+    /// Input: UseSlash action with MinTargets = MaxTargets = 1 and a choice selecting one target seat.
+    /// Expected: Validate returns allowed.
+    /// </summary>
+    [TestMethod]
+    public void actionExecutionValidatorAcceptsValidTargetSelection()
+    {
+        var game = CreateDefaultGame(2);
+        game.CurrentPhase = Phase.Play;
+        var player = game.Players[0];
+        var target = game.Players[1];
+
+        var slash = new Card
+        {
+            Id = 1,
+            DefinitionId = "slash_basic",
+            CardType = CardType.Basic,
+            CardSubType = CardSubType.Slash
+        };
+
+        Assert.IsInstanceOfType(player.HandZone, typeof(Zone));
+        ((Zone)player.HandZone).MutableCards.Add(slash);
+
+        var ruleService = new RuleService();
+        var context = new RuleContext(game, player);
+
+        var actionsResult = ruleService.GetAvailableActions(context);
+        var slashAction = actionsResult.Items.Single(a => a.ActionId == "UseSlash");
+
+        var factory = new ChoiceRequestFactory();
+        var request = factory.CreateForAction(context, slashAction);
+
+        var choice = new ChoiceResult(
+            RequestId: request.RequestId,
+            PlayerSeat: player.Seat,
+            SelectedTargetSeats: new[] { target.Seat },
+            SelectedCardIds: null,
+            SelectedOptionId: null,
+            Confirmed: null);
+
+        var validator = new ActionExecutionValidator();
+        var result = validator.Validate(context, slashAction, request, choice);
+
+        Assert.IsTrue(result.IsAllowed);
+        Assert.AreEqual(RuleErrorCode.None, result.ErrorCode);
+    }
+
+    /// <summary>
+    /// Verifies that ActionExecutionValidator rejects a target selection that violates
+    /// the minimum target requirement.
+    /// Input: UseSlash action with MinTargets = 1 and a choice selecting zero targets.
+    /// Expected: Validate returns disallowed with TargetRequired.
+    /// </summary>
+    [TestMethod]
+    public void actionExecutionValidatorRejectsTooFewTargets()
+    {
+        var game = CreateDefaultGame(2);
+        game.CurrentPhase = Phase.Play;
+        var player = game.Players[0];
+
+        var slash = new Card
+        {
+            Id = 1,
+            DefinitionId = "slash_basic",
+            CardType = CardType.Basic,
+            CardSubType = CardSubType.Slash
+        };
+
+        Assert.IsInstanceOfType(player.HandZone, typeof(Zone));
+        ((Zone)player.HandZone).MutableCards.Add(slash);
+
+        var ruleService = new RuleService();
+        var context = new RuleContext(game, player);
+
+        var actionsResult = ruleService.GetAvailableActions(context);
+        var slashAction = actionsResult.Items.Single(a => a.ActionId == "UseSlash");
+
+        var factory = new ChoiceRequestFactory();
+        var request = factory.CreateForAction(context, slashAction);
+
+        var emptyChoice = new ChoiceResult(
+            RequestId: request.RequestId,
+            PlayerSeat: player.Seat,
+            SelectedTargetSeats: Array.Empty<int>(),
+            SelectedCardIds: null,
+            SelectedOptionId: null,
+            Confirmed: null);
+
+        var validator = new ActionExecutionValidator();
+        var result = validator.Validate(context, slashAction, request, emptyChoice);
+
+        Assert.IsFalse(result.IsAllowed);
+        Assert.AreEqual(RuleErrorCode.TargetRequired, result.ErrorCode);
+    }
 }
 

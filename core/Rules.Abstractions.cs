@@ -229,8 +229,63 @@ public sealed record ChoiceRequest(
     int PlayerSeat,
     ChoiceType ChoiceType,
     TargetConstraints? TargetConstraints,
-    IReadOnlyList<Card>? AllowedCards
+    IReadOnlyList<Card>? AllowedCards,
+    string? ResponseWindowId = null,
+    bool CanPass = true
 );
+
+/// <summary>
+/// Result returned by a player in response to a <see cref="ChoiceRequest"/>.
+/// This DTO is intentionally lightweight and uses seats/ids instead of object references
+/// so that it can be serialized over the network or stored for replay.
+/// </summary>
+public sealed record ChoiceResult(
+    string RequestId,
+    int PlayerSeat,
+    IReadOnlyList<int>? SelectedTargetSeats,
+    IReadOnlyList<int>? SelectedCardIds,
+    string? SelectedOptionId,
+    bool? Confirmed
+);
+
+/// <summary>
+/// Factory responsible for creating <see cref="ChoiceRequest"/> instances
+/// from high-level actions, response windows or skill activations.
+/// Implementations must be side-effect free.
+/// </summary>
+public interface IChoiceRequestFactory
+{
+    /// <summary>
+    /// Creates a choice request for a high-level action that requires additional input,
+    /// such as selecting targets for a Slash action.
+    /// </summary>
+    ChoiceRequest CreateForAction(RuleContext context, ActionDescriptor action);
+
+    /// <summary>
+    /// Creates a choice request for a response window, e.g. whether to play Jink against Slash.
+    /// </summary>
+    ChoiceRequest CreateForResponse(ResponseContext context);
+}
+
+/// <summary>
+/// Validates that an action and its associated player choices are still legal
+/// just before they are passed to a resolver for execution.
+/// This is a dedicated hook for engine / resolver layers; it does not mutate game state.
+/// </summary>
+public interface IActionExecutionValidator
+{
+    RuleResult Validate(RuleContext context, ActionDescriptor action, ChoiceRequest? originalRequest, ChoiceResult? playerChoice);
+}
+
+/// <summary>
+/// Maps high-level actions and player choices to concrete resolver invocations.
+/// Implementations are expected to contain only orchestration logic; actual game
+/// state changes should be delegated to resolver components.
+/// </summary>
+public interface IActionResolutionMapper
+{
+    void Resolve(RuleContext context, ActionDescriptor action, ChoiceRequest? originalRequest, ChoiceResult? playerChoice);
+}
 
 /// <summary>
 /// Allows skills or mode-specific logic to modify rule decisions without changing core services.
