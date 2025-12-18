@@ -19,6 +19,12 @@ public sealed class GameConfig
     public required DeckConfig DeckConfig { get; init; }
 
     /// <summary>
+    /// Number of cards each player should draw as their initial hand
+    /// during game setup. Defaults to 4 which matches the standard mode.
+    /// </summary>
+    public int InitialHandCardCount { get; init; } = 4;
+
+    /// <summary>
     /// Optional random seed that will be passed into the random source.
     /// Same seed + same choices should lead to deterministic results.
     /// </summary>
