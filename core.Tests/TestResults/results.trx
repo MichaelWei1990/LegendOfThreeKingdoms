@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="7d12bdd6-1c91-4c1e-b9d3-5700ed07a6fa" name="MichaelWei@ROC-LT-MWEI 2025-12-18 12:16:54" runUser="AzureAD\MichaelWei" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2025-12-18T12:16:54.0261667-05:00" queuing="2025-12-18T12:16:54.0261670-05:00" start="2025-12-18T12:16:53.1069770-05:00" finish="2025-12-18T12:16:54.0314155-05:00" />
+  <TestSettings name="default" id="cade99cb-8eb8-4938-9deb-7ffa8a49c43c">
+    <Deployment runDeploymentRoot="MichaelWei_ROC-LT-MWEI_2025-12-18_12_16_54" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="733530c8-5ebf-46aa-a26f-027628eebab5" testId="756c73df-605d-7860-f078-bc23d086f09c" testName="ruleServiceReturnsBasicActionsInPlayPhase" computerName="ROC-LT-MWEI" duration="00:00:00.0220630" startTime="2025-12-18T12:16:53.8474317-05:00" endTime="2025-12-18T12:16:53.8902223-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="733530c8-5ebf-46aa-a26f-027628eebab5">
+      <Output>
+        <ErrorInfo>
+          <Message>CollectionAssert.Contains failed. </Message>
+          <StackTrace>   at core.Tests.BasicRulesTests.ruleServiceReturnsBasicActionsInPlayPhase() in C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core.Tests\BasicRulesTests.cs:line 267&#xD;
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)&#xD;
+</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="ruleServiceReturnsBasicActionsInPlayPhase" storage="c:\users\michaelwei\documents\personalproj\legendofthreekingdoms\core.tests\bin\debug\net9.0\core.tests.dll" id="756c73df-605d-7860-f078-bc23d086f09c">
+      <Execution id="733530c8-5ebf-46aa-a26f-027628eebab5" />
+      <TestMethod codeBase="C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core.Tests\bin\Debug\net9.0\core.Tests.dll" adapterTypeName="executor://mstestadapter/v2" className="core.Tests.BasicRulesTests" name="ruleServiceReturnsBasicActionsInPlayPhase" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="756c73df-605d-7860-f078-bc23d086f09c" executionId="733530c8-5ebf-46aa-a26f-027628eebab5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="1" executed="1" passed="0" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>Test Parallelization enabled for C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core.Tests\bin\Debug\net9.0\core.Tests.dll (Workers: 16, Scope: MethodLevel)&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>
