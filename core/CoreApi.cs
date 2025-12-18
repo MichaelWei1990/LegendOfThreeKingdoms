@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using LegendOfThreeKingdoms.Core.Configuration;
 
 namespace LegendOfThreeKingdoms.Core;
@@ -14,7 +15,7 @@ public static class CoreApi
     /// Creates a basic game configuration with reasonable defaults.
     /// This is a convenience factory to reduce boilerplate in tests and samples.
     /// </summary>
-    public static GameConfig CreateDefaultConfig(int playerCount, string gameModeId = GameModes.Standard, int? seed = null)
+    public static GameConfig CreateDefaultConfig(int playerCount, GameModeId gameModeId = GameModeId.Standard, int? seed = null)
     {
         if (playerCount <= 0)
         {
@@ -33,6 +34,13 @@ public static class CoreApi
             });
         }
 
+        var modeId = gameModeId switch
+        {
+            GameModeId.Standard => "standard",
+            GameModeId.GuoZhan => "guozhan",
+            _ => throw new ArgumentOutOfRangeException(nameof(gameModeId))
+        };
+
         return new GameConfig
         {
             PlayerConfigs = players,
@@ -40,7 +48,7 @@ public static class CoreApi
             {
                 IncludedPacks = new List<string> { "Base" }
             },
-            GameModeId = gameModeId,
+            GameModeId = modeId,
             GameVariantOptions = null,
             Seed = seed
         };
@@ -48,10 +56,19 @@ public static class CoreApi
 }
 
 /// <summary>
-/// Well-known game mode identifiers used by the core.
+/// Well-known game modes supported by the core.
 /// </summary>
-public static class GameModes
+public enum GameModeId
 {
-    public const string Standard = "standard";
-    public const string GuoZhan = "guozhan";
+    /// <summary>
+    /// 身份模式（主忠内反）。
+    /// </summary>
+    [Description("身份模式")]
+    Standard,
+
+    /// <summary>
+    /// 国战模式。
+    /// </summary>
+    [Description("国战")]
+    GuoZhan
 }
