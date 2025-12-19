@@ -68,3 +68,54 @@ public enum Camp
     Identity,
     Kingdom
 }
+
+/// <summary>
+/// Types of skills in the game.
+/// </summary>
+public enum SkillType
+{
+    /// <summary>
+    /// Active skill: requires player to actively choose to activate.
+    /// </summary>
+    Active,
+    
+    /// <summary>
+    /// Trigger skill: automatically triggers or asks player when specific events occur.
+    /// </summary>
+    Trigger,
+    
+    /// <summary>
+    /// Locked skill: continuously active, no need to activate manually.
+    /// </summary>
+    Locked
+}
+
+/// <summary>
+/// Capabilities that a skill can provide.
+/// Used to express what a skill can do.
+/// </summary>
+[Flags]
+public enum SkillCapability
+{
+    None = 0,
+    
+    /// <summary>
+    /// Provides additional actions (e.g., extra play phase).
+    /// </summary>
+    ProvidesActions = 1 << 0,
+    
+    /// <summary>
+    /// Modifies rule judgments (e.g., modifies usage count, target range).
+    /// </summary>
+    ModifiesRules = 1 << 1,
+    
+    /// <summary>
+    /// Intervenes in resolution (e.g., modifies damage value, replaces effects).
+    /// </summary>
+    IntervenesResolution = 1 << 2,
+    
+    /// <summary>
+    /// Initiates choice requests (e.g., select cards, select targets).
+    /// </summary>
+    InitiatesChoices = 1 << 3
+}
