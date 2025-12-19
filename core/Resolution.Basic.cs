@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using LegendOfThreeKingdoms.Core.Abstractions;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Zones;
@@ -43,7 +44,9 @@ public sealed class BasicResolutionStack : IResolutionStack
             context.Choice,
             this, // Use self as stack reference
             context.CardMoveService,
-            context.RuleService
+            context.RuleService,
+            context.PendingDamage,
+            context.LogSink
         );
 
         // Execute the resolver
@@ -170,7 +173,9 @@ public sealed class UseCardResolver : IResolver
             choice,
             context.Stack,
             context.CardMoveService,
-            context.RuleService
+            context.RuleService,
+            context.PendingDamage,
+            context.LogSink
         );
 
         // Push the specific resolver onto the stack
@@ -234,6 +239,121 @@ public sealed class SlashResolver : IResolver
         // TODO: In future, this will trigger a response window for Jink/Dodge
         // For now, we assume the Slash hits directly
         // Damage resolution will be handled by DamageResolver (step 10)
+
+        // Create damage descriptor
+        var damage = new DamageDescriptor(
+            SourceSeat: sourcePlayer.Seat,
+            TargetSeat: target.Seat,
+            Amount: 1,  // Basic Slash deals 1 damage
+            Type: DamageType.Normal,
+            Reason: "Slash"
+        );
+
+        // Create new context with pending damage
+        var damageContext = new ResolutionContext(
+            context.Game,
+            context.SourcePlayer,
+            context.Action,
+            context.Choice,
+            context.Stack,
+            context.CardMoveService,
+            context.RuleService,
+            PendingDamage: damage,
+            LogSink: context.LogSink
+        );
+
+        // Push DamageResolver onto the stack
+        context.Stack.Push(new DamageResolver(), damageContext);
+
+        return ResolutionResult.SuccessResult;
+    }
+}
+
+/// <summary>
+/// Resolver for damage resolution.
+/// Handles damage application: reduces target health and records damage event.
+/// </summary>
+public sealed class DamageResolver : IResolver
+{
+    /// <inheritdoc />
+    public ResolutionResult Resolve(ResolutionContext context)
+    {
+        if (context is null) throw new ArgumentNullException(nameof(context));
+
+        var game = context.Game;
+        var damage = context.PendingDamage;
+
+        if (damage is null)
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.InvalidState,
+                messageKey: "resolution.damage.noPendingDamage");
+        }
+
+        // Validate damage descriptor
+        try
+        {
+            damage.Validate();
+        }
+        catch (ArgumentException ex)
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.InvalidState,
+                messageKey: "resolution.damage.invalidDescriptor",
+                details: new { Exception = ex.Message });
+        }
+
+        // Find target player
+        var target = game.Players.FirstOrDefault(p => p.Seat == damage.TargetSeat);
+        if (target is null)
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.InvalidTarget,
+                messageKey: "resolution.damage.targetNotFound",
+                details: new { TargetSeat = damage.TargetSeat });
+        }
+
+        // Check if target is alive
+        if (!target.IsAlive)
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.TargetNotAlive,
+                messageKey: "resolution.damage.targetNotAlive",
+                details: new { TargetSeat = damage.TargetSeat });
+        }
+
+        // Apply damage: reduce health (cannot go below 0)
+        var previousHealth = target.CurrentHealth;
+        target.CurrentHealth = Math.Max(0, target.CurrentHealth - damage.Amount);
+
+        // Update alive status if health reaches 0 or below
+        if (target.CurrentHealth <= 0)
+        {
+            target.IsAlive = false;
+        }
+
+        // Log damage event if log sink is available
+        if (context.LogSink is not null)
+        {
+            var logEntry = new LogEntry
+            {
+                EventType = "DamageApplied",
+                Level = "Info",
+                Message = $"Player {damage.SourceSeat} dealt {damage.Amount} {damage.Type} damage to player {damage.TargetSeat}",
+                Data = new
+                {
+                    SourceSeat = damage.SourceSeat,
+                    TargetSeat = damage.TargetSeat,
+                    Amount = damage.Amount,
+                    Type = damage.Type.ToString(),
+                    Reason = damage.Reason,
+                    PreviousHealth = previousHealth,
+                    CurrentHealth = target.CurrentHealth,
+                    IsAlive = target.IsAlive
+                }
+            };
+            context.LogSink.Log(logEntry);
+        }
 
         return ResolutionResult.SuccessResult;
     }

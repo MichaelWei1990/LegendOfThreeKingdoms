@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LegendOfThreeKingdoms.Core.Abstractions;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Zones;
@@ -31,7 +32,9 @@ public sealed record ResolutionContext(
     ChoiceResult? Choice,
     IResolutionStack Stack,
     ICardMoveService CardMoveService,
-    IRuleService RuleService
+    IRuleService RuleService,
+    DamageDescriptor? PendingDamage = null,
+    ILogSink? LogSink = null
 );
 
 /// <summary>
@@ -116,3 +119,56 @@ public sealed record ResolutionRecord(
     ResolutionContext ContextSnapshot,
     ResolutionResult Result
 );
+
+/// <summary>
+/// Type of damage in the game.
+/// </summary>
+public enum DamageType
+{
+    /// <summary>
+    /// Normal damage (普通伤害)
+    /// </summary>
+    Normal = 0,
+    
+    /// <summary>
+    /// Fire damage (火焰伤害)
+    /// </summary>
+    Fire,
+    
+    /// <summary>
+    /// Thunder damage (雷电伤害)
+    /// </summary>
+    Thunder
+}
+
+/// <summary>
+/// Describes a damage event to be resolved.
+/// Contains source, target, amount, type, and reserved fields for future extensions.
+/// </summary>
+public sealed record DamageDescriptor(
+    int SourceSeat,           // 伤害来源玩家座位号
+    int TargetSeat,           // 伤害目标玩家座位号
+    int Amount,               // 伤害值（必须 > 0）
+    DamageType Type,          // 伤害类型
+    string? Reason = null,    // 伤害原因（可选，如 "Slash"）
+    
+    // 预留扩展字段（暂不使用）
+    bool IsPreventable = true,        // 是否可被免伤（预留）
+    int? TransferredToSeat = null,    // 转移目标座位号（预留）
+    bool TriggersDying = true         // 是否触发濒死（预留，当前始终为 true）
+)
+{
+    /// <summary>
+    /// Validates the damage descriptor.
+    /// </summary>
+    /// <exception cref="ArgumentException">Thrown when validation fails.</exception>
+    public void Validate()
+    {
+        if (Amount <= 0)
+            throw new ArgumentException("Damage amount must be positive", nameof(Amount));
+        if (SourceSeat < 0)
+            throw new ArgumentException("Source seat must be non-negative", nameof(SourceSeat));
+        if (TargetSeat < 0)
+            throw new ArgumentException("Target seat must be non-negative", nameof(TargetSeat));
+    }
+}
