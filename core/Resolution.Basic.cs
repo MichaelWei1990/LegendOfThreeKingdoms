@@ -437,12 +437,6 @@ public sealed class DamageResolver : IResolver
         var previousHealth = target.CurrentHealth;
         target.CurrentHealth = Math.Max(0, target.CurrentHealth - damage.Amount);
 
-        // Update alive status if health reaches 0 or below
-        if (target.CurrentHealth <= 0)
-        {
-            target.IsAlive = false;
-        }
-
         // Log damage event if log sink is available
         if (context.LogSink is not null)
         {
@@ -466,6 +460,266 @@ public sealed class DamageResolver : IResolver
             context.LogSink.Log(logEntry);
         }
 
+        // Check if dying process should be triggered
+        if (target.CurrentHealth <= 0 && damage.TriggersDying)
+        {
+            // Initialize IntermediateResults if not present
+            var intermediateResults = context.IntermediateResults;
+            if (intermediateResults is null)
+            {
+                intermediateResults = new Dictionary<string, object>();
+            }
+            
+            // Store dying player info for DyingResolver
+            intermediateResults["DyingPlayerSeat"] = target.Seat;
+            
+            // Create new context with IntermediateResults
+            var dyingContext = new ResolutionContext(
+                context.Game,
+                context.SourcePlayer,
+                context.Action,
+                context.Choice,
+                context.Stack,
+                context.CardMoveService,
+                context.RuleService,
+                context.PendingDamage,
+                context.LogSink,
+                context.GetPlayerChoice,
+                intermediateResults
+            );
+            
+            // Push DyingResolver onto stack
+            context.Stack.Push(new DyingResolver(), dyingContext);
+        }
+        else
+        {
+            // Update alive status if health reaches 0 or below (only if not triggering dying)
+            if (target.CurrentHealth <= 0)
+            {
+                target.IsAlive = false;
+            }
+        }
+
+        return ResolutionResult.SuccessResult;
+    }
+}
+
+/// <summary>
+/// Resolver for dying process.
+/// Handles dying state check and creates rescue response window.
+/// </summary>
+public sealed class DyingResolver : IResolver
+{
+    /// <inheritdoc />
+    public ResolutionResult Resolve(ResolutionContext context)
+    {
+        if (context is null) throw new ArgumentNullException(nameof(context));
+
+        // Extract dying player info from IntermediateResults
+        var intermediateResults = context.IntermediateResults;
+        if (intermediateResults is null || !intermediateResults.TryGetValue("DyingPlayerSeat", out var seatObj))
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.InvalidState,
+                messageKey: "resolution.dying.noDyingPlayer");
+        }
+        
+        if (seatObj is not int dyingPlayerSeat)
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.InvalidState,
+                messageKey: "resolution.dying.invalidDyingPlayerSeat");
+        }
+        
+        var game = context.Game;
+        var dyingPlayer = game.Players.FirstOrDefault(p => p.Seat == dyingPlayerSeat);
+        if (dyingPlayer is null)
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.InvalidTarget,
+                messageKey: "resolution.dying.playerNotFound",
+                details: new { DyingPlayerSeat = dyingPlayerSeat });
+        }
+        
+        // Validate dying state
+        if (dyingPlayer.CurrentHealth > 0 || dyingPlayer.IsAlive == false)
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.InvalidState,
+                messageKey: "resolution.dying.playerNotDying",
+                details: new { DyingPlayerSeat = dyingPlayerSeat, CurrentHealth = dyingPlayer.CurrentHealth });
+        }
+        
+        // Log dying start event
+        if (context.LogSink is not null)
+        {
+            var logEntry = new LogEntry
+            {
+                EventType = "DyingStart",
+                Level = "Info",
+                Message = $"Player {dyingPlayerSeat} is dying",
+                Data = new { DyingPlayerSeat = dyingPlayerSeat, CurrentHealth = dyingPlayer.CurrentHealth }
+            };
+            context.LogSink.Log(logEntry);
+        }
+        
+        // Check if GetPlayerChoice is provided (required for response window)
+        if (context.GetPlayerChoice is null)
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.InvalidState,
+                messageKey: "resolution.dying.getPlayerChoiceRequired");
+        }
+        
+        // Create handler resolver context
+        var handlerContext = new ResolutionContext(
+            context.Game,
+            context.SourcePlayer,
+            context.Action,
+            context.Choice,
+            context.Stack,
+            context.CardMoveService,
+            context.RuleService,
+            context.PendingDamage,
+            context.LogSink,
+            context.GetPlayerChoice,
+            intermediateResults
+        );
+        
+        // Push DyingRescueHandlerResolver onto stack first (will execute after response window due to LIFO)
+        context.Stack.Push(new DyingRescueHandlerResolver(dyingPlayerSeat), handlerContext);
+        
+        // Create response window for Peach rescue
+        var responseWindow = handlerContext.CreatePeachResponseWindow(
+            dyingPlayerSeat: dyingPlayerSeat,
+            sourceEvent: new { Type = "Dying", DyingPlayerSeat = dyingPlayerSeat },
+            getPlayerChoice: context.GetPlayerChoice);
+        
+        // Push response window onto stack last (will execute first due to LIFO)
+        context.Stack.Push(responseWindow, handlerContext);
+        
+        return ResolutionResult.SuccessResult;
+    }
+}
+
+/// <summary>
+/// Resolver that handles the result of a dying rescue response window.
+/// Decides whether to restore health or mark player as dead based on the response result.
+/// </summary>
+public sealed class DyingRescueHandlerResolver : IResolver
+{
+    private readonly int _dyingPlayerSeat;
+    
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DyingRescueHandlerResolver"/> class.
+    /// </summary>
+    /// <param name="dyingPlayerSeat">The seat of the dying player.</param>
+    public DyingRescueHandlerResolver(int dyingPlayerSeat)
+    {
+        _dyingPlayerSeat = dyingPlayerSeat;
+    }
+    
+    /// <inheritdoc />
+    public ResolutionResult Resolve(ResolutionContext context)
+    {
+        if (context is null) throw new ArgumentNullException(nameof(context));
+
+        // Read response window result from IntermediateResults
+        var intermediateResults = context.IntermediateResults;
+        if (intermediateResults is null || !intermediateResults.TryGetValue("LastResponseResult", out var resultObj))
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.InvalidState,
+                messageKey: "resolution.dying.noResponseResult");
+        }
+        
+        if (resultObj is not ResponseWindowResult responseResult)
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.InvalidState,
+                messageKey: "resolution.dying.invalidResponseResult");
+        }
+        
+        var game = context.Game;
+        var dyingPlayer = game.Players.FirstOrDefault(p => p.Seat == _dyingPlayerSeat);
+        if (dyingPlayer is null)
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.InvalidTarget,
+                messageKey: "resolution.dying.playerNotFound",
+                details: new { DyingPlayerSeat = _dyingPlayerSeat });
+        }
+        
+        // Handle rescue result
+        if (responseResult.State == ResponseWindowState.ResponseSuccess)
+        {
+            // Rescue successful - restore health to at least 1
+            var previousHealth = dyingPlayer.CurrentHealth;
+            dyingPlayer.CurrentHealth = Math.Max(1, dyingPlayer.CurrentHealth + 1);
+            
+            // Log rescue success
+            if (context.LogSink is not null)
+            {
+                var logEntry = new LogEntry
+                {
+                    EventType = "DyingRescueSuccess",
+                    Level = "Info",
+                    Message = $"Player {responseResult.Responder?.Seat} rescued player {_dyingPlayerSeat}",
+                    Data = new
+                    {
+                        DyingPlayerSeat = _dyingPlayerSeat,
+                        RescuerSeat = responseResult.Responder?.Seat,
+                        PreviousHealth = previousHealth,
+                        CurrentHealth = dyingPlayer.CurrentHealth
+                    }
+                };
+                context.LogSink.Log(logEntry);
+            }
+            
+            // Check if still dying (health <= 0) - trigger another dying process
+            if (dyingPlayer.CurrentHealth <= 0)
+            {
+                // Push DyingResolver again for continued rescue
+                var dyingContext = new ResolutionContext(
+                    context.Game,
+                    context.SourcePlayer,
+                    context.Action,
+                    context.Choice,
+                    context.Stack,
+                    context.CardMoveService,
+                    context.RuleService,
+                    context.PendingDamage,
+                    context.LogSink,
+                    context.GetPlayerChoice,
+                    intermediateResults
+                );
+                
+                context.Stack.Push(new DyingResolver(), dyingContext);
+            }
+        }
+        else if (responseResult.State == ResponseWindowState.NoResponse)
+        {
+            // No rescue - mark as dead
+            dyingPlayer.IsAlive = false;
+            
+            // Log death event
+            if (context.LogSink is not null)
+            {
+                var logEntry = new LogEntry
+                {
+                    EventType = "PlayerDied",
+                    Level = "Info",
+                    Message = $"Player {_dyingPlayerSeat} died",
+                    Data = new
+                    {
+                        DyingPlayerSeat = _dyingPlayerSeat,
+                        CurrentHealth = dyingPlayer.CurrentHealth
+                    }
+                };
+                context.LogSink.Log(logEntry);
+            }
+        }
+        
         return ResolutionResult.SuccessResult;
     }
 }

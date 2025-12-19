@@ -30,6 +30,19 @@ public sealed class ResolutionTests
         };
     }
 
+    private static Card CreatePeachCard(int id = 1)
+    {
+        return new Card
+        {
+            Id = id,
+            DefinitionId = "peach_basic",
+            CardType = CardType.Basic,
+            CardSubType = CardSubType.Peach,
+            Suit = Suit.Heart,
+            Rank = 1
+        };
+    }
+
     /// <summary>
     /// Verifies that BasicResolutionStack correctly manages resolver execution order and history tracking.
     /// 
@@ -1190,6 +1203,440 @@ public sealed class ResolutionTests
         // DamageResolver should NOT be in history
         Assert.IsFalse(history.Any(r => r.ResolverType == typeof(DamageResolver)), 
             $"Expected no DamageResolver in history, but got: {string.Join(", ", history.Select(r => r.ResolverType.Name))}");
+    }
+
+    /// <summary>
+    /// Verifies that DamageResolver triggers DyingResolver when health reaches zero and TriggersDying is true.
+    /// 
+    /// Test scenario:
+    /// - Sets up a 2-player game
+    /// - Target player has 1 health
+    /// - Creates a damage descriptor for 1 point of damage with TriggersDying = true
+    /// - Executes DamageResolver
+    /// 
+    /// Expected results:
+    /// - Resolution succeeds
+    /// - Target player's health is reduced to 0
+    /// - DyingResolver is pushed onto the stack
+    /// - Target player's IsAlive is not set to false yet (will be set after dying process)
+    /// </summary>
+    [TestMethod]
+    public void dyingResolverTriggersWhenHealthReachesZero()
+    {
+        var game = CreateDefaultGame(2);
+        var source = game.Players[0];
+        var target = game.Players[1];
+        target.CurrentHealth = 1; // Set to 1 health
+
+        var damage = new DamageDescriptor(
+            SourceSeat: source.Seat,
+            TargetSeat: target.Seat,
+            Amount: 1,
+            Type: DamageType.Normal,
+            Reason: "Test",
+            TriggersDying: true
+        );
+
+        var stack = new BasicResolutionStack();
+        var cardMoveService = new BasicCardMoveService();
+        var ruleService = new RuleService();
+
+        var context = new ResolutionContext(
+            game,
+            source,
+            null,
+            null,
+            stack,
+            cardMoveService,
+            ruleService,
+            PendingDamage: damage
+        );
+
+        var resolver = new DamageResolver();
+        var result = resolver.Resolve(context);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(0, target.CurrentHealth);
+        // IsAlive should still be true because dying process hasn't completed yet
+        Assert.IsTrue(target.IsAlive);
+        // Stack should not be empty (DyingResolver should be pushed)
+        Assert.IsFalse(stack.IsEmpty);
+    }
+
+    /// <summary>
+    /// Verifies that dying rescue succeeds when a player has a Peach card.
+    /// 
+    /// Test scenario:
+    /// - Sets up a 2-player game
+    /// - Target player has 0 health (dying)
+    /// - Target player has a Peach card
+    /// - Executes DyingResolver and rescue response window
+    /// 
+    /// Expected results:
+    /// - Resolution succeeds
+    /// - Target player uses Peach to rescue themselves
+    /// - Target player's health is restored to 1
+    /// - Target player remains alive
+    /// </summary>
+    [TestMethod]
+    public void dyingRescueSucceedsWithPeach()
+    {
+        var game = CreateDefaultGame(2);
+        var dyingPlayer = game.Players[0];
+        dyingPlayer.CurrentHealth = 0;
+        dyingPlayer.IsAlive = true; // Still alive but dying
+
+        var peach = CreatePeachCard(1);
+        ((Zone)dyingPlayer.HandZone).MutableCards.Add(peach);
+
+        var stack = new BasicResolutionStack();
+        var cardMoveService = new BasicCardMoveService();
+        var ruleService = new RuleService();
+        var loggedEntries = new List<LogEntry>();
+        var logSink = new TestLogSink(loggedEntries);
+
+        var intermediateResults = new Dictionary<string, object>
+        {
+            ["DyingPlayerSeat"] = dyingPlayer.Seat
+        };
+
+        // Create getPlayerChoice function that makes dying player use Peach
+        ChoiceResult getPlayerChoice(ChoiceRequest request)
+        {
+            if (request.PlayerSeat == dyingPlayer.Seat && request.ChoiceType == ChoiceType.SelectCards && request.AllowedCards is not null)
+            {
+                // Find Peach card in allowed cards
+                var availablePeach = request.AllowedCards.FirstOrDefault(c => c.CardSubType == CardSubType.Peach);
+                if (availablePeach is not null)
+                {
+                    return new ChoiceResult(
+                        RequestId: request.RequestId,
+                        PlayerSeat: dyingPlayer.Seat,
+                        SelectedTargetSeats: null,
+                        SelectedCardIds: new[] { availablePeach.Id },
+                        SelectedOptionId: null,
+                        Confirmed: true
+                    );
+                }
+            }
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null,
+                SelectedOptionId: null,
+                Confirmed: true
+            );
+        }
+
+        var context = new ResolutionContext(
+            game,
+            dyingPlayer,
+            null,
+            null,
+            stack,
+            cardMoveService,
+            ruleService,
+            PendingDamage: null,
+            LogSink: logSink,
+            GetPlayerChoice: getPlayerChoice,
+            IntermediateResults: intermediateResults
+        );
+
+        var resolver = new DyingResolver();
+        var result = resolver.Resolve(context);
+
+        Assert.IsTrue(result.Success);
+
+        // Execute the stack to process response window and handler
+        while (!stack.IsEmpty)
+        {
+            stack.Pop();
+        }
+
+        // Verify rescue succeeded
+        Assert.AreEqual(1, dyingPlayer.CurrentHealth);
+        Assert.IsTrue(dyingPlayer.IsAlive);
+        // Peach should be moved to discard pile
+        Assert.IsFalse(dyingPlayer.HandZone.Cards.Contains(peach));
+        Assert.IsTrue(game.DiscardPile.Cards.Contains(peach));
+        // Verify log entries
+        Assert.IsTrue(loggedEntries.Any(e => e.EventType == "DyingStart"));
+        Assert.IsTrue(loggedEntries.Any(e => e.EventType == "DyingRescueSuccess"));
+    }
+
+    /// <summary>
+    /// Verifies that dying rescue fails when no player has a Peach card.
+    /// 
+    /// Test scenario:
+    /// - Sets up a 2-player game
+    /// - Target player has 0 health (dying)
+    /// - No player has a Peach card
+    /// - Executes DyingResolver and rescue response window
+    /// 
+    /// Expected results:
+    /// - Resolution succeeds
+    /// - No rescue occurs
+    /// - Target player's IsAlive is set to false
+    /// - Death event is logged
+    /// </summary>
+    [TestMethod]
+    public void dyingRescueFailsWithoutPeach()
+    {
+        var game = CreateDefaultGame(2);
+        var dyingPlayer = game.Players[0];
+        dyingPlayer.CurrentHealth = 0;
+        dyingPlayer.IsAlive = true; // Still alive but dying
+
+        var stack = new BasicResolutionStack();
+        var cardMoveService = new BasicCardMoveService();
+        var ruleService = new RuleService();
+        var loggedEntries = new List<LogEntry>();
+        var logSink = new TestLogSink(loggedEntries);
+
+        var intermediateResults = new Dictionary<string, object>
+        {
+            ["DyingPlayerSeat"] = dyingPlayer.Seat
+        };
+
+        // Create getPlayerChoice function that returns no response (no Peach available)
+        ChoiceResult getPlayerChoice(ChoiceRequest request)
+        {
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null,
+                SelectedOptionId: null,
+                Confirmed: true
+            );
+        }
+
+        var context = new ResolutionContext(
+            game,
+            dyingPlayer,
+            null,
+            null,
+            stack,
+            cardMoveService,
+            ruleService,
+            PendingDamage: null,
+            LogSink: logSink,
+            GetPlayerChoice: getPlayerChoice,
+            IntermediateResults: intermediateResults
+        );
+
+        var resolver = new DyingResolver();
+        var result = resolver.Resolve(context);
+
+        Assert.IsTrue(result.Success);
+
+        // Execute the stack to process response window and handler
+        while (!stack.IsEmpty)
+        {
+            stack.Pop();
+        }
+
+        // Verify death
+        Assert.AreEqual(0, dyingPlayer.CurrentHealth);
+        Assert.IsFalse(dyingPlayer.IsAlive);
+        // Verify log entries
+        Assert.IsTrue(loggedEntries.Any(e => e.EventType == "DyingStart"));
+        Assert.IsTrue(loggedEntries.Any(e => e.EventType == "PlayerDied"));
+        Assert.IsFalse(loggedEntries.Any(e => e.EventType == "DyingRescueSuccess"));
+    }
+
+    /// <summary>
+    /// Verifies that multiple rescues can occur when a player needs multiple Peaches.
+    /// 
+    /// Test scenario:
+    /// - Sets up a 2-player game
+    /// - Target player has -1 health (needs 2 Peaches to recover)
+    /// - Target player has 2 Peach cards
+    /// - Executes DyingResolver and rescue response window multiple times
+    /// 
+    /// Expected results:
+    /// - Resolution succeeds
+    /// - Target player uses 2 Peaches to rescue themselves
+    /// - Target player's health is restored to 1
+    /// - Target player remains alive
+    /// </summary>
+    [TestMethod]
+    public void dyingRescueMultipleTimes()
+    {
+        var game = CreateDefaultGame(2);
+        var dyingPlayer = game.Players[0];
+        dyingPlayer.CurrentHealth = -1; // Needs 2 Peaches
+        dyingPlayer.IsAlive = true; // Still alive but dying
+
+        var peach1 = CreatePeachCard(1);
+        var peach2 = CreatePeachCard(2);
+        ((Zone)dyingPlayer.HandZone).MutableCards.Add(peach1);
+        ((Zone)dyingPlayer.HandZone).MutableCards.Add(peach2);
+
+        var stack = new BasicResolutionStack();
+        var cardMoveService = new BasicCardMoveService();
+        var ruleService = new RuleService();
+        var loggedEntries = new List<LogEntry>();
+        var logSink = new TestLogSink(loggedEntries);
+
+        var intermediateResults = new Dictionary<string, object>
+        {
+            ["DyingPlayerSeat"] = dyingPlayer.Seat
+        };
+
+        var peachUsed = new List<int>();
+
+        // Create getPlayerChoice function that makes dying player use Peaches
+        ChoiceResult getPlayerChoice(ChoiceRequest request)
+        {
+            if (request.PlayerSeat == dyingPlayer.Seat && request.ChoiceType == ChoiceType.SelectCards && request.AllowedCards is not null)
+            {
+                // Use first available Peach from allowed cards
+                var availablePeach = request.AllowedCards
+                    .FirstOrDefault(c => c.CardSubType == CardSubType.Peach && !peachUsed.Contains(c.Id));
+                
+                if (availablePeach is not null)
+                {
+                    peachUsed.Add(availablePeach.Id);
+                    return new ChoiceResult(
+                        RequestId: request.RequestId,
+                        PlayerSeat: dyingPlayer.Seat,
+                        SelectedTargetSeats: null,
+                        SelectedCardIds: new[] { availablePeach.Id },
+                        SelectedOptionId: null,
+                        Confirmed: true
+                    );
+                }
+            }
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null,
+                SelectedOptionId: null,
+                Confirmed: true
+            );
+        }
+
+        var context = new ResolutionContext(
+            game,
+            dyingPlayer,
+            null,
+            null,
+            stack,
+            cardMoveService,
+            ruleService,
+            PendingDamage: null,
+            LogSink: logSink,
+            GetPlayerChoice: getPlayerChoice,
+            IntermediateResults: intermediateResults
+        );
+
+        var resolver = new DyingResolver();
+        var result = resolver.Resolve(context);
+
+        Assert.IsTrue(result.Success);
+
+        // Execute the stack to process response window and handler (may trigger multiple times)
+        while (!stack.IsEmpty)
+        {
+            stack.Pop();
+        }
+
+        // Verify rescue succeeded (health should be at least 1)
+        Assert.IsTrue(dyingPlayer.CurrentHealth >= 1);
+        Assert.IsTrue(dyingPlayer.IsAlive);
+        // Both Peaches should be used
+        Assert.IsFalse(dyingPlayer.HandZone.Cards.Contains(peach1));
+        Assert.IsFalse(dyingPlayer.HandZone.Cards.Contains(peach2));
+        // Verify log entries
+        Assert.IsTrue(loggedEntries.Any(e => e.EventType == "DyingStart"));
+        Assert.IsTrue(loggedEntries.Count(e => e.EventType == "DyingRescueSuccess") >= 1);
+    }
+
+    /// <summary>
+    /// Verifies that DyingResolver logs dying and death events correctly.
+    /// 
+    /// Test scenario:
+    /// - Sets up a 2-player game
+    /// - Target player has 0 health (dying)
+    /// - No player has a Peach card
+    /// - Executes DyingResolver with LogSink
+    /// 
+    /// Expected results:
+    /// - Resolution succeeds
+    /// - DyingStart event is logged
+    /// - PlayerDied event is logged
+    /// - Log entries contain correct data
+    /// </summary>
+    [TestMethod]
+    public void dyingResolverLogsDyingAndDeathEvents()
+    {
+        var game = CreateDefaultGame(2);
+        var dyingPlayer = game.Players[0];
+        dyingPlayer.CurrentHealth = 0;
+        dyingPlayer.IsAlive = true; // Still alive but dying
+
+        var stack = new BasicResolutionStack();
+        var cardMoveService = new BasicCardMoveService();
+        var ruleService = new RuleService();
+        var loggedEntries = new List<LogEntry>();
+        var logSink = new TestLogSink(loggedEntries);
+
+        var intermediateResults = new Dictionary<string, object>
+        {
+            ["DyingPlayerSeat"] = dyingPlayer.Seat
+        };
+
+        // Create getPlayerChoice function that returns no response
+        ChoiceResult getPlayerChoice(ChoiceRequest request)
+        {
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null,
+                SelectedOptionId: null,
+                Confirmed: true
+            );
+        }
+
+        var context = new ResolutionContext(
+            game,
+            dyingPlayer,
+            null,
+            null,
+            stack,
+            cardMoveService,
+            ruleService,
+            PendingDamage: null,
+            LogSink: logSink,
+            GetPlayerChoice: getPlayerChoice,
+            IntermediateResults: intermediateResults
+        );
+
+        var resolver = new DyingResolver();
+        var result = resolver.Resolve(context);
+
+        Assert.IsTrue(result.Success);
+
+        // Execute the stack to process response window and handler
+        while (!stack.IsEmpty)
+        {
+            stack.Pop();
+        }
+
+        // Verify log entries
+        var dyingStartLog = loggedEntries.FirstOrDefault(e => e.EventType == "DyingStart");
+        Assert.IsNotNull(dyingStartLog);
+        Assert.AreEqual("Info", dyingStartLog!.Level);
+        Assert.IsTrue(dyingStartLog.Message!.Contains(dyingPlayer.Seat.ToString()));
+
+        var deathLog = loggedEntries.FirstOrDefault(e => e.EventType == "PlayerDied");
+        Assert.IsNotNull(deathLog);
+        Assert.AreEqual("Info", deathLog!.Level);
+        Assert.IsTrue(deathLog.Message!.Contains(dyingPlayer.Seat.ToString()));
     }
 
     /// <summary>

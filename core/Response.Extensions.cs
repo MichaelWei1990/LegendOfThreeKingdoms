@@ -139,4 +139,43 @@ public static class ResponseExtensions
 
         return result;
     }
+
+    /// <summary>
+    /// Creates a response window for a dying rescue event, where players can respond with Peach.
+    /// </summary>
+    /// <param name="context">The resolution context.</param>
+    /// <param name="dyingPlayerSeat">The seat of the dying player.</param>
+    /// <param name="sourceEvent">The source event that triggered the response window (e.g., Dying event).</param>
+    /// <param name="getPlayerChoice">Function to get player choice for a given choice request.</param>
+    /// <returns>The response window resolver that can be pushed onto the resolution stack.</returns>
+    public static ResponseWindowResolver CreatePeachResponseWindow(
+        this ResolutionContext context,
+        int dyingPlayerSeat,
+        object? sourceEvent,
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice)
+    {
+        if (context is null) throw new ArgumentNullException(nameof(context));
+        if (getPlayerChoice is null) throw new ArgumentNullException(nameof(getPlayerChoice));
+
+        var game = context.Game;
+        var responderOrder = CalculatePeachResponderOrder(game, dyingPlayerSeat);
+        
+        // Create response window context
+        // Note: We need both IRuleService and IResponseRuleService
+        // For now, we create a ResponseRuleService instance, but this should be injected in the future
+        var responseRuleService = new ResponseRuleService();
+        var windowContext = new ResponseWindowContext(
+            Game: game,
+            ResponseType: ResponseType.PeachForDying,
+            ResponderOrder: responderOrder,
+            SourceEvent: sourceEvent,
+            RuleService: context.RuleService,
+            ResponseRuleService: responseRuleService,
+            ChoiceFactory: new ChoiceRequestFactory(), // TODO: Should be injected
+            CardMoveService: context.CardMoveService,
+            LogSink: context.LogSink
+        );
+        
+        return new ResponseWindowResolver(windowContext, getPlayerChoice);
+    }
 }
