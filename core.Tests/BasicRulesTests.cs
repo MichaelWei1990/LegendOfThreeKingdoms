@@ -1,7 +1,9 @@
 using LegendOfThreeKingdoms.Core;
+using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Model.Zones;
+using LegendOfThreeKingdoms.Core.Skills;
 
 namespace core.Tests;
 
@@ -497,6 +499,145 @@ public sealed class BasicRulesTests
 
         Assert.IsFalse(result.IsAllowed);
         Assert.AreEqual(RuleErrorCode.TargetRequired, result.ErrorCode);
+    }
+
+    /// <summary>
+    /// Verifies that CardUsageRuleService applies skill modifications to slash usage limit.
+    /// Input: 2-player game, player has ExtraSlashSkill, usageCountThisTurn = 1 (normally would be blocked).
+    /// Expected: CanUseCard returns allowed because skill increases limit from 1 to 2.
+    /// </summary>
+    [TestMethod]
+    public void cardUsageRuleServiceAppliesSkillModificationToSlashLimit()
+    {
+        var game = CreateDefaultGame(2);
+        game.CurrentPhase = Phase.Play;
+        var source = game.Players[0];
+
+        var slash = new Card
+        {
+            Id = 1,
+            DefinitionId = "slash_basic",
+            CardType = CardType.Basic,
+            CardSubType = CardSubType.Slash
+        };
+
+        Assert.IsInstanceOfType(source.HandZone, typeof(Zone));
+        ((Zone)source.HandZone).MutableCards.Add(slash);
+
+        // Setup skill system
+        var registry = new SkillRegistry();
+        registry.RegisterSkill("extra_slash", new ExtraSlashSkillFactory());
+        registry.RegisterHeroSkills("hero_test", new[] { "extra_slash" });
+
+        var eventBus = new BasicEventBus();
+        var skillManager = new SkillManager(registry, eventBus);
+
+        // Create player with hero
+        var playerWithHero = new Player
+        {
+            Seat = source.Seat,
+            CampId = source.CampId,
+            FactionId = source.FactionId,
+            HeroId = "hero_test",
+            MaxHealth = source.MaxHealth,
+            CurrentHealth = source.CurrentHealth,
+            IsAlive = source.IsAlive,
+            HandZone = source.HandZone,
+            EquipmentZone = source.EquipmentZone,
+            JudgementZone = source.JudgementZone
+        };
+
+        skillManager.LoadSkillsForPlayer(game, playerWithHero);
+
+        // Create rule service with skill modifier provider
+        var modifierProvider = new SkillRuleModifierProvider(skillManager);
+        var phaseRules = new PhaseRuleService();
+        var rangeRules = new RangeRuleService();
+        var limitRules = new LimitRuleService();
+        var service = new CardUsageRuleService(phaseRules, rangeRules, limitRules, modifierProvider);
+
+        var context = new CardUsageContext(
+            game,
+            playerWithHero,
+            slash,
+            game.Players,
+            IsExtraAction: false,
+            UsageCountThisTurn: 1); // Already used 1 slash, but skill allows 2
+
+        var result = service.CanUseCard(context);
+
+        // Should be allowed because skill increases limit from 1 to 2
+        Assert.IsTrue(result.IsAllowed, "Slash should be allowed when skill increases limit to 2.");
+    }
+
+    /// <summary>
+    /// Verifies that CardUsageRuleService blocks slash when limit is reached even with skill modification.
+    /// Input: 2-player game, player has ExtraSlashSkill, usageCountThisTurn = 2 (exceeds modified limit).
+    /// Expected: CanUseCard returns disallowed with UsageLimitReached.
+    /// </summary>
+    [TestMethod]
+    public void cardUsageRuleServiceBlocksSlashWhenModifiedLimitReached()
+    {
+        var game = CreateDefaultGame(2);
+        game.CurrentPhase = Phase.Play;
+        var source = game.Players[0];
+
+        var slash = new Card
+        {
+            Id = 1,
+            DefinitionId = "slash_basic",
+            CardType = CardType.Basic,
+            CardSubType = CardSubType.Slash
+        };
+
+        Assert.IsInstanceOfType(source.HandZone, typeof(Zone));
+        ((Zone)source.HandZone).MutableCards.Add(slash);
+
+        // Setup skill system
+        var registry = new SkillRegistry();
+        registry.RegisterSkill("extra_slash", new ExtraSlashSkillFactory());
+        registry.RegisterHeroSkills("hero_test", new[] { "extra_slash" });
+
+        var eventBus = new BasicEventBus();
+        var skillManager = new SkillManager(registry, eventBus);
+
+        // Create player with hero
+        var playerWithHero = new Player
+        {
+            Seat = source.Seat,
+            CampId = source.CampId,
+            FactionId = source.FactionId,
+            HeroId = "hero_test",
+            MaxHealth = source.MaxHealth,
+            CurrentHealth = source.CurrentHealth,
+            IsAlive = source.IsAlive,
+            HandZone = source.HandZone,
+            EquipmentZone = source.EquipmentZone,
+            JudgementZone = source.JudgementZone
+        };
+
+        skillManager.LoadSkillsForPlayer(game, playerWithHero);
+
+        // Create rule service with skill modifier provider
+        var modifierProvider = new SkillRuleModifierProvider(skillManager);
+        var phaseRules = new PhaseRuleService();
+        var rangeRules = new RangeRuleService();
+        var limitRules = new LimitRuleService();
+        var service = new CardUsageRuleService(phaseRules, rangeRules, limitRules, modifierProvider);
+
+        var context = new CardUsageContext(
+            game,
+            playerWithHero,
+            slash,
+            game.Players,
+            IsExtraAction: false,
+            UsageCountThisTurn: 2); // Already used 2 slashes, exceeds modified limit of 2
+
+        var result = service.CanUseCard(context);
+
+        // Should be blocked because limit is 2 and already used 2
+        Assert.IsFalse(result.IsAllowed);
+        Assert.AreEqual(RuleErrorCode.UsageLimitReached, result.ErrorCode);
     }
 }
 

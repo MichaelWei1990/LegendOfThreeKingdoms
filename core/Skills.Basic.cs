@@ -1,6 +1,7 @@
 using System;
 using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Model;
+using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Zones;
 
 namespace LegendOfThreeKingdoms.Core.Skills;
@@ -165,10 +166,8 @@ public sealed class ExtraDrawSkillFactory : ISkillFactory
 /// <summary>
 /// Example skill: Extra Slash - allows the owner to use one additional Slash per turn.
 /// This is a locked skill that modifies rules.
-/// Note: The actual rule modification logic will be implemented in phase 16 (skill intervention in resolution).
-/// This skill currently only establishes the framework.
 /// </summary>
-public sealed class ExtraSlashSkill : BaseSkill
+public sealed class ExtraSlashSkill : BaseSkill, IRuleModifyingSkill
 {
     /// <inheritdoc />
     public override string Id => "extra_slash";
@@ -182,9 +181,36 @@ public sealed class ExtraSlashSkill : BaseSkill
     /// <inheritdoc />
     public override SkillCapability Capabilities => SkillCapability.ModifiesRules;
 
-    // Note: The actual implementation of modifying slash usage count will be done
-    // in phase 16 when skills can intervene in rule judgments.
-    // For now, this skill only provides the framework.
+    /// <inheritdoc />
+    public RuleResult? ModifyCanUseCard(RuleResult current, CardUsageContext context)
+    {
+        // No modification needed for card usage rules
+        return null;
+    }
+
+    /// <inheritdoc />
+    public RuleResult? ModifyCanRespondWithCard(RuleResult current, ResponseContext context)
+    {
+        // No modification needed for response rules
+        return null;
+    }
+
+    /// <inheritdoc />
+    public RuleResult? ModifyValidateAction(RuleResult current, RuleContext context, ActionDescriptor action, ChoiceRequest? choice)
+    {
+        // No modification needed for action validation
+        return null;
+    }
+
+    /// <inheritdoc />
+    public int? ModifyMaxSlashPerTurn(int current, Game game, Player owner)
+    {
+        if (!IsActive(game, owner))
+            return null;
+
+        // Increase the limit by 1
+        return current + 1;
+    }
 }
 
 /// <summary>

@@ -298,6 +298,16 @@ public interface IRuleModifier
     RuleResult ModifyCanRespondWithCard(RuleResult current, ResponseContext context);
 
     RuleResult ModifyValidateAction(RuleResult current, RuleContext context, ActionDescriptor action, ChoiceRequest? choice);
+
+    /// <summary>
+    /// Modifies the maximum number of Slash cards a player can use per turn.
+    /// Returns null if no modification is needed, otherwise returns the modified value.
+    /// </summary>
+    /// <param name="current">The current maximum slash count.</param>
+    /// <param name="game">The current game state.</param>
+    /// <param name="player">The player whose limit is being checked.</param>
+    /// <returns>Null if no modification, otherwise the modified value.</returns>
+    int? ModifyMaxSlashPerTurn(int current, Game game, Player player);
 }
 
 /// <summary>

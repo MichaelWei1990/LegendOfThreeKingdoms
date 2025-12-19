@@ -5,6 +5,7 @@ using LegendOfThreeKingdoms.Core;
 using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Model.Zones;
+using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Skills;
 using LegendOfThreeKingdoms.Core.Zones;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -622,6 +623,257 @@ public sealed class SkillsTests
         Assert.AreEqual("Extra Slash", skill.Name);
         Assert.AreEqual(SkillType.Locked, skill.Type);
         Assert.AreEqual(SkillCapability.ModifiesRules, skill.Capabilities);
+    }
+
+    [TestMethod]
+    public void extraSlashSkillModifyMaxSlashPerTurnIncreasesLimitByOne()
+    {
+        // Arrange
+        var skill = new ExtraSlashSkill();
+        var game = CreateDefaultGame();
+        var player = game.Players[0];
+        player.IsAlive = true;
+
+        // Act
+        var result = skill.ModifyMaxSlashPerTurn(1, game, player);
+
+        // Assert
+        Assert.IsNotNull(result);
+        Assert.AreEqual(2, result.Value);
+    }
+
+    [TestMethod]
+    public void extraSlashSkillModifyMaxSlashPerTurnReturnsNullWhenSkillNotActive()
+    {
+        // Arrange
+        var skill = new ExtraSlashSkill();
+        var game = CreateDefaultGame();
+        var player = game.Players[0];
+        player.IsAlive = false; // Skill should not be active
+
+        // Act
+        var result = skill.ModifyMaxSlashPerTurn(1, game, player);
+
+        // Assert
+        Assert.IsNull(result);
+    }
+
+    [TestMethod]
+    public void extraSlashSkillModifyCanUseCardReturnsNull()
+    {
+        // Arrange
+        var skill = new ExtraSlashSkill();
+        var game = CreateDefaultGame();
+        var player = game.Players[0];
+        var card = CreateTestCard();
+        var context = new CardUsageContext(
+            game,
+            player,
+            card,
+            game.Players,
+            IsExtraAction: false,
+            UsageCountThisTurn: 0);
+        var currentResult = RuleResult.Allowed;
+
+        // Act
+        var result = skill.ModifyCanUseCard(currentResult, context);
+
+        // Assert
+        Assert.IsNull(result);
+    }
+
+    #endregion
+
+    #region SkillRuleModifier Tests
+
+    [TestMethod]
+    public void skillRuleModifierModifyMaxSlashPerTurnCallsSkillWhenActive()
+    {
+        // Arrange
+        var skill = new ExtraSlashSkill();
+        var game = CreateDefaultGame();
+        var player = game.Players[0];
+        player.IsAlive = true;
+        var modifier = new SkillRuleModifier(skill, game, player);
+
+        // Act
+        var result = modifier.ModifyMaxSlashPerTurn(1, game, player);
+
+        // Assert
+        Assert.IsNotNull(result);
+        Assert.AreEqual(2, result.Value);
+    }
+
+    [TestMethod]
+    public void skillRuleModifierModifyMaxSlashPerTurnReturnsNullWhenSkillNotActive()
+    {
+        // Arrange
+        var skill = new ExtraSlashSkill();
+        var game = CreateDefaultGame();
+        var player = game.Players[0];
+        player.IsAlive = false;
+        var modifier = new SkillRuleModifier(skill, game, player);
+
+        // Act
+        var result = modifier.ModifyMaxSlashPerTurn(1, game, player);
+
+        // Assert
+        Assert.IsNull(result);
+    }
+
+    [TestMethod]
+    public void skillRuleModifierModifyCanUseCardCallsSkillWhenActive()
+    {
+        // Arrange
+        var skill = new ExtraSlashSkill();
+        var game = CreateDefaultGame();
+        var player = game.Players[0];
+        player.IsAlive = true;
+        var modifier = new SkillRuleModifier(skill, game, player);
+        var card = CreateTestCard();
+        var context = new CardUsageContext(
+            game,
+            player,
+            card,
+            game.Players,
+            IsExtraAction: false,
+            UsageCountThisTurn: 0);
+        var currentResult = RuleResult.Allowed;
+
+        // Act
+        var result = modifier.ModifyCanUseCard(currentResult, context);
+
+        // Assert
+        // ExtraSlashSkill.ModifyCanUseCard returns null, so result should be unchanged
+        Assert.AreEqual(currentResult, result);
+    }
+
+    [TestMethod]
+    public void skillRuleModifierModifyCanUseCardReturnsCurrentWhenSkillNotActive()
+    {
+        // Arrange
+        var skill = new ExtraSlashSkill();
+        var game = CreateDefaultGame();
+        var player = game.Players[0];
+        player.IsAlive = false;
+        var modifier = new SkillRuleModifier(skill, game, player);
+        var card = CreateTestCard();
+        var context = new CardUsageContext(
+            game,
+            player,
+            card,
+            game.Players,
+            IsExtraAction: false,
+            UsageCountThisTurn: 0);
+        var currentResult = RuleResult.Allowed;
+
+        // Act
+        var result = modifier.ModifyCanUseCard(currentResult, context);
+
+        // Assert
+        Assert.AreEqual(currentResult, result);
+    }
+
+    #endregion
+
+    #region SkillRuleModifierProvider Tests
+
+    [TestMethod]
+    public void skillRuleModifierProviderGetModifiersForReturnsModifiersForActiveSkills()
+    {
+        // Arrange
+        var registry = new SkillRegistry();
+        registry.RegisterSkill("extra_slash", new ExtraSlashSkillFactory());
+        registry.RegisterHeroSkills("hero_test", new[] { "extra_slash" });
+
+        var eventBus = new BasicEventBus();
+        var skillManager = new SkillManager(registry, eventBus);
+        var game = CreateDefaultGame();
+        var player = game.Players[0];
+
+        // Create player with hero
+        var playerWithHero = new Player
+        {
+            Seat = player.Seat,
+            CampId = player.CampId,
+            FactionId = player.FactionId,
+            HeroId = "hero_test",
+            MaxHealth = player.MaxHealth,
+            CurrentHealth = player.CurrentHealth,
+            IsAlive = player.IsAlive,
+            HandZone = player.HandZone,
+            EquipmentZone = player.EquipmentZone,
+            JudgementZone = player.JudgementZone
+        };
+
+        skillManager.LoadSkillsForPlayer(game, playerWithHero);
+
+        var provider = new SkillRuleModifierProvider(skillManager);
+
+        // Act
+        var modifiers = provider.GetModifiersFor(game, playerWithHero);
+
+        // Assert
+        Assert.AreEqual(1, modifiers.Count);
+        Assert.IsInstanceOfType(modifiers[0], typeof(SkillRuleModifier));
+    }
+
+    [TestMethod]
+    public void skillRuleModifierProviderGetModifiersForReturnsEmptyWhenNoSkills()
+    {
+        // Arrange
+        var eventBus = new BasicEventBus();
+        var skillManager = new SkillManager(new SkillRegistry(), eventBus);
+        var game = CreateDefaultGame();
+        var player = game.Players[0];
+        var provider = new SkillRuleModifierProvider(skillManager);
+
+        // Act
+        var modifiers = provider.GetModifiersFor(game, player);
+
+        // Assert
+        Assert.AreEqual(0, modifiers.Count);
+    }
+
+    [TestMethod]
+    public void skillRuleModifierProviderGetModifiersForOnlyReturnsModifiesRulesSkills()
+    {
+        // Arrange
+        var registry = new SkillRegistry();
+        registry.RegisterSkill("extra_slash", new ExtraSlashSkillFactory());
+        registry.RegisterSkill("extra_draw", new ExtraDrawSkillFactory(null));
+        registry.RegisterHeroSkills("hero_test", new[] { "extra_slash", "extra_draw" });
+
+        var eventBus = new BasicEventBus();
+        var skillManager = new SkillManager(registry, eventBus);
+        var game = CreateDefaultGame();
+        var player = game.Players[0];
+
+        // Create player with hero
+        var playerWithHero = new Player
+        {
+            Seat = player.Seat,
+            CampId = player.CampId,
+            FactionId = player.FactionId,
+            HeroId = "hero_test",
+            MaxHealth = player.MaxHealth,
+            CurrentHealth = player.CurrentHealth,
+            IsAlive = player.IsAlive,
+            HandZone = player.HandZone,
+            EquipmentZone = player.EquipmentZone,
+            JudgementZone = player.JudgementZone
+        };
+
+        skillManager.LoadSkillsForPlayer(game, playerWithHero);
+
+        var provider = new SkillRuleModifierProvider(skillManager);
+
+        // Act
+        var modifiers = provider.GetModifiersFor(game, playerWithHero);
+
+        // Assert
+        // Both ExtraSlashSkill and ExtraDrawSkill have ModifiesRules capability
+        Assert.AreEqual(2, modifiers.Count);
     }
 
     #endregion

@@ -135,15 +135,18 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
     private readonly IPhaseRuleService _phaseRules;
     private readonly IRangeRuleService _rangeRules;
     private readonly ILimitRuleService _limitRules;
+    private readonly IRuleModifierProvider? _modifierProvider;
 
     public CardUsageRuleService(
         IPhaseRuleService phaseRules,
         IRangeRuleService rangeRules,
-        ILimitRuleService limitRules)
+        ILimitRuleService limitRules,
+        IRuleModifierProvider? modifierProvider = null)
     {
         _phaseRules = phaseRules ?? throw new ArgumentNullException(nameof(phaseRules));
         _rangeRules = rangeRules ?? throw new ArgumentNullException(nameof(rangeRules));
         _limitRules = limitRules ?? throw new ArgumentNullException(nameof(limitRules));
+        _modifierProvider = modifierProvider;
     }
 
     public RuleResult CanUseCard(CardUsageContext context)
@@ -167,7 +170,24 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
         {
             case CardSubType.Slash:
                 {
-                    var maxSlash = _limitRules.GetMaxSlashPerTurn(game, source);
+                    // Get base limit
+                    var baseMaxSlash = _limitRules.GetMaxSlashPerTurn(game, source);
+                    
+                    // Apply skill modifications if modifier provider is available
+                    var maxSlash = baseMaxSlash;
+                    if (_modifierProvider is not null)
+                    {
+                        var modifiers = _modifierProvider.GetModifiersFor(game, source);
+                        foreach (var modifier in modifiers)
+                        {
+                            var modified = modifier.ModifyMaxSlashPerTurn(maxSlash, game, source);
+                            if (modified.HasValue)
+                            {
+                                maxSlash = modified.Value;
+                            }
+                        }
+                    }
+                    
                     if (context.UsageCountThisTurn >= maxSlash)
                     {
                         return RuleResult.Disallowed(
@@ -300,10 +320,10 @@ public sealed class RuleService : IRuleService
         _phaseRules = phaseRules ?? new PhaseRuleService();
         _rangeRules = rangeRules ?? new RangeRuleService();
         _limitRules = limitRules ?? new LimitRuleService();
-        _cardUsageRules = cardUsageRules ?? new CardUsageRuleService(_phaseRules, _rangeRules, _limitRules);
+        _modifierProvider = modifierProvider ?? new NoOpRuleModifierProvider();
+        _cardUsageRules = cardUsageRules ?? new CardUsageRuleService(_phaseRules, _rangeRules, _limitRules, _modifierProvider);
         _responseRules = responseRules ?? new ResponseRuleService();
         _actionQuery = actionQuery ?? new ActionQueryService(_phaseRules, _cardUsageRules);
-        _modifierProvider = modifierProvider ?? new NoOpRuleModifierProvider();
     }
 
     public RuleResult CanUseCard(CardUsageContext context)
@@ -494,6 +514,37 @@ public sealed class ActionQueryService : IActionQueryService
         return actions.Count == 0
             ? RuleQueryResult<ActionDescriptor>.Empty(RuleErrorCode.NoLegalOptions)
             : RuleQueryResult<ActionDescriptor>.FromItems(actions);
+    }
+}
+
+/// <summary>
+/// Default rule modifier that performs no modifications.
+/// All methods return the original value or null (no modification).
+/// </summary>
+public sealed class NoOpRuleModifier : IRuleModifier
+{
+    /// <inheritdoc />
+    public RuleResult ModifyCanUseCard(RuleResult current, CardUsageContext context)
+    {
+        return current;
+    }
+
+    /// <inheritdoc />
+    public RuleResult ModifyCanRespondWithCard(RuleResult current, ResponseContext context)
+    {
+        return current;
+    }
+
+    /// <inheritdoc />
+    public RuleResult ModifyValidateAction(RuleResult current, RuleContext context, ActionDescriptor action, ChoiceRequest? choice)
+    {
+        return current;
+    }
+
+    /// <inheritdoc />
+    public int? ModifyMaxSlashPerTurn(int current, Game game, Player player)
+    {
+        return null;
     }
 }
 

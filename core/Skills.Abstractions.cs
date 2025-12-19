@@ -1,5 +1,6 @@
 using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Model;
+using LegendOfThreeKingdoms.Core.Rules;
 
 namespace LegendOfThreeKingdoms.Core.Skills;
 
@@ -66,4 +67,51 @@ public interface ISkillFactory
     /// </summary>
     /// <returns>A new skill instance.</returns>
     ISkill CreateSkill();
+}
+
+/// <summary>
+/// Interface for skills that can modify rule judgments.
+/// Skills implementing this interface can intervene in rule checks such as card usage limits,
+/// response opportunities, and action validation.
+/// </summary>
+public interface IRuleModifyingSkill : ISkill
+{
+    /// <summary>
+    /// Modifies the result of CanUseCard rule check.
+    /// Returns null if no modification is needed, otherwise returns the modified result.
+    /// </summary>
+    /// <param name="current">The current rule result.</param>
+    /// <param name="context">The card usage context.</param>
+    /// <returns>Null if no modification, otherwise the modified result.</returns>
+    RuleResult? ModifyCanUseCard(RuleResult current, CardUsageContext context);
+
+    /// <summary>
+    /// Modifies the result of CanRespondWithCard rule check.
+    /// Returns null if no modification is needed, otherwise returns the modified result.
+    /// </summary>
+    /// <param name="current">The current rule result.</param>
+    /// <param name="context">The response context.</param>
+    /// <returns>Null if no modification, otherwise the modified result.</returns>
+    RuleResult? ModifyCanRespondWithCard(RuleResult current, ResponseContext context);
+
+    /// <summary>
+    /// Modifies the result of ValidateAction rule check.
+    /// Returns null if no modification is needed, otherwise returns the modified result.
+    /// </summary>
+    /// <param name="current">The current rule result.</param>
+    /// <param name="context">The rule context.</param>
+    /// <param name="action">The action descriptor.</param>
+    /// <param name="choice">The choice request, if any.</param>
+    /// <returns>Null if no modification, otherwise the modified result.</returns>
+    RuleResult? ModifyValidateAction(RuleResult current, RuleContext context, ActionDescriptor action, ChoiceRequest? choice);
+
+    /// <summary>
+    /// Modifies the maximum number of Slash cards a player can use per turn.
+    /// Returns null if no modification is needed, otherwise returns the modified value.
+    /// </summary>
+    /// <param name="current">The current maximum slash count.</param>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <returns>Null if no modification, otherwise the modified value.</returns>
+    int? ModifyMaxSlashPerTurn(int current, Game game, Player owner);
 }
