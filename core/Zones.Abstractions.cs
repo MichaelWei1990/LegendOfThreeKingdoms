@@ -226,7 +226,9 @@ public sealed record CardMoveDescriptor(
 
     CardMoveReason Reason,
 
-    CardMoveOrdering Ordering
+    CardMoveOrdering Ordering,
+
+    Game? Game = null
 
 );
 

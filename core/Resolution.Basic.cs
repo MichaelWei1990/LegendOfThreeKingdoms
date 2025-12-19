@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using LegendOfThreeKingdoms.Core.Abstractions;
+using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Response;
 using LegendOfThreeKingdoms.Core.Rules;
@@ -49,7 +50,8 @@ public sealed class BasicResolutionStack : IResolutionStack
             context.PendingDamage,
             context.LogSink,
             context.GetPlayerChoice,
-            context.IntermediateResults
+            context.IntermediateResults,
+            context.EventBus
         );
 
         // Execute the resolver
@@ -180,7 +182,8 @@ public sealed class UseCardResolver : IResolver
             context.PendingDamage,
             context.LogSink,
             context.GetPlayerChoice,
-            context.IntermediateResults
+            context.IntermediateResults,
+            context.EventBus
         );
 
         // Push the specific resolver onto the stack
@@ -243,7 +246,8 @@ public sealed class SlashResponseHandlerResolver : IResolver
                 PendingDamage: _pendingDamage,
                 LogSink: context.LogSink,
                 context.GetPlayerChoice,
-                context.IntermediateResults
+                context.IntermediateResults,
+                context.EventBus
             );
 
             context.Stack.Push(new DamageResolver(), damageContext);
@@ -346,7 +350,8 @@ public sealed class SlashResolver : IResolver
             context.PendingDamage,
             context.LogSink,
             context.GetPlayerChoice,
-            intermediateResults
+            intermediateResults,
+            context.EventBus
         );
 
         // Create handler resolver context
@@ -361,7 +366,8 @@ public sealed class SlashResolver : IResolver
             context.PendingDamage,
             context.LogSink,
             context.GetPlayerChoice,
-            intermediateResults
+            intermediateResults,
+            context.EventBus
         );
 
         // Push SlashResponseHandlerResolver onto stack first (will execute after response window due to LIFO)
@@ -433,9 +439,27 @@ public sealed class DamageResolver : IResolver
                 details: new { TargetSeat = damage.TargetSeat });
         }
 
+        // Publish DamageCreatedEvent before applying damage
+        if (context.EventBus is not null)
+        {
+            var damageCreatedEvent = new DamageCreatedEvent(game, damage);
+            context.EventBus.Publish(damageCreatedEvent);
+        }
+
         // Apply damage: reduce health (cannot go below 0)
         var previousHealth = target.CurrentHealth;
         target.CurrentHealth = Math.Max(0, target.CurrentHealth - damage.Amount);
+
+        // Publish DamageAppliedEvent after applying damage
+        if (context.EventBus is not null)
+        {
+            var damageAppliedEvent = new DamageAppliedEvent(
+                game,
+                damage,
+                previousHealth,
+                target.CurrentHealth);
+            context.EventBus.Publish(damageAppliedEvent);
+        }
 
         // Log damage event if log sink is available
         if (context.LogSink is not null)
@@ -485,7 +509,8 @@ public sealed class DamageResolver : IResolver
                 context.PendingDamage,
                 context.LogSink,
                 context.GetPlayerChoice,
-                intermediateResults
+                intermediateResults,
+                context.EventBus
             );
             
             // Push DyingResolver onto stack
@@ -550,6 +575,13 @@ public sealed class DyingResolver : IResolver
                 details: new { DyingPlayerSeat = dyingPlayerSeat, CurrentHealth = dyingPlayer.CurrentHealth });
         }
         
+        // Publish DyingStartEvent
+        if (context.EventBus is not null)
+        {
+            var dyingStartEvent = new DyingStartEvent(game, dyingPlayerSeat);
+            context.EventBus.Publish(dyingStartEvent);
+        }
+        
         // Log dying start event
         if (context.LogSink is not null)
         {
@@ -583,7 +615,8 @@ public sealed class DyingResolver : IResolver
             context.PendingDamage,
             context.LogSink,
             context.GetPlayerChoice,
-            intermediateResults
+            intermediateResults,
+            context.EventBus
         );
         
         // Push DyingRescueHandlerResolver onto stack first (will execute after response window due to LIFO)
@@ -691,7 +724,8 @@ public sealed class DyingRescueHandlerResolver : IResolver
                     context.PendingDamage,
                     context.LogSink,
                     context.GetPlayerChoice,
-                    intermediateResults
+                    intermediateResults,
+                    context.EventBus
                 );
                 
                 context.Stack.Push(new DyingResolver(), dyingContext);
@@ -701,6 +735,16 @@ public sealed class DyingRescueHandlerResolver : IResolver
         {
             // No rescue - mark as dead
             dyingPlayer.IsAlive = false;
+            
+            // Extract killer seat from PendingDamage if available
+            int? killerSeat = context.PendingDamage?.SourceSeat;
+            
+            // Publish PlayerDiedEvent
+            if (context.EventBus is not null)
+            {
+                var playerDiedEvent = new PlayerDiedEvent(game, _dyingPlayerSeat, killerSeat);
+                context.EventBus.Publish(playerDiedEvent);
+            }
             
             // Log death event
             if (context.LogSink is not null)

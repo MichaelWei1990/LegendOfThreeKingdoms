@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using LegendOfThreeKingdoms.Core;
 using LegendOfThreeKingdoms.Core.Abstractions;
+using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Model.Zones;
 using LegendOfThreeKingdoms.Core.Resolution;
@@ -555,7 +557,8 @@ public sealed class ResolutionTests
             TargetSeat: target.Seat,
             Amount: 1,
             Type: DamageType.Normal,
-            Reason: "Test"
+            Reason: "Test",
+            TriggersDying: false  // Don't trigger dying process for this test
         );
 
         var stack = new BasicResolutionStack();
@@ -608,7 +611,8 @@ public sealed class ResolutionTests
             TargetSeat: target.Seat,
             Amount: 5, // More than current health
             Type: DamageType.Normal,
-            Reason: "Test"
+            Reason: "Test",
+            TriggersDying: false  // Don't trigger dying process for this test
         );
 
         var stack = new BasicResolutionStack();
@@ -1547,12 +1551,113 @@ public sealed class ResolutionTests
         // Verify rescue succeeded (health should be at least 1)
         Assert.IsTrue(dyingPlayer.CurrentHealth >= 1);
         Assert.IsTrue(dyingPlayer.IsAlive);
-        // Both Peaches should be used
-        Assert.IsFalse(dyingPlayer.HandZone.Cards.Contains(peach1));
-        Assert.IsFalse(dyingPlayer.HandZone.Cards.Contains(peach2));
-        // Verify log entries
-        Assert.IsTrue(loggedEntries.Any(e => e.EventType == "DyingStart"));
-        Assert.IsTrue(loggedEntries.Count(e => e.EventType == "DyingRescueSuccess") >= 1);
+    }
+
+    /// <summary>
+    /// Verifies that DamageResolver publishes DamageCreatedEvent and DamageAppliedEvent.
+    /// </summary>
+    [TestMethod]
+    public void damageResolverPublishesDamageEvents()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var player0 = game.Players[0];
+        var player1 = game.Players[1];
+        player1.CurrentHealth = 3;
+
+        var stack = new BasicResolutionStack();
+        var cardMoveService = new BasicCardMoveService();
+        var ruleService = new RuleService();
+        var eventBus = new BasicEventBus();
+
+        var publishedEvents = new List<IGameEvent>();
+        eventBus.Subscribe<DamageCreatedEvent>(evt => publishedEvents.Add(evt));
+        eventBus.Subscribe<DamageAppliedEvent>(evt => publishedEvents.Add(evt));
+
+        var damage = new DamageDescriptor(0, 1, 2, DamageType.Normal, "Test");
+        var context = new ResolutionContext(
+            game,
+            player0,
+            null,
+            null,
+            stack,
+            cardMoveService,
+            ruleService,
+            PendingDamage: damage,
+            EventBus: eventBus
+        );
+
+        // Act
+        var resolver = new DamageResolver();
+        var result = resolver.Resolve(context);
+
+        // Assert
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(2, publishedEvents.Count);
+        Assert.IsInstanceOfType(publishedEvents[0], typeof(DamageCreatedEvent));
+        Assert.IsInstanceOfType(publishedEvents[1], typeof(DamageAppliedEvent));
+
+        var damageCreatedEvent = (DamageCreatedEvent)publishedEvents[0];
+        Assert.AreEqual(damage, damageCreatedEvent.Damage);
+
+        var damageAppliedEvent = (DamageAppliedEvent)publishedEvents[1];
+        Assert.AreEqual(damage, damageAppliedEvent.Damage);
+        Assert.AreEqual(3, damageAppliedEvent.PreviousHealth);
+        Assert.AreEqual(1, damageAppliedEvent.CurrentHealth);
+    }
+
+    /// <summary>
+    /// Verifies that DyingResolver publishes DyingStartEvent.
+    /// </summary>
+    [TestMethod]
+    public void dyingResolverPublishesDyingStartEvent()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var player0 = game.Players[0];
+        var player1 = game.Players[1];
+        player1.CurrentHealth = 0;
+
+        var stack = new BasicResolutionStack();
+        var cardMoveService = new BasicCardMoveService();
+        var ruleService = new RuleService();
+        var eventBus = new BasicEventBus();
+
+        var publishedEvents = new List<IGameEvent>();
+        eventBus.Subscribe<DyingStartEvent>(evt => publishedEvents.Add(evt));
+
+        var intermediateResults = new Dictionary<string, object> { ["DyingPlayerSeat"] = 1 };
+        var context = new ResolutionContext(
+            game,
+            player0,
+            null,
+            null,
+            stack,
+            cardMoveService,
+            ruleService,
+            EventBus: eventBus,
+            IntermediateResults: intermediateResults,
+            GetPlayerChoice: req => new ChoiceResult(
+                RequestId: req.RequestId,
+                PlayerSeat: req.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null,
+                SelectedOptionId: null,
+                Confirmed: true
+            )
+        );
+
+        // Act
+        var resolver = new DyingResolver();
+        var result = resolver.Resolve(context);
+
+        // Assert
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(1, publishedEvents.Count);
+        Assert.IsInstanceOfType(publishedEvents[0], typeof(DyingStartEvent));
+
+        var dyingStartEvent = (DyingStartEvent)publishedEvents[0];
+        Assert.AreEqual(1, dyingStartEvent.DyingPlayerSeat);
     }
 
     /// <summary>

@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using LegendOfThreeKingdoms.Core;
 using LegendOfThreeKingdoms.Core.Abstractions;
+using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Turns;
@@ -115,5 +117,78 @@ public sealed class TurnEngineTests
         Assert.AreEqual(Phase.Start, nextTurn.TurnState.CurrentPhase);
         Assert.AreEqual(1, nextTurn.TurnState.CurrentPlayerSeat);
         Assert.AreEqual(2, nextTurn.TurnState.TurnNumber);
+    }
+
+    /// <summary>
+    /// Verifies that BasicTurnEngine publishes TurnStartEvent and PhaseStartEvent
+    /// when starting a new turn.
+    /// </summary>
+    [TestMethod]
+    public void turnEnginePublishesTurnStartAndPhaseStartEvents()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var mode = new FixedFirstSeatGameMode(firstSeat: 0);
+        var eventBus = new BasicEventBus();
+        var turnEngine = new BasicTurnEngine(mode, eventBus);
+
+        var publishedEvents = new List<IGameEvent>();
+
+        eventBus.Subscribe<TurnStartEvent>(evt => publishedEvents.Add(evt));
+        eventBus.Subscribe<PhaseStartEvent>(evt => publishedEvents.Add(evt));
+
+        // Act
+        turnEngine.InitializeTurnState(game);
+        var nextTurn = turnEngine.StartNextTurn(game);
+
+        // Assert
+        Assert.AreEqual(2, publishedEvents.Count);
+        Assert.IsInstanceOfType(publishedEvents[0], typeof(TurnStartEvent));
+        Assert.IsInstanceOfType(publishedEvents[1], typeof(PhaseStartEvent));
+
+        var turnStartEvent = (TurnStartEvent)publishedEvents[0];
+        Assert.AreEqual(game, turnStartEvent.Game);
+        Assert.AreEqual(1, turnStartEvent.PlayerSeat);
+        Assert.AreEqual(2, turnStartEvent.TurnNumber);
+
+        var phaseStartEvent = (PhaseStartEvent)publishedEvents[1];
+        Assert.AreEqual(game, phaseStartEvent.Game);
+        Assert.AreEqual(1, phaseStartEvent.PlayerSeat);
+        Assert.AreEqual(Phase.Start, phaseStartEvent.Phase);
+    }
+
+    /// <summary>
+    /// Verifies that BasicTurnEngine publishes PhaseEndEvent and PhaseStartEvent
+    /// when advancing phases.
+    /// </summary>
+    [TestMethod]
+    public void turnEnginePublishesPhaseEndAndPhaseStartEvents()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var mode = new FixedFirstSeatGameMode(firstSeat: 0);
+        var eventBus = new BasicEventBus();
+        var turnEngine = new BasicTurnEngine(mode, eventBus);
+
+        var publishedEvents = new List<IGameEvent>();
+
+        eventBus.Subscribe<PhaseEndEvent>(evt => publishedEvents.Add(evt));
+        eventBus.Subscribe<PhaseStartEvent>(evt => publishedEvents.Add(evt));
+
+        turnEngine.InitializeTurnState(game);
+
+        // Act
+        turnEngine.AdvancePhase(game); // Start -> Judge
+
+        // Assert
+        Assert.AreEqual(2, publishedEvents.Count);
+        Assert.IsInstanceOfType(publishedEvents[0], typeof(PhaseEndEvent));
+        Assert.IsInstanceOfType(publishedEvents[1], typeof(PhaseStartEvent));
+
+        var phaseEndEvent = (PhaseEndEvent)publishedEvents[0];
+        Assert.AreEqual(Phase.Start, phaseEndEvent.Phase);
+
+        var phaseStartEvent = (PhaseStartEvent)publishedEvents[1];
+        Assert.AreEqual(Phase.Judge, phaseStartEvent.Phase);
     }
 }

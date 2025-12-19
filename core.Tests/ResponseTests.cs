@@ -335,8 +335,9 @@ public sealed class ResponseTests
         // Create resolver
         var resolver = new ResponseWindowResolver(windowContext, getPlayerChoice);
 
-        // Create resolution context
+        // Create resolution context with IntermediateResults
         var stack = new BasicResolutionStack();
+        var intermediateResults = new Dictionary<string, object>();
         var resolutionContext = new ResolutionContext(
             game,
             player2,
@@ -346,7 +347,9 @@ public sealed class ResponseTests
             cardMoveService,
             ruleService,
             PendingDamage: null,
-            LogSink: null
+            LogSink: null,
+            EventBus: null,
+            IntermediateResults: intermediateResults
         );
 
         // Push resolver onto stack
@@ -384,10 +387,11 @@ public sealed class ResponseTests
         var dodge = CreateDodgeCard(1);
         ((Zone)player2.HandZone).MutableCards.Add(dodge);
 
-        // Create resolution context
+        // Create resolution context with IntermediateResults
         var ruleService = new RuleService();
         var cardMoveService = new BasicCardMoveService();
         var stack = new BasicResolutionStack();
+        var intermediateResults = new Dictionary<string, object>();
         var resolutionContext = new ResolutionContext(
             game,
             player1,
@@ -397,7 +401,9 @@ public sealed class ResponseTests
             cardMoveService,
             ruleService,
             PendingDamage: null,
-            LogSink: null
+            LogSink: null,
+            EventBus: null,
+            IntermediateResults: intermediateResults
         );
 
         // Create getPlayerChoice function that makes player 2 respond

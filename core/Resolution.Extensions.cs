@@ -39,7 +39,8 @@ public static class ResolutionExtensions
                 stack,
                 cardMoveService,
                 ruleService,
-                GetPlayerChoice: getPlayerChoice
+                GetPlayerChoice: getPlayerChoice,
+                EventBus: null
             );
 
             // Create and push UseCardResolver

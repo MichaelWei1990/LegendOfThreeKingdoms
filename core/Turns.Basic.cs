@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using LegendOfThreeKingdoms.Core.Abstractions;
+using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Model;
 
 namespace LegendOfThreeKingdoms.Core.Turns;
@@ -35,10 +36,14 @@ public sealed class BasicTurnEngine : ITurnEngine
     /// Creates a new <see cref="BasicTurnEngine"/> that uses the given
     /// <see cref="IGameMode"/> to select the first player seat when a game starts.
     /// </summary>
-    public BasicTurnEngine(IGameMode gameMode)
+    public BasicTurnEngine(IGameMode gameMode, IEventBus? eventBus = null)
     {
         _gameMode = gameMode ?? throw new ArgumentNullException(nameof(gameMode));
+        EventBus = eventBus;
     }
+
+    /// <inheritdoc />
+    public IEventBus? EventBus { get; set; }
 
     public TurnState InitializeTurnState(Game game)
     {
@@ -94,11 +99,32 @@ public sealed class BasicTurnEngine : ITurnEngine
         // If we are at the last phase, move to the next player's Start phase.
         if (currentIndex == PhaseOrder.Length - 1)
         {
+            // Publish PhaseEndEvent for the ending phase
+            if (EventBus is not null)
+            {
+                var phaseEndEvent = new PhaseEndEvent(game, game.CurrentPlayerSeat, game.CurrentPhase);
+                EventBus.Publish(phaseEndEvent);
+            }
+
             var nextTurn = StartNextTurn(game);
             return nextTurn;
         }
 
+        // Publish PhaseEndEvent for the current phase
+        if (EventBus is not null)
+        {
+            var phaseEndEvent = new PhaseEndEvent(game, game.CurrentPlayerSeat, game.CurrentPhase);
+            EventBus.Publish(phaseEndEvent);
+        }
+
         game.CurrentPhase = PhaseOrder[currentIndex + 1];
+
+        // Publish PhaseStartEvent for the new phase
+        if (EventBus is not null)
+        {
+            var phaseStartEvent = new PhaseStartEvent(game, game.CurrentPlayerSeat, game.CurrentPhase);
+            EventBus.Publish(phaseStartEvent);
+        }
 
         return new TurnTransitionResult
         {
@@ -127,9 +153,23 @@ public sealed class BasicTurnEngine : ITurnEngine
             };
         }
 
+        // Publish TurnStartEvent before updating state
+        if (EventBus is not null)
+        {
+            var turnStartEvent = new TurnStartEvent(game, nextSeat.Value, Math.Max(1, game.TurnNumber + 1));
+            EventBus.Publish(turnStartEvent);
+        }
+
         game.CurrentPlayerSeat = nextSeat.Value;
         game.CurrentPhase = Phase.Start;
         game.TurnNumber = Math.Max(1, game.TurnNumber + 1);
+
+        // Publish PhaseStartEvent for the Start phase
+        if (EventBus is not null)
+        {
+            var phaseStartEvent = new PhaseStartEvent(game, game.CurrentPlayerSeat, game.CurrentPhase);
+            EventBus.Publish(phaseStartEvent);
+        }
 
         return new TurnTransitionResult
         {

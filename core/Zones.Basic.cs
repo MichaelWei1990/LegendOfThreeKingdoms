@@ -4,6 +4,8 @@ using System.Collections.Generic;
 
 using System.Linq;
 
+using LegendOfThreeKingdoms.Core.Events;
+
 using LegendOfThreeKingdoms.Core.Model;
 
 using LegendOfThreeKingdoms.Core.Model.Zones;
@@ -34,15 +36,17 @@ public sealed class BasicCardMoveService : ICardMoveService
 
     private readonly Action<CardMoveEvent>? _onAfterMove;
 
+    private readonly IEventBus? _eventBus;
+
     /// <summary>
 
-    /// Creates a basic card move service without event callbacks.
+    /// Creates a basic card move service without event callbacks or event bus.
 
     /// </summary>
 
     public BasicCardMoveService()
 
-        : this(onBeforeMove: null, onAfterMove: null)
+        : this(onBeforeMove: null, onAfterMove: null, eventBus: null)
 
     {
 
@@ -64,11 +68,49 @@ public sealed class BasicCardMoveService : ICardMoveService
 
         Action<CardMoveEvent>? onAfterMove)
 
+        : this(onBeforeMove, onAfterMove, eventBus: null)
+
+    {
+
+    }
+
+    /// <summary>
+
+    /// Creates a basic card move service with optional event bus.
+
+    /// When event bus is provided, card move events will be published to it.
+
+    /// </summary>
+
+    public BasicCardMoveService(IEventBus? eventBus)
+
+        : this(onBeforeMove: null, onAfterMove: null, eventBus: eventBus)
+
+    {
+
+    }
+
+    /// <summary>
+
+    /// Creates a basic card move service with optional event callbacks and event bus.
+
+    /// </summary>
+
+    public BasicCardMoveService(
+
+        Action<CardMoveEvent>? onBeforeMove,
+
+        Action<CardMoveEvent>? onAfterMove,
+
+        IEventBus? eventBus)
+
     {
 
         _onBeforeMove = onBeforeMove;
 
         _onAfterMove = onAfterMove;
+
+        _eventBus = eventBus;
 
     }
 
@@ -366,6 +408,13 @@ public sealed class BasicCardMoveService : ICardMoveService
 
         _onAfterMove?.Invoke(afterEvent);
 
+        // Publish CardMovedEvent if event bus is available and Game is provided
+        if (_eventBus is not null && descriptor.Game is not null)
+        {
+            var cardMovedEvent = new CardMovedEvent(descriptor.Game, afterEvent);
+            _eventBus.Publish(cardMovedEvent);
+        }
+
         return new CardMoveResult(descriptor, moved, beforeEvent, afterEvent);
 
     }
@@ -482,7 +531,9 @@ public sealed class BasicCardMoveService : ICardMoveService
 
                 Reason: CardMoveReason.Discard,
 
-                Ordering: CardMoveOrdering.ToTop);
+                Ordering: CardMoveOrdering.ToTop,
+
+                Game: game);
 
 
 
@@ -522,7 +573,9 @@ public sealed class BasicCardMoveService : ICardMoveService
 
             Reason: CardMoveReason.Discard,
 
-            Ordering: CardMoveOrdering.ToTop);
+            Ordering: CardMoveOrdering.ToTop,
+
+            Game: game);
 
 
 

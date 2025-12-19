@@ -1,3 +1,4 @@
+using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Model;
 
 namespace LegendOfThreeKingdoms.Core.Turns;
@@ -89,6 +90,11 @@ public readonly record struct TurnTransitionResult
 /// </summary>
 public interface ITurnEngine
 {
+    /// <summary>
+    /// Optional event bus for publishing turn and phase events.
+    /// </summary>
+    IEventBus? EventBus { get; set; }
+
     /// <summary>
     /// Initializes the turn-related fields on the given game instance
     /// and returns the initial <see cref="TurnState"/> snapshot.
