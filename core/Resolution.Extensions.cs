@@ -14,10 +14,12 @@ public static class ResolutionExtensions
     /// <param name="mapper">The action resolution mapper to register with.</param>
     /// <param name="cardMoveService">The card move service for card operations.</param>
     /// <param name="ruleService">The rule service for validation.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for response windows. May be null if response windows are not supported.</param>
     public static void RegisterUseSlashHandler(
         this ActionResolutionMapper mapper,
         ICardMoveService cardMoveService,
-        IRuleService ruleService)
+        IRuleService ruleService,
+        Func<ChoiceRequest, ChoiceResult>? getPlayerChoice = null)
     {
         if (mapper is null) throw new ArgumentNullException(nameof(mapper));
         if (cardMoveService is null) throw new ArgumentNullException(nameof(cardMoveService));
@@ -36,7 +38,8 @@ public static class ResolutionExtensions
                 playerChoice,
                 stack,
                 cardMoveService,
-                ruleService
+                ruleService,
+                GetPlayerChoice: getPlayerChoice
             );
 
             // Create and push UseCardResolver

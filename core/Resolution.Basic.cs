@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using LegendOfThreeKingdoms.Core.Abstractions;
 using LegendOfThreeKingdoms.Core.Model;
+using LegendOfThreeKingdoms.Core.Response;
 using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Zones;
 
@@ -46,7 +47,9 @@ public sealed class BasicResolutionStack : IResolutionStack
             context.CardMoveService,
             context.RuleService,
             context.PendingDamage,
-            context.LogSink
+            context.LogSink,
+            context.GetPlayerChoice,
+            context.IntermediateResults
         );
 
         // Execute the resolver
@@ -175,11 +178,81 @@ public sealed class UseCardResolver : IResolver
             context.CardMoveService,
             context.RuleService,
             context.PendingDamage,
-            context.LogSink
+            context.LogSink,
+            context.GetPlayerChoice,
+            context.IntermediateResults
         );
 
         // Push the specific resolver onto the stack
         context.Stack.Push(specificResolver, newContext);
+
+        return ResolutionResult.SuccessResult;
+    }
+}
+
+/// <summary>
+/// Resolver that handles the result of a Slash response window.
+/// Decides whether to trigger damage based on the response result.
+/// </summary>
+public sealed class SlashResponseHandlerResolver : IResolver
+{
+    private readonly DamageDescriptor _pendingDamage;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SlashResponseHandlerResolver"/> class.
+    /// </summary>
+    /// <param name="pendingDamage">The damage descriptor to apply if no response was made.</param>
+    public SlashResponseHandlerResolver(DamageDescriptor pendingDamage)
+    {
+        _pendingDamage = pendingDamage ?? throw new ArgumentNullException(nameof(pendingDamage));
+    }
+
+    /// <inheritdoc />
+    public ResolutionResult Resolve(ResolutionContext context)
+    {
+        if (context is null) throw new ArgumentNullException(nameof(context));
+
+        // Read response window result from IntermediateResults dictionary
+        var intermediateResults = context.IntermediateResults;
+        if (intermediateResults is null || !intermediateResults.TryGetValue("LastResponseResult", out var resultObj))
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.InvalidState,
+                messageKey: "resolution.slash.noResponseResult");
+        }
+
+        if (resultObj is not ResponseWindowResult responseResult)
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.InvalidState,
+                messageKey: "resolution.slash.invalidResponseResult");
+        }
+
+        // Decide whether to trigger damage based on response result
+        if (responseResult.State == ResponseWindowState.NoResponse)
+        {
+            // No response - trigger damage
+            var damageContext = new ResolutionContext(
+                context.Game,
+                context.SourcePlayer,
+                context.Action,
+                context.Choice,
+                context.Stack,
+                context.CardMoveService,
+                context.RuleService,
+                PendingDamage: _pendingDamage,
+                LogSink: context.LogSink,
+                context.GetPlayerChoice,
+                context.IntermediateResults
+            );
+
+            context.Stack.Push(new DamageResolver(), damageContext);
+        }
+        else if (responseResult.State == ResponseWindowState.ResponseSuccess)
+        {
+            // Response successful - slash dodged, no damage
+            // Just return success
+        }
 
         return ResolutionResult.SuccessResult;
     }
@@ -236,11 +309,15 @@ public sealed class SlashResolver : IResolver
                 details: new { TargetSeat = targetSeat });
         }
 
-        // TODO: In future, this will trigger a response window for Jink/Dodge
-        // For now, we assume the Slash hits directly
-        // Damage resolution will be handled by DamageResolver (step 10)
+        // Check if GetPlayerChoice is provided (required for response window)
+        if (context.GetPlayerChoice is null)
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.InvalidState,
+                messageKey: "resolution.slash.getPlayerChoiceRequired");
+        }
 
-        // Create damage descriptor
+        // Create damage descriptor (will be used if no response is made)
         var damage = new DamageDescriptor(
             SourceSeat: sourcePlayer.Seat,
             TargetSeat: target.Seat,
@@ -249,8 +326,16 @@ public sealed class SlashResolver : IResolver
             Reason: "Slash"
         );
 
-        // Create new context with pending damage
-        var damageContext = new ResolutionContext(
+        // Initialize IntermediateResults dictionary if not present
+        // This dictionary will be shared across all resolvers in this resolution chain
+        var intermediateResults = context.IntermediateResults;
+        if (intermediateResults is null)
+        {
+            intermediateResults = new Dictionary<string, object>();
+        }
+
+        // Create new context with IntermediateResults for response window
+        var responseContext = new ResolutionContext(
             context.Game,
             context.SourcePlayer,
             context.Action,
@@ -258,12 +343,38 @@ public sealed class SlashResolver : IResolver
             context.Stack,
             context.CardMoveService,
             context.RuleService,
-            PendingDamage: damage,
-            LogSink: context.LogSink
+            context.PendingDamage,
+            context.LogSink,
+            context.GetPlayerChoice,
+            intermediateResults
         );
 
-        // Push DamageResolver onto the stack
-        context.Stack.Push(new DamageResolver(), damageContext);
+        // Create handler resolver context
+        var handlerContext = new ResolutionContext(
+            context.Game,
+            context.SourcePlayer,
+            context.Action,
+            context.Choice,
+            context.Stack,
+            context.CardMoveService,
+            context.RuleService,
+            context.PendingDamage,
+            context.LogSink,
+            context.GetPlayerChoice,
+            intermediateResults
+        );
+
+        // Push SlashResponseHandlerResolver onto stack first (will execute after response window due to LIFO)
+        context.Stack.Push(new SlashResponseHandlerResolver(damage), handlerContext);
+
+        // Create response window for Jink
+        var responseWindow = responseContext.CreateJinkResponseWindow(
+            targetPlayer: target,
+            sourceEvent: new { Type = "Slash", SourceSeat = sourcePlayer.Seat, TargetSeat = target.Seat },
+            getPlayerChoice: context.GetPlayerChoice);
+
+        // Push response window onto stack last (will execute first due to LIFO)
+        context.Stack.Push(responseWindow, responseContext);
 
         return ResolutionResult.SuccessResult;
     }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using LegendOfThreeKingdoms.Core.Abstractions;
 using LegendOfThreeKingdoms.Core.Model;
+using LegendOfThreeKingdoms.Core.Response;
 using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Zones;
 
@@ -34,7 +35,9 @@ public sealed record ResolutionContext(
     ICardMoveService CardMoveService,
     IRuleService RuleService,
     DamageDescriptor? PendingDamage = null,
-    ILogSink? LogSink = null
+    ILogSink? LogSink = null,
+    Func<ChoiceRequest, ChoiceResult>? GetPlayerChoice = null,
+    Dictionary<string, object>? IntermediateResults = null
 );
 
 /// <summary>

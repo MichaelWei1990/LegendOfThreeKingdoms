@@ -225,22 +225,21 @@ public sealed class ResolutionTests
     }
 
     /// <summary>
-    /// Verifies that SlashResolver successfully processes a valid Slash hit when the target is alive.
+    /// Verifies that SlashResolver requires GetPlayerChoice function for response window.
     /// 
     /// Test scenario:
     /// - Sets up a 2-player game
     /// - Source player uses Slash against an alive target player
-    /// - Executes SlashResolver with valid target selection
+    /// - Executes SlashResolver without GetPlayerChoice function
     /// 
     /// Expected results:
-    /// - Resolution succeeds, indicating the Slash hit the target
-    /// - Note: Damage calculation is handled by DamageResolver (step 10), not in this test
+    /// - Resolution fails with InvalidState error code
     /// 
-    /// This test verifies that SlashResolver correctly validates target state and confirms
-    /// a successful hit. The actual damage application will be tested when DamageResolver is implemented.
+    /// This test verifies that SlashResolver correctly validates that GetPlayerChoice is provided
+    /// before creating a response window.
     /// </summary>
     [TestMethod]
-    public void slashResolverProcessesValidHit()
+    public void slashResolverFailsWhenGetPlayerChoiceNotProvided()
     {
         var game = CreateDefaultGame(2);
         var source = game.Players[0];
@@ -274,13 +273,15 @@ public sealed class ResolutionTests
             choice,
             stack,
             cardMoveService,
-            ruleService
+            ruleService,
+            GetPlayerChoice: null  // Not provided
         );
 
         var resolver = new SlashResolver();
         var result = resolver.Resolve(context);
 
-        Assert.IsTrue(result.Success);
+        Assert.IsFalse(result.Success);
+        Assert.AreEqual(ResolutionErrorCode.InvalidState, result.ErrorCode);
     }
 
     /// <summary>
@@ -328,6 +329,19 @@ public sealed class ResolutionTests
             Confirmed: null
         );
 
+        // Create getPlayerChoice function (not used in this test, but required)
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: new List<int>(),
+                SelectedOptionId: null,
+                Confirmed: null
+            );
+        };
+
         var context = new ResolutionContext(
             game,
             source,
@@ -335,7 +349,8 @@ public sealed class ResolutionTests
             choice,
             stack,
             cardMoveService,
-            ruleService
+            ruleService,
+            GetPlayerChoice: getPlayerChoice
         );
 
         var resolver = new SlashResolver();
@@ -397,6 +412,20 @@ public sealed class ResolutionTests
             Confirmed: null
         );
 
+        // Create getPlayerChoice function that returns no response (empty choice)
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: new List<int>(),  // Empty - no response
+                SelectedOptionId: null,
+                Confirmed: null
+            );
+        };
+
+        var intermediateResults = new Dictionary<string, object>();
         var context = new ResolutionContext(
             game,
             source,
@@ -404,7 +433,9 @@ public sealed class ResolutionTests
             choice,
             stack,
             cardMoveService,
-            ruleService
+            ruleService,
+            GetPlayerChoice: getPlayerChoice,
+            IntermediateResults: intermediateResults
         );
 
         // Start with UseCardResolver
@@ -423,10 +454,10 @@ public sealed class ResolutionTests
         Assert.IsTrue(game.DiscardPile.Cards.Contains(slash));
 
         // Verify execution history
+        // Note: SlashResolver is not in history because it returns immediately after pushing other resolvers
         var history = stack.GetHistory();
         Assert.IsTrue(history.Count >= 1);
         Assert.IsTrue(history.Any(r => r.ResolverType == typeof(UseCardResolver)));
-        Assert.IsTrue(history.Any(r => r.ResolverType == typeof(SlashResolver)));
     }
 
     /// <summary>
@@ -893,6 +924,21 @@ public sealed class ResolutionTests
             Confirmed: null
         );
 
+        // Create getPlayerChoice function that returns no response (empty choice)
+        // This simulates the target player not having a Dodge card or choosing not to respond
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: new List<int>(),  // Empty - no response
+                SelectedOptionId: null,
+                Confirmed: null
+            );
+        };
+
+        var intermediateResults = new Dictionary<string, object>();
         var context = new ResolutionContext(
             game,
             source,
@@ -900,7 +946,9 @@ public sealed class ResolutionTests
             choice,
             stack,
             cardMoveService,
-            ruleService
+            ruleService,
+            GetPlayerChoice: getPlayerChoice,
+            IntermediateResults: intermediateResults
         );
 
         // Start with UseCardResolver
@@ -923,7 +971,225 @@ public sealed class ResolutionTests
         var history = stack.GetHistory();
         Assert.IsTrue(history.Any(r => r.ResolverType == typeof(UseCardResolver)));
         Assert.IsTrue(history.Any(r => r.ResolverType == typeof(SlashResolver)));
+        Assert.IsTrue(history.Any(r => r.ResolverType.Name.Contains("ResponseWindow")));
+        Assert.IsTrue(history.Any(r => r.ResolverType.Name.Contains("SlashResponseHandler")));
         Assert.IsTrue(history.Any(r => r.ResolverType == typeof(DamageResolver)));
+    }
+
+    private static Card CreateDodgeCard(int id = 1)
+    {
+        return new Card
+        {
+            Id = id,
+            DefinitionId = "dodge_basic",
+            CardType = CardType.Basic,
+            CardSubType = CardSubType.Dodge,
+            Suit = Suit.Heart,
+            Rank = 2
+        };
+    }
+
+    /// <summary>
+    /// Verifies that SlashResolver creates response window and handler when GetPlayerChoice is provided.
+    /// Tests the complete flow: Slash -> Response Window (No Response) -> Damage.
+    /// 
+    /// Test scenario:
+    /// - Sets up a 2-player game
+    /// - Source player uses Slash against target
+    /// - Target has no Dodge card (cannot respond)
+    /// - Provides GetPlayerChoice function that returns no response
+    /// 
+    /// Expected results:
+    /// - SlashResolver pushes ResponseWindowResolver and SlashResponseHandlerResolver
+    /// - Response window returns NoResponse
+    /// - SlashResponseHandlerResolver triggers DamageResolver
+    /// - Target takes damage
+    /// </summary>
+    [TestMethod]
+    public void slashResolverWithResponseWindowNoResponseTriggersDamage()
+    {
+        var game = CreateDefaultGame(2);
+        var source = game.Players[0];
+        var target = game.Players[1];
+        var initialHealth = target.CurrentHealth;
+
+        var stack = new BasicResolutionStack();
+        var cardMoveService = new BasicCardMoveService();
+        var ruleService = new RuleService();
+
+        var action = new ActionDescriptor(
+            ActionId: "UseSlash",
+            DisplayKey: "action.useSlash",
+            RequiresTargets: true,
+            TargetConstraints: new TargetConstraints(1, 1, TargetFilterType.Enemies),
+            CardCandidates: null
+        );
+
+        var choice = new ChoiceResult(
+            RequestId: "test-request",
+            PlayerSeat: source.Seat,
+            SelectedTargetSeats: new[] { target.Seat },
+            SelectedCardIds: null,
+            SelectedOptionId: null,
+            Confirmed: null
+        );
+
+        // Create getPlayerChoice function that returns no response (empty choice)
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: new List<int>(),  // Empty - no response
+                SelectedOptionId: null,
+                Confirmed: null
+            );
+        };
+
+        var intermediateResults = new Dictionary<string, object>();
+        var context = new ResolutionContext(
+            game,
+            source,
+            action,
+            choice,
+            stack,
+            cardMoveService,
+            ruleService,
+            GetPlayerChoice: getPlayerChoice,
+            IntermediateResults: intermediateResults
+        );
+
+        var resolver = new SlashResolver();
+        var result = resolver.Resolve(context);
+
+        Assert.IsTrue(result.Success);
+
+        // Execute all resolvers in the stack
+        while (!stack.IsEmpty)
+        {
+            var stackResult = stack.Pop();
+            Assert.IsTrue(stackResult.Success, $"Resolver failed: {stackResult.MessageKey ?? stackResult.ErrorCode?.ToString()}");
+        }
+
+        // Verify damage was applied
+        Assert.AreEqual(initialHealth - 1, target.CurrentHealth);
+
+        // Verify execution history
+        // Note: SlashResolver is not in history because it returns immediately after pushing other resolvers
+        var history = stack.GetHistory();
+        Assert.IsTrue(history.Any(r => r.ResolverType.Name.Contains("ResponseWindow")), 
+            $"Expected ResponseWindowResolver in history, but got: {string.Join(", ", history.Select(r => r.ResolverType.Name))}");
+        Assert.IsTrue(history.Any(r => r.ResolverType.Name.Contains("SlashResponseHandler")), 
+            $"Expected SlashResponseHandlerResolver in history, but got: {string.Join(", ", history.Select(r => r.ResolverType.Name))}");
+        Assert.IsTrue(history.Any(r => r.ResolverType == typeof(DamageResolver)), 
+            $"Expected DamageResolver in history, but got: {string.Join(", ", history.Select(r => r.ResolverType.Name))}");
+    }
+
+    /// <summary>
+    /// Verifies that SlashResolver creates response window and handler when GetPlayerChoice is provided.
+    /// Tests the complete flow: Slash -> Response Window (Success Response) -> No Damage.
+    /// 
+    /// Test scenario:
+    /// - Sets up a 2-player game
+    /// - Source player uses Slash against target
+    /// - Target has a Dodge card and responds
+    /// - Provides GetPlayerChoice function that returns Dodge card selection
+    /// 
+    /// Expected results:
+    /// - SlashResolver pushes ResponseWindowResolver and SlashResponseHandlerResolver
+    /// - Response window returns ResponseSuccess
+    /// - SlashResponseHandlerResolver does NOT trigger DamageResolver
+    /// - Target does NOT take damage
+    /// - Dodge card is moved to discard pile
+    /// </summary>
+    [TestMethod]
+    public void slashResolverWithResponseWindowSuccessResponseNoDamage()
+    {
+        var game = CreateDefaultGame(2);
+        var source = game.Players[0];
+        var target = game.Players[1];
+        var initialHealth = target.CurrentHealth;
+
+        var dodge = CreateDodgeCard(1);
+        ((Zone)target.HandZone).MutableCards.Add(dodge);
+
+        var stack = new BasicResolutionStack();
+        var cardMoveService = new BasicCardMoveService();
+        var ruleService = new RuleService();
+
+        var action = new ActionDescriptor(
+            ActionId: "UseSlash",
+            DisplayKey: "action.useSlash",
+            RequiresTargets: true,
+            TargetConstraints: new TargetConstraints(1, 1, TargetFilterType.Enemies),
+            CardCandidates: null
+        );
+
+        var choice = new ChoiceResult(
+            RequestId: "test-request",
+            PlayerSeat: source.Seat,
+            SelectedTargetSeats: new[] { target.Seat },
+            SelectedCardIds: null,
+            SelectedOptionId: null,
+            Confirmed: null
+        );
+
+        // Create getPlayerChoice function that returns Dodge card selection
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: new[] { dodge.Id },  // Respond with Dodge
+                SelectedOptionId: null,
+                Confirmed: null
+            );
+        };
+
+        var intermediateResults = new Dictionary<string, object>();
+        var context = new ResolutionContext(
+            game,
+            source,
+            action,
+            choice,
+            stack,
+            cardMoveService,
+            ruleService,
+            GetPlayerChoice: getPlayerChoice,
+            IntermediateResults: intermediateResults
+        );
+
+        var resolver = new SlashResolver();
+        var result = resolver.Resolve(context);
+
+        Assert.IsTrue(result.Success);
+
+        // Execute all resolvers in the stack
+        while (!stack.IsEmpty)
+        {
+            var stackResult = stack.Pop();
+            Assert.IsTrue(stackResult.Success, $"Resolver failed: {stackResult.MessageKey ?? stackResult.ErrorCode?.ToString()}");
+        }
+
+        // Verify damage was NOT applied
+        Assert.AreEqual(initialHealth, target.CurrentHealth);
+
+        // Verify Dodge card was moved to discard pile
+        Assert.IsFalse(target.HandZone.Cards.Contains(dodge));
+        Assert.IsTrue(game.DiscardPile.Cards.Contains(dodge));
+
+        // Verify execution history
+        // Note: SlashResolver is not in history because it returns immediately after pushing other resolvers
+        var history = stack.GetHistory();
+        Assert.IsTrue(history.Any(r => r.ResolverType.Name.Contains("ResponseWindow")), 
+            $"Expected ResponseWindowResolver in history, but got: {string.Join(", ", history.Select(r => r.ResolverType.Name))}");
+        Assert.IsTrue(history.Any(r => r.ResolverType.Name.Contains("SlashResponseHandler")), 
+            $"Expected SlashResponseHandlerResolver in history, but got: {string.Join(", ", history.Select(r => r.ResolverType.Name))}");
+        // DamageResolver should NOT be in history
+        Assert.IsFalse(history.Any(r => r.ResolverType == typeof(DamageResolver)), 
+            $"Expected no DamageResolver in history, but got: {string.Join(", ", history.Select(r => r.ResolverType.Name))}");
     }
 
     /// <summary>
