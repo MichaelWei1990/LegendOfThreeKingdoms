@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using LegendOfThreeKingdoms.Core.Abstractions;
 using LegendOfThreeKingdoms.Core.Events;
+using LegendOfThreeKingdoms.Core.Logging;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Response;
 using LegendOfThreeKingdoms.Core.Rules;
@@ -39,7 +40,8 @@ public sealed record ResolutionContext(
     ILogSink? LogSink = null,
     Func<ChoiceRequest, ChoiceResult>? GetPlayerChoice = null,
     Dictionary<string, object>? IntermediateResults = null,
-    IEventBus? EventBus = null
+    IEventBus? EventBus = null,
+    ILogCollector? LogCollector = null
 );
 
 /// <summary>

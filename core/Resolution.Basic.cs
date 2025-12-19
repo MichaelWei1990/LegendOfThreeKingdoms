@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using LegendOfThreeKingdoms.Core.Abstractions;
 using LegendOfThreeKingdoms.Core.Events;
+using LegendOfThreeKingdoms.Core.Logging;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Response;
 using LegendOfThreeKingdoms.Core.Rules;
@@ -51,7 +52,8 @@ public sealed class BasicResolutionStack : IResolutionStack
             context.LogSink,
             context.GetPlayerChoice,
             context.IntermediateResults,
-            context.EventBus
+            context.EventBus,
+            context.LogCollector
         );
 
         // Execute the resolver
@@ -170,6 +172,23 @@ public sealed class UseCardResolver : IResolver
             return ResolutionResult.SuccessResult;
         }
 
+        // Log card usage event if log collector is available
+        if (context.LogCollector is not null)
+        {
+            var sequenceNumber = context.LogCollector.GetNextSequenceNumber();
+            var targetSeats = choice.SelectedTargetSeats?.ToList();
+            var logEvent = new CardUsedLogEvent(
+                DateTime.UtcNow,
+                sequenceNumber,
+                game,
+                sourcePlayer.Seat,
+                card.Id,
+                card.CardSubType,
+                targetSeats
+            );
+            context.LogCollector.Collect(logEvent);
+        }
+
         // Create new context for the specific resolver
         var newContext = new ResolutionContext(
             game,
@@ -183,7 +202,8 @@ public sealed class UseCardResolver : IResolver
             context.LogSink,
             context.GetPlayerChoice,
             context.IntermediateResults,
-            context.EventBus
+            context.EventBus,
+            context.LogCollector
         );
 
         // Push the specific resolver onto the stack
@@ -247,7 +267,8 @@ public sealed class SlashResponseHandlerResolver : IResolver
                 LogSink: context.LogSink,
                 context.GetPlayerChoice,
                 context.IntermediateResults,
-                context.EventBus
+                context.EventBus,
+                context.LogCollector
             );
 
             context.Stack.Push(new DamageResolver(), damageContext);
@@ -351,7 +372,8 @@ public sealed class SlashResolver : IResolver
             context.LogSink,
             context.GetPlayerChoice,
             intermediateResults,
-            context.EventBus
+            context.EventBus,
+            context.LogCollector
         );
 
         // Create handler resolver context
@@ -367,7 +389,8 @@ public sealed class SlashResolver : IResolver
             context.LogSink,
             context.GetPlayerChoice,
             intermediateResults,
-            context.EventBus
+            context.EventBus,
+            context.LogCollector
         );
 
         // Push SlashResponseHandlerResolver onto stack first (will execute after response window due to LIFO)
@@ -510,7 +533,8 @@ public sealed class DamageResolver : IResolver
                 context.LogSink,
                 context.GetPlayerChoice,
                 intermediateResults,
-                context.EventBus
+                context.EventBus,
+                context.LogCollector
             );
             
             // Push DyingResolver onto stack
@@ -616,7 +640,8 @@ public sealed class DyingResolver : IResolver
             context.LogSink,
             context.GetPlayerChoice,
             intermediateResults,
-            context.EventBus
+            context.EventBus,
+            context.LogCollector
         );
         
         // Push DyingRescueHandlerResolver onto stack first (will execute after response window due to LIFO)
@@ -725,7 +750,8 @@ public sealed class DyingRescueHandlerResolver : IResolver
                     context.LogSink,
                     context.GetPlayerChoice,
                     intermediateResults,
-                    context.EventBus
+                    context.EventBus,
+                    context.LogCollector
                 );
                 
                 context.Stack.Push(new DyingResolver(), dyingContext);
