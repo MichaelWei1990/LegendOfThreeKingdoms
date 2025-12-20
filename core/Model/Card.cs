@@ -19,6 +19,12 @@ public sealed class Card
     public string DefinitionId { get; init; } = string.Empty;
 
     /// <summary>
+    /// Display name of the card (e.g. "赤兔", "的卢").
+    /// Used for UI display purposes.
+    /// </summary>
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>
     /// Suit of the card, used by many judgements and skills.
     /// </summary>
     public Suit Suit { get; init; }

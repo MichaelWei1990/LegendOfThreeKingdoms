@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LegendOfThreeKingdoms.Core.Model;
 
 namespace LegendOfThreeKingdoms.Core.Skills;
 
@@ -18,11 +19,13 @@ public interface IEquipmentSkillFactory
 
 /// <summary>
 /// Central registry for equipment skills.
-/// Maps equipment definition IDs to skill factories.
+/// Maps equipment definition IDs and card subtypes to skill factories.
+/// Supports both specific equipment (by DefinitionId) and category-based (by CardSubType) skill registration.
 /// </summary>
 public sealed class EquipmentSkillRegistry
 {
     private readonly Dictionary<string, IEquipmentSkillFactory> _equipmentSkillFactories = new();
+    private readonly Dictionary<CardSubType, IEquipmentSkillFactory> _subTypeSkillFactories = new();
 
     /// <summary>
     /// Registers an equipment skill factory for a given equipment definition ID.
@@ -71,11 +74,60 @@ public sealed class EquipmentSkillRegistry
     }
 
     /// <summary>
-    /// Clears all registered equipment skills.
+    /// Registers an equipment skill factory for a given card subtype.
+    /// This allows all equipment cards of the same subtype to share the same skill.
+    /// For example, all offensive horse cards (chitu, etc.) can share the same skill.
+    /// </summary>
+    /// <param name="cardSubType">The card subtype to register the skill for.</param>
+    /// <param name="factory">Factory that creates instances of the equipment skill.</param>
+    /// <exception cref="ArgumentException">Thrown if cardSubType is Unknown or already registered.</exception>
+    /// <exception cref="ArgumentNullException">Thrown if factory is null.</exception>
+    public void RegisterEquipmentSkillBySubType(CardSubType cardSubType, IEquipmentSkillFactory factory)
+    {
+        if (cardSubType == CardSubType.Unknown)
+            throw new ArgumentException("Cannot register skill for Unknown card subtype.", nameof(cardSubType));
+        if (factory is null)
+            throw new ArgumentNullException(nameof(factory));
+
+        if (_subTypeSkillFactories.ContainsKey(cardSubType))
+            throw new ArgumentException($"Equipment skill for '{cardSubType}' is already registered.", nameof(cardSubType));
+
+        _subTypeSkillFactories[cardSubType] = factory;
+    }
+
+    /// <summary>
+    /// Gets a skill instance for a given card subtype.
+    /// </summary>
+    /// <param name="cardSubType">The card subtype to look up.</param>
+    /// <returns>A new skill instance, or null if no skill is registered for this subtype.</returns>
+    public ISkill? GetSkillForEquipmentBySubType(CardSubType cardSubType)
+    {
+        if (cardSubType == CardSubType.Unknown)
+            return null;
+
+        if (!_subTypeSkillFactories.TryGetValue(cardSubType, out var factory))
+            return null;
+
+        return factory.CreateSkill();
+    }
+
+    /// <summary>
+    /// Checks whether a card subtype has a registered skill.
+    /// </summary>
+    /// <param name="cardSubType">The card subtype to check.</param>
+    /// <returns>True if a skill is registered for this subtype, false otherwise.</returns>
+    public bool HasEquipmentSkillBySubType(CardSubType cardSubType)
+    {
+        return cardSubType != CardSubType.Unknown && _subTypeSkillFactories.ContainsKey(cardSubType);
+    }
+
+    /// <summary>
+    /// Clears all registered equipment skills (both by DefinitionId and by CardSubType).
     /// Primarily used for testing.
     /// </summary>
     public void Clear()
     {
         _equipmentSkillFactories.Clear();
+        _subTypeSkillFactories.Clear();
     }
 }

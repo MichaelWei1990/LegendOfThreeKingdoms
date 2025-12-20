@@ -14,7 +14,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace core.Tests;
 
 [TestClass]
-public sealed class DefensiveHorseTests
+public sealed class OffensiveHorseTests
 {
     private static Game CreateDefaultGame(int playerCount = 2)
     {
@@ -22,7 +22,7 @@ public sealed class DefensiveHorseTests
         return Game.FromConfig(config);
     }
 
-    private static Card CreateDefensiveHorseCard(int id = 1, string definitionId = "dilu", string name = "的卢")
+    private static Card CreateOffensiveHorseCard(int id = 1, string definitionId = "chitu", string name = "赤兔")
     {
         return new Card
         {
@@ -30,7 +30,7 @@ public sealed class DefensiveHorseTests
             DefinitionId = definitionId,
             Name = name,
             CardType = CardType.Equip,
-            CardSubType = CardSubType.DefensiveHorse,
+            CardSubType = CardSubType.OffensiveHorse,
             Suit = Suit.Spade,
             Rank = 5
         };
@@ -40,7 +40,7 @@ public sealed class DefensiveHorseTests
 
     /// <summary>
     /// Tests that EquipmentSkillRegistry can register and retrieve equipment skills by CardSubType.
-    /// Input: Empty registry, DefensiveHorseSkillFactory, CardSubType.DefensiveHorse.
+    /// Input: Empty registry, OffensiveHorseSkillFactory, CardSubType.OffensiveHorse.
     /// Expected: After registration, GetSkillForEquipmentBySubType returns a skill with correct Id and SkillType.Locked.
     /// </summary>
     [TestMethod]
@@ -48,21 +48,21 @@ public sealed class DefensiveHorseTests
     {
         // Arrange
         var registry = new EquipmentSkillRegistry();
-        var factory = new DefensiveHorseSkillFactory();
+        var factory = new OffensiveHorseSkillFactory();
 
         // Act
-        registry.RegisterEquipmentSkillBySubType(CardSubType.DefensiveHorse, factory);
-        var skill = registry.GetSkillForEquipmentBySubType(CardSubType.DefensiveHorse);
+        registry.RegisterEquipmentSkillBySubType(CardSubType.OffensiveHorse, factory);
+        var skill = registry.GetSkillForEquipmentBySubType(CardSubType.OffensiveHorse);
 
         // Assert
         Assert.IsNotNull(skill);
-        Assert.AreEqual("defensive_horse", skill.Id);
+        Assert.AreEqual("offensive_horse", skill.Id);
         Assert.AreEqual(SkillType.Locked, skill.Type);
     }
 
     /// <summary>
     /// Tests that EquipmentSkillRegistry prevents duplicate equipment skill registrations by CardSubType.
-    /// Input: Registry with CardSubType.DefensiveHorse already registered, attempting to register same subtype again.
+    /// Input: Registry with CardSubType.OffensiveHorse already registered, attempting to register same subtype again.
     /// Expected: ArgumentException is thrown when trying to register duplicate card subtype.
     /// </summary>
     [TestMethod]
@@ -70,20 +70,20 @@ public sealed class DefensiveHorseTests
     {
         // Arrange
         var registry = new EquipmentSkillRegistry();
-        var factory1 = new DefensiveHorseSkillFactory();
-        var factory2 = new DefensiveHorseSkillFactory();
+        var factory1 = new OffensiveHorseSkillFactory();
+        var factory2 = new OffensiveHorseSkillFactory();
 
         // Act
-        registry.RegisterEquipmentSkillBySubType(CardSubType.DefensiveHorse, factory1);
+        registry.RegisterEquipmentSkillBySubType(CardSubType.OffensiveHorse, factory1);
 
         // Assert
         Assert.ThrowsException<ArgumentException>(() =>
-            registry.RegisterEquipmentSkillBySubType(CardSubType.DefensiveHorse, factory2));
+            registry.RegisterEquipmentSkillBySubType(CardSubType.OffensiveHorse, factory2));
     }
 
     /// <summary>
     /// Tests that EquipmentSkillRegistry returns null for unregistered card subtypes.
-    /// Input: Empty registry, querying for CardSubType.DefensiveHorse.
+    /// Input: Empty registry, querying for CardSubType.OffensiveHorse.
     /// Expected: GetSkillForEquipmentBySubType returns null when card subtype is not registered.
     /// </summary>
     [TestMethod]
@@ -93,7 +93,7 @@ public sealed class DefensiveHorseTests
         var registry = new EquipmentSkillRegistry();
 
         // Act
-        var skill = registry.GetSkillForEquipmentBySubType(CardSubType.DefensiveHorse);
+        var skill = registry.GetSkillForEquipmentBySubType(CardSubType.OffensiveHorse);
 
         // Assert
         Assert.IsNull(skill);
@@ -105,21 +105,21 @@ public sealed class DefensiveHorseTests
 
     /// <summary>
     /// Tests that EquipResolver successfully moves an equipment card from hand to equipment zone.
-    /// Input: 2-player game, player has defensive horse card in hand, ChoiceResult selecting the card.
+    /// Input: 2-player game, player has offensive horse card in hand, ChoiceResult selecting the card.
     /// Expected: Resolution succeeds, card is removed from hand zone and added to equipment zone.
     /// </summary>
     [TestMethod]
-    public void EquipResolverEquipDefensiveHorseMovesCardToEquipmentZone()
+    public void EquipResolverEquipOffensiveHorseMovesCardToEquipmentZone()
     {
         // Arrange
         var game = CreateDefaultGame(2);
         var player = game.Players[0];
-        var defensiveHorse = CreateDefensiveHorseCard();
+        var offensiveHorse = CreateOffensiveHorseCard();
         
         // Add card to hand
         if (player.HandZone is Zone handZone)
         {
-            handZone.MutableCards.Add(defensiveHorse);
+            handZone.MutableCards.Add(offensiveHorse);
         }
 
         var cardMoveService = new BasicCardMoveService();
@@ -129,7 +129,7 @@ public sealed class DefensiveHorseTests
             game,
             player,
             null,
-            new ChoiceResult("test", player.Seat, null, new[] { defensiveHorse.Id }, null, null),
+            new ChoiceResult("test", player.Seat, null, new[] { offensiveHorse.Id }, null, null),
             stack,
             cardMoveService,
             ruleService,
@@ -150,23 +150,23 @@ public sealed class DefensiveHorseTests
 
         // Assert
         Assert.IsTrue(result.Success);
-        Assert.IsFalse(player.HandZone.Cards.Contains(defensiveHorse));
-        Assert.IsTrue(player.EquipmentZone.Cards.Contains(defensiveHorse));
+        Assert.IsFalse(player.HandZone.Cards.Contains(offensiveHorse));
+        Assert.IsTrue(player.EquipmentZone.Cards.Contains(offensiveHorse));
     }
 
     /// <summary>
     /// Tests that EquipResolver replaces existing equipment of the same type when equipping new equipment.
-    /// Input: 2-player game, player has old defensive horse in equipment zone, new defensive horse in hand.
+    /// Input: 2-player game, player has old offensive horse in equipment zone, new offensive horse in hand.
     /// Expected: Resolution succeeds, old horse is moved to discard pile, new horse is in equipment zone.
     /// </summary>
     [TestMethod]
-    public void EquipResolverEquipDefensiveHorseWhenAlreadyEquippedReplacesOldEquipment()
+    public void EquipResolverEquipOffensiveHorseWhenAlreadyEquippedReplacesOldEquipment()
     {
         // Arrange
         var game = CreateDefaultGame(2);
         var player = game.Players[0];
-        var oldHorse = CreateDefensiveHorseCard(1, "dilu_old", "的卢(旧)");
-        var newHorse = CreateDefensiveHorseCard(2, "dilu_new", "的卢(新)");
+        var oldHorse = CreateOffensiveHorseCard(1, "chitu_old", "赤兔(旧)");
+        var newHorse = CreateOffensiveHorseCard(2, "chitu_new", "赤兔(新)");
         
         // Equip old horse
         if (player.EquipmentZone is Zone equipmentZone)
@@ -215,47 +215,69 @@ public sealed class DefensiveHorseTests
 
     #endregion
 
-    #region Defensive Horse Skill Tests
+    #region Offensive Horse Skill Tests
 
     /// <summary>
-    /// Tests that DefensiveHorseSkill increases seat distance by 1 when active.
-    /// Input: 3-player game, attacker and defender (adjacent, seat distance = 1), active defensive horse skill.
-    /// Expected: ModifySeatDistance returns 2 (1 + 1), making it harder to attack the defender.
+    /// Tests that OffensiveHorseSkill decreases seat distance by 1 when active.
+    /// Input: 3-player game, attacker and defender (seat distance = 2), active offensive horse skill.
+    /// Expected: ModifySeatDistance returns 1 (2 - 1), making it easier to attack the defender.
     /// </summary>
     [TestMethod]
-    public void DefensiveHorseSkillModifySeatDistanceIncreasesDistanceByOne()
+    public void OffensiveHorseSkillModifySeatDistanceDecreasesDistanceByOne()
     {
         // Arrange
         var game = CreateDefaultGame(3);
         var attacker = game.Players[0];
         var defender = game.Players[1];
-        var skill = new DefensiveHorseSkill();
+        var skill = new OffensiveHorseSkill();
+
+        // Act
+        var modified = skill.ModifySeatDistance(2, game, attacker, defender);
+
+        // Assert
+        Assert.IsNotNull(modified);
+        Assert.AreEqual(1, modified.Value);
+    }
+
+    /// <summary>
+    /// Tests that OffensiveHorseSkill does not decrease distance below 1.
+    /// Input: 3-player game, attacker and defender (adjacent, seat distance = 1), active offensive horse skill.
+    /// Expected: ModifySeatDistance returns 1 (minimum distance, cannot go below 1).
+    /// </summary>
+    [TestMethod]
+    public void OffensiveHorseSkillModifySeatDistanceDoesNotGoBelowOne()
+    {
+        // Arrange
+        var game = CreateDefaultGame(3);
+        var attacker = game.Players[0];
+        var defender = game.Players[1];
+        var skill = new OffensiveHorseSkill();
 
         // Act
         var modified = skill.ModifySeatDistance(1, game, attacker, defender);
 
         // Assert
         Assert.IsNotNull(modified);
-        Assert.AreEqual(2, modified.Value);
+        Assert.AreEqual(1, modified.Value);
     }
 
     /// <summary>
-    /// Tests that DefensiveHorseSkill does not modify distance when the owner (defender) is not active.
-    /// Input: 2-player game, defender is dead (IsAlive = false), defensive horse skill.
+    /// Tests that OffensiveHorseSkill does not modify distance when the owner (attacker) is not active.
+    /// Input: 2-player game, attacker is dead (IsAlive = false), offensive horse skill.
     /// Expected: ModifySeatDistance returns null (no modification) when owner is not active.
     /// </summary>
     [TestMethod]
-    public void DefensiveHorseSkillModifySeatDistanceWhenOwnerIsNotActiveReturnsNull()
+    public void OffensiveHorseSkillModifySeatDistanceWhenOwnerIsNotActiveReturnsNull()
     {
         // Arrange
         var game = CreateDefaultGame(2);
         var attacker = game.Players[0];
         var defender = game.Players[1];
-        defender.IsAlive = false; // Owner is not active
-        var skill = new DefensiveHorseSkill();
+        attacker.IsAlive = false; // Owner is not active
+        var skill = new OffensiveHorseSkill();
 
         // Act
-        var modified = skill.ModifySeatDistance(1, game, attacker, defender);
+        var modified = skill.ModifySeatDistance(2, game, attacker, defender);
 
         // Assert
         Assert.IsNull(modified);
@@ -266,44 +288,44 @@ public sealed class DefensiveHorseTests
     #region Range Rule Service with Equipment Tests
 
     /// <summary>
-    /// Tests that RangeRuleService correctly applies defensive horse skill to increase attack distance requirement.
-    /// Input: 3-player game, adjacent attacker and defender, defender has defensive horse equipped and skill active.
-    /// Expected: Base seat distance = 1, base attack distance = 1, but IsWithinAttackRange returns false 
-    /// because defensive horse increases effective seat distance to 2 (2 > 1, so out of range).
+    /// Tests that RangeRuleService correctly applies offensive horse skill to decrease attack distance requirement.
+    /// Input: 4-player game, attacker and defender with seat distance = 2, attacker has offensive horse equipped and skill active.
+    /// Expected: Base seat distance = 2, base attack distance = 1, but IsWithinAttackRange returns true 
+    /// because offensive horse decreases effective seat distance to 1 (1 <= 1, so within range).
     /// </summary>
     [TestMethod]
-    public void RangeRuleServiceWithDefensiveHorseIncreasesAttackDistanceRequirement()
+    public void RangeRuleServiceWithOffensiveHorseDecreasesAttackDistanceRequirement()
     {
         // Arrange
-        var game = CreateDefaultGame(3);
+        var game = CreateDefaultGame(4);
         var attacker = game.Players[0];
-        var defender = game.Players[1];
+        var defender = game.Players[2]; // Player 2 is at distance 2 from player 0 in 4-player game
         
-        // Equip defensive horse to defender
-        var defensiveHorse = CreateDefensiveHorseCard();
-        if (defender.EquipmentZone is Zone equipmentZone)
+        // Equip offensive horse to attacker
+        var offensiveHorse = CreateOffensiveHorseCard();
+        if (attacker.EquipmentZone is Zone equipmentZone)
         {
-            equipmentZone.MutableCards.Add(defensiveHorse);
+            equipmentZone.MutableCards.Add(offensiveHorse);
         }
 
         // Setup skill manager and equipment skill registry
         var eventBus = new BasicEventBus();
         var skillRegistry = new SkillRegistry();
         var equipmentSkillRegistry = new EquipmentSkillRegistry();
-        // Register skill by CardSubType so all defensive horse cards share the same skill
-        equipmentSkillRegistry.RegisterEquipmentSkillBySubType(CardSubType.DefensiveHorse, new DefensiveHorseSkillFactory());
+        // Register skill by CardSubType so all offensive horse cards share the same skill
+        equipmentSkillRegistry.RegisterEquipmentSkillBySubType(CardSubType.OffensiveHorse, new OffensiveHorseSkillFactory());
         
         var skillManager = new SkillManager(skillRegistry, eventBus);
         
         // Load player skills first (if any)
-        skillManager.LoadSkillsForPlayer(game, defender);
+        skillManager.LoadSkillsForPlayer(game, attacker);
         
-        // Add defensive horse skill to defender using AddEquipmentSkill
+        // Add offensive horse skill to attacker using AddEquipmentSkill
         // EquipResolver will automatically find the skill by CardSubType
-        var defensiveHorseSkill = equipmentSkillRegistry.GetSkillForEquipmentBySubType(CardSubType.DefensiveHorse);
-        if (defensiveHorseSkill is not null)
+        var offensiveHorseSkill = equipmentSkillRegistry.GetSkillForEquipmentBySubType(CardSubType.OffensiveHorse);
+        if (offensiveHorseSkill is not null)
         {
-            skillManager.AddEquipmentSkill(game, defender, defensiveHorseSkill);
+            skillManager.AddEquipmentSkill(game, attacker, offensiveHorseSkill);
         }
 
         var modifierProvider = new SkillRuleModifierProvider(skillManager);
@@ -315,31 +337,29 @@ public sealed class DefensiveHorseTests
         var isWithinRange = rangeRuleService.IsWithinAttackRange(game, attacker, defender);
 
         // Assert
-        // Base seat distance should be 1 (adjacent players)
-        Assert.AreEqual(1, seatDistance);
+        // Base seat distance should be 2 (non-adjacent players in 4-player game)
+        Assert.AreEqual(2, seatDistance);
         // Base attack distance should be 1
         Assert.AreEqual(1, attackDistance);
-        // With defensive horse, seat distance requirement is increased by 1
-        // So seatDistance (1) should NOT be <= attackDistance (1) after modification
-        // Actually, the modification happens in IsWithinAttackRange, so let's check that
-        // The defensive horse increases the seat distance to 2, so 2 <= 1 is false
-        Assert.IsFalse(isWithinRange);
+        // With offensive horse, seat distance requirement is decreased by 1
+        // So seatDistance (2) becomes 1 after modification, and 1 <= 1 is true
+        Assert.IsTrue(isWithinRange);
     }
 
     /// <summary>
-    /// Tests that RangeRuleService allows normal attack range calculation when no defensive equipment is present.
-    /// Input: 3-player game, adjacent attacker and defender, defender has no equipment.
-    /// Expected: IsWithinAttackRange returns true for adjacent players (seat distance 1 <= attack distance 1).
+    /// Tests that RangeRuleService allows normal attack range calculation when no offensive equipment is present.
+    /// Input: 4-player game, attacker and defender with seat distance = 2, attacker has no equipment.
+    /// Expected: IsWithinAttackRange returns false for non-adjacent players (seat distance 2 > attack distance 1).
     /// </summary>
     [TestMethod]
-    public void RangeRuleServiceWithoutDefensiveHorseAllowsNormalAttack()
+    public void RangeRuleServiceWithoutOffensiveHorseAllowsNormalAttack()
     {
         // Arrange
-        var game = CreateDefaultGame(3);
+        var game = CreateDefaultGame(4);
         var attacker = game.Players[0];
-        var defender = game.Players[1];
+        var defender = game.Players[2]; // Player 2 is at distance 2 from player 0 in 4-player game
         
-        // No equipment on defender
+        // No equipment on attacker
 
         var eventBus = new BasicEventBus();
         var skillRegistry = new SkillRegistry();
@@ -351,8 +371,8 @@ public sealed class DefensiveHorseTests
         var isWithinRange = rangeRuleService.IsWithinAttackRange(game, attacker, defender);
 
         // Assert
-        // Adjacent players should be within attack range
-        Assert.IsTrue(isWithinRange);
+        // Non-adjacent players should not be within attack range without offensive equipment
+        Assert.IsFalse(isWithinRange);
     }
 
     #endregion

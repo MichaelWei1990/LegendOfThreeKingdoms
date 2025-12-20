@@ -203,7 +203,15 @@ public sealed class EquipResolver : IResolver
         if (context.SkillManager is null || context.EquipmentSkillRegistry is null)
             return;
 
+        // Priority 1: Try to find skill by DefinitionId (supports special equipment with unique skills)
         var equipmentSkill = context.EquipmentSkillRegistry.GetSkillForEquipment(card.DefinitionId);
+        
+        // Priority 2: If not found, try to find skill by CardSubType (supports category-based shared skills)
+        if (equipmentSkill is null)
+        {
+            equipmentSkill = context.EquipmentSkillRegistry.GetSkillForEquipmentBySubType(card.CardSubType);
+        }
+        
         if (equipmentSkill is not null)
         {
             context.SkillManager.AddEquipmentSkill(context.Game, context.SourcePlayer, equipmentSkill);
@@ -215,7 +223,15 @@ public sealed class EquipResolver : IResolver
         if (context.SkillManager is null || context.EquipmentSkillRegistry is null)
             return;
 
+        // Priority 1: Try to find skill by DefinitionId
         var oldSkill = context.EquipmentSkillRegistry.GetSkillForEquipment(equipment.DefinitionId);
+        
+        // Priority 2: If not found, try to find skill by CardSubType
+        if (oldSkill is null)
+        {
+            oldSkill = context.EquipmentSkillRegistry.GetSkillForEquipmentBySubType(equipment.CardSubType);
+        }
+        
         if (oldSkill is not null)
         {
             context.SkillManager.RemoveEquipmentSkill(context.Game, context.SourcePlayer, oldSkill.Id);
