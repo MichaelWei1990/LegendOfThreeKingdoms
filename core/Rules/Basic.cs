@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Model.Zones;
+using LegendOfThreeKingdoms.Core.Skills;
 
 namespace LegendOfThreeKingdoms.Core.Rules;
 
@@ -152,6 +153,21 @@ public sealed class RangeRuleService : IRangeRuleService
             }
         }
 
+        // Apply offensive rule modifiers from the attacker's perspective
+        // This allows offensive equipment (like offensive horse) to modify the seat distance requirement
+        if (_modifierProvider is not null)
+        {
+            var modifiers = _modifierProvider.GetModifiersFor(game, from);
+            foreach (var modifier in modifiers)
+            {
+                var modified = modifier.ModifySeatDistance(seatDistance, game, from, to);
+                if (modified.HasValue)
+                {
+                    seatDistance = modified.Value;
+                }
+            }
+        }
+
         return seatDistance <= attackDistance;
     }
 
@@ -178,17 +194,20 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
     private readonly IRangeRuleService _rangeRules;
     private readonly ILimitRuleService _limitRules;
     private readonly IRuleModifierProvider? _modifierProvider;
+    private readonly SkillManager? _skillManager;
 
     public CardUsageRuleService(
         IPhaseRuleService phaseRules,
         IRangeRuleService rangeRules,
         ILimitRuleService limitRules,
-        IRuleModifierProvider? modifierProvider = null)
+        IRuleModifierProvider? modifierProvider = null,
+        SkillManager? skillManager = null)
     {
         _phaseRules = phaseRules ?? throw new ArgumentNullException(nameof(phaseRules));
         _rangeRules = rangeRules ?? throw new ArgumentNullException(nameof(rangeRules));
         _limitRules = limitRules ?? throw new ArgumentNullException(nameof(limitRules));
         _modifierProvider = modifierProvider;
+        _skillManager = skillManager;
     }
 
     public RuleResult CanUseCard(CardUsageContext context)
@@ -365,13 +384,14 @@ public sealed class RuleService : IRuleService
         IRangeRuleService? rangeRules = null,
         ILimitRuleService? limitRules = null,
         IActionQueryService? actionQuery = null,
-        IRuleModifierProvider? modifierProvider = null)
+        IRuleModifierProvider? modifierProvider = null,
+        SkillManager? skillManager = null)
     {
         _phaseRules = phaseRules ?? new PhaseRuleService();
         _limitRules = limitRules ?? new LimitRuleService();
         _modifierProvider = modifierProvider ?? new NoOpRuleModifierProvider();
         _rangeRules = rangeRules ?? new RangeRuleService(_modifierProvider);
-        _cardUsageRules = cardUsageRules ?? new CardUsageRuleService(_phaseRules, _rangeRules, _limitRules, _modifierProvider);
+        _cardUsageRules = cardUsageRules ?? new CardUsageRuleService(_phaseRules, _rangeRules, _limitRules, _modifierProvider, skillManager);
         _responseRules = responseRules ?? new ResponseRuleService();
         _actionQuery = actionQuery ?? new ActionQueryService(_phaseRules, _cardUsageRules);
     }

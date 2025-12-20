@@ -7,6 +7,7 @@ using LegendOfThreeKingdoms.Core.Logging;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Response;
 using LegendOfThreeKingdoms.Core.Rules;
+using LegendOfThreeKingdoms.Core.Skills;
 using LegendOfThreeKingdoms.Core.Zones;
 
 namespace LegendOfThreeKingdoms.Core.Resolution;
@@ -266,6 +267,7 @@ public sealed class SlashResponseHandlerResolver : IResolver
         if (responseResult.State == ResponseWindowState.NoResponse)
         {
             // No response - trigger damage
+            // Note: Card effect validation (e.g., Renwang Shield) is done before response window
             var damageContext = new ResolutionContext(
                 context.Game,
                 context.SourcePlayer,
@@ -279,7 +281,9 @@ public sealed class SlashResponseHandlerResolver : IResolver
                 context.GetPlayerChoice,
                 context.IntermediateResults,
                 context.EventBus,
-                context.LogCollector
+                context.LogCollector,
+                context.SkillManager,
+                context.EquipmentSkillRegistry
             );
 
             context.Stack.Push(new DamageResolver(), damageContext);
@@ -345,6 +349,75 @@ public sealed class SlashResolver : IResolver
                 details: new { TargetSeat = targetSeat });
         }
 
+        // Get the Slash card being used
+        Card? slashCard = null;
+        if (choice.SelectedCardIds is not null && choice.SelectedCardIds.Count > 0)
+        {
+            var cardId = choice.SelectedCardIds[0];
+            // Try to find card from Action.CardCandidates first
+            if (context.Action?.CardCandidates is not null)
+            {
+                slashCard = context.Action.CardCandidates.FirstOrDefault(c => c.Id == cardId);
+            }
+            // If not found, try to find from source player's hand
+            if (slashCard is null && sourcePlayer.HandZone.Cards is not null)
+            {
+                slashCard = sourcePlayer.HandZone.Cards.FirstOrDefault(c => c.Id == cardId);
+            }
+        }
+
+        if (slashCard is null)
+        {
+            return ResolutionResult.Failure(
+                ResolutionErrorCode.CardNotFound,
+                messageKey: "resolution.slash.cardNotFound");
+        }
+
+        // Validate card effect on target (before response window)
+        // This is where equipment like Renwang Shield can invalidate the effect
+        var effectContext = new CardEffectContext(
+            Game: game,
+            Card: slashCard,
+            SourcePlayer: sourcePlayer,
+            TargetPlayer: target
+        );
+
+        var isEffective = ValidateCardEffectOnTarget(context, effectContext, out var vetoReason);
+        
+        if (!isEffective)
+        {
+            // Card effect is invalidated (e.g., black Slash on Renwang Shield)
+            // Log the veto and return success without creating response window or damage
+            if (context.LogSink is not null && vetoReason is not null)
+            {
+                var logEntry = new LogEntry
+                {
+                    EventType = "CardEffectVetoed",
+                    Level = "Info",
+                    Message = $"Card effect vetoed: {vetoReason.Reason}",
+                    Data = new
+                    {
+                        Source = vetoReason.Source,
+                        Reason = vetoReason.Reason,
+                        Details = vetoReason.Details,
+                        CardId = slashCard.Id,
+                        SourceSeat = sourcePlayer.Seat,
+                        TargetSeat = target.Seat
+                    }
+                };
+                context.LogSink.Log(logEntry);
+            }
+
+            // Publish event if available
+            if (context.EventBus is not null)
+            {
+                // TODO: Create CardEffectVetoedEvent if needed
+            }
+
+            // Effect is invalidated, no response window, no damage
+            return ResolutionResult.SuccessResult;
+        }
+
         // Check if GetPlayerChoice is provided (required for response window)
         if (context.GetPlayerChoice is null)
         {
@@ -384,7 +457,9 @@ public sealed class SlashResolver : IResolver
             context.GetPlayerChoice,
             intermediateResults,
             context.EventBus,
-            context.LogCollector
+            context.LogCollector,
+            context.SkillManager,
+            context.EquipmentSkillRegistry
         );
 
         // Create handler resolver context
@@ -401,7 +476,9 @@ public sealed class SlashResolver : IResolver
             context.GetPlayerChoice,
             intermediateResults,
             context.EventBus,
-            context.LogCollector
+            context.LogCollector,
+            context.SkillManager,
+            context.EquipmentSkillRegistry
         );
 
         // Push SlashResponseHandlerResolver onto stack first (will execute after response window due to LIFO)
@@ -417,6 +494,71 @@ public sealed class SlashResolver : IResolver
         context.Stack.Push(responseWindow, responseContext);
 
         return ResolutionResult.SuccessResult;
+    }
+
+    /// <summary>
+    /// Validates if a card effect is effective on the target.
+    /// Checks all card effect filters (e.g., Renwang Shield) and armor ignore providers.
+    /// </summary>
+    private static bool ValidateCardEffectOnTarget(
+        ResolutionContext context,
+        CardEffectContext effectContext,
+        out EffectVetoReason? vetoReason)
+    {
+        vetoReason = null;
+
+        // Check if armor should be ignored (e.g., by Qinggang Sword)
+        var shouldIgnoreArmor = ShouldIgnoreArmor(context, effectContext);
+        
+        // If armor is ignored, skip armor-based filters
+        if (shouldIgnoreArmor)
+        {
+            return true; // Effect is effective (armor ignored)
+        }
+
+        // Check card effect filters from target's skills
+        if (context.SkillManager is not null)
+        {
+            var targetSkills = context.SkillManager.GetActiveSkills(effectContext.Game, effectContext.TargetPlayer);
+            foreach (var skill in targetSkills)
+            {
+                if (skill is ICardEffectFilteringSkill filteringSkill)
+                {
+                    var isEffective = filteringSkill.IsEffective(effectContext, out var reason);
+                    if (!isEffective)
+                    {
+                        vetoReason = reason;
+                        return false; // Effect is vetoed
+                    }
+                }
+            }
+        }
+
+        return true; // Effect is effective
+    }
+
+    /// <summary>
+    /// Checks if armor effects should be ignored for a card effect.
+    /// </summary>
+    private static bool ShouldIgnoreArmor(ResolutionContext context, CardEffectContext effectContext)
+    {
+        // Check if source player has skills/equipment that ignore armor
+        if (context.SkillManager is not null)
+        {
+            var sourceSkills = context.SkillManager.GetActiveSkills(effectContext.Game, effectContext.SourcePlayer);
+            foreach (var skill in sourceSkills)
+            {
+                if (skill is IArmorIgnoreProvider ignoreProvider)
+                {
+                    if (ignoreProvider.ShouldIgnoreArmor(effectContext))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 }
 

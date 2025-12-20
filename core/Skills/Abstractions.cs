@@ -1,5 +1,6 @@
 using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Model;
+using LegendOfThreeKingdoms.Core.Resolution;
 using LegendOfThreeKingdoms.Core.Rules;
 
 namespace LegendOfThreeKingdoms.Core.Skills;
@@ -175,4 +176,37 @@ public interface ISeatDistanceModifyingSkill : ISkill
     /// <param name="to">The target player (e.g., defender).</param>
     /// <returns>Null if no modification, otherwise the modified value.</returns>
     int? ModifySeatDistance(int current, Game game, Player from, Player to);
+}
+
+/// <summary>
+/// Skill that can filter legal targets for card usage.
+/// Used by equipment like Renwang Shield to prevent certain cards from targeting the owner.
+/// </summary>
+public interface ITargetFilteringSkill : ISkill
+{
+    /// <summary>
+    /// Determines whether a target should be excluded from legal targets for a card usage.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <param name="card">The card being used.</param>
+    /// <param name="potentialTarget">The potential target player.</param>
+    /// <returns>True if the target should be excluded, false otherwise.</returns>
+    bool ShouldExcludeTarget(Game game, Player owner, Card card, Player potentialTarget);
+}
+
+/// <summary>
+/// Skill that can filter card effects on targets.
+/// Used by equipment like Renwang Shield to invalidate card effects before response windows.
+/// </summary>
+public interface ICardEffectFilteringSkill : ISkill
+{
+    /// <summary>
+    /// Determines whether a card effect is effective on the target.
+    /// Returns false if the effect should be invalidated (vetoed), true otherwise.
+    /// </summary>
+    /// <param name="context">The card effect context.</param>
+    /// <param name="reason">If the effect is vetoed, contains the reason; otherwise null.</param>
+    /// <returns>True if the effect is effective, false if it should be vetoed.</returns>
+    bool IsEffective(CardEffectContext context, out EffectVetoReason? reason);
 }

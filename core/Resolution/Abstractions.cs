@@ -181,3 +181,54 @@ public sealed record DamageDescriptor(
             throw new ArgumentException("Target seat must be non-negative", nameof(TargetSeat));
     }
 }
+
+/// <summary>
+/// Context for checking if a card effect is effective on a target.
+/// Used by equipment and skills to determine if a card should be invalidated before response windows.
+/// </summary>
+public sealed record CardEffectContext(
+    Game Game,
+    Card Card,
+    Player SourcePlayer,
+    Player TargetPlayer
+);
+
+/// <summary>
+/// Reason why a card effect was vetoed (made ineffective).
+/// </summary>
+public sealed record EffectVetoReason(
+    string Source,              // Source of the veto (e.g., "RenwangShield")
+    string Reason,              // Human-readable reason (e.g., "Black Slash invalidated by armor")
+    object? Details = null      // Additional details for logging
+);
+
+/// <summary>
+/// Interface for filtering card effects on targets.
+/// Implementations can determine if a card effect should be invalidated before response windows.
+/// Used by equipment like Renwang Shield to prevent certain cards from taking effect.
+/// </summary>
+public interface ICardEffectFilter
+{
+    /// <summary>
+    /// Determines whether a card effect is effective on the target.
+    /// Returns false if the effect should be invalidated (vetoed), true otherwise.
+    /// </summary>
+    /// <param name="context">The card effect context.</param>
+    /// <param name="reason">If the effect is vetoed, contains the reason; otherwise null.</param>
+    /// <returns>True if the effect is effective, false if it should be vetoed.</returns>
+    bool IsEffective(CardEffectContext context, out EffectVetoReason? reason);
+}
+
+/// <summary>
+/// Interface for checking if armor effects should be ignored.
+/// Used by weapons like Qinggang Sword to bypass armor effects.
+/// </summary>
+public interface IArmorIgnoreProvider
+{
+    /// <summary>
+    /// Determines whether armor effects should be ignored for a card effect.
+    /// </summary>
+    /// <param name="context">The card effect context.</param>
+    /// <returns>True if armor should be ignored, false otherwise.</returns>
+    bool ShouldIgnoreArmor(CardEffectContext context);
+}
