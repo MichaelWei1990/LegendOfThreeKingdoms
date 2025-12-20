@@ -99,6 +99,54 @@ public sealed class SkillRuleModifier : IRuleModifier
 
         return null;
     }
+
+    /// <inheritdoc />
+    public int? ModifyAttackDistance(int current, Game game, Player from, Player to)
+    {
+        if (!_skill.IsActive(_game, _owner))
+            return null;
+
+        if ((_skill.Capabilities & SkillCapability.ModifiesRules) == 0)
+            return null;
+
+        // Check for attack distance-specific interface first (most focused)
+        if (_skill is IAttackDistanceModifyingSkill attackDistanceSkill)
+        {
+            return attackDistanceSkill.ModifyAttackDistance(current, game, from, to);
+        }
+
+        // Fall back to full rule modifying interface
+        if (_skill is IRuleModifyingSkill ruleModifyingSkill)
+        {
+            return ruleModifyingSkill.ModifyAttackDistance(current, game, from, to);
+        }
+
+        return null;
+    }
+
+    /// <inheritdoc />
+    public int? ModifySeatDistance(int current, Game game, Player from, Player to)
+    {
+        if (!_skill.IsActive(_game, _owner))
+            return null;
+
+        if ((_skill.Capabilities & SkillCapability.ModifiesRules) == 0)
+            return null;
+
+        // Check for seat distance-specific interface first (most focused)
+        if (_skill is ISeatDistanceModifyingSkill seatDistanceSkill)
+        {
+            return seatDistanceSkill.ModifySeatDistance(current, game, from, to);
+        }
+
+        // Fall back to full rule modifying interface
+        if (_skill is IRuleModifyingSkill ruleModifyingSkill)
+        {
+            return ruleModifyingSkill.ModifySeatDistance(current, game, from, to);
+        }
+
+        return null;
+    }
 }
 
 /// <summary>

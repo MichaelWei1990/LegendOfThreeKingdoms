@@ -168,4 +168,59 @@ public sealed class SkillManager
             DetachSkillsForPlayer(game, player);
         }
     }
+
+    /// <summary>
+    /// Adds an equipment skill to a player.
+    /// This is used when equipment is equipped.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="player">The player to add the skill to.</param>
+    /// <param name="skill">The equipment skill to add.</param>
+    /// <exception cref="ArgumentNullException">Thrown if game, player, or skill is null.</exception>
+    public void AddEquipmentSkill(Game game, Player player, ISkill skill)
+    {
+        if (game is null)
+            throw new ArgumentNullException(nameof(game));
+        if (player is null)
+            throw new ArgumentNullException(nameof(player));
+        if (skill is null)
+            throw new ArgumentNullException(nameof(skill));
+
+        if (!_playerSkills.TryGetValue(player.Seat, out var skills))
+        {
+            skills = new List<ISkill>();
+            _playerSkills[player.Seat] = skills;
+        }
+
+        skill.Attach(game, player, _eventBus);
+        skills.Add(skill);
+    }
+
+    /// <summary>
+    /// Removes an equipment skill from a player.
+    /// This is used when equipment is unequipped.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="player">The player to remove the skill from.</param>
+    /// <param name="skillId">The ID of the skill to remove.</param>
+    /// <exception cref="ArgumentNullException">Thrown if game or player is null.</exception>
+    public void RemoveEquipmentSkill(Game game, Player player, string skillId)
+    {
+        if (game is null)
+            throw new ArgumentNullException(nameof(game));
+        if (player is null)
+            throw new ArgumentNullException(nameof(player));
+        if (string.IsNullOrWhiteSpace(skillId))
+            return;
+
+        if (!_playerSkills.TryGetValue(player.Seat, out var skills))
+            return;
+
+        var skillToRemove = skills.FirstOrDefault(s => s.Id == skillId);
+        if (skillToRemove is not null)
+        {
+            skillToRemove.Detach(game, player, _eventBus);
+            skills.Remove(skillToRemove);
+        }
+    }
 }

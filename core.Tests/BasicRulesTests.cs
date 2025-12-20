@@ -4,6 +4,7 @@ using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Model.Zones;
 using LegendOfThreeKingdoms.Core.Skills;
+using LegendOfThreeKingdoms.Core.Skills.Hero;
 
 namespace core.Tests;
 

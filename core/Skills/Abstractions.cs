@@ -114,4 +114,65 @@ public interface IRuleModifyingSkill : ISkill
     /// <param name="owner">The player who owns this skill.</param>
     /// <returns>Null if no modification, otherwise the modified value.</returns>
     int? ModifyMaxSlashPerTurn(int current, Game game, Player owner);
+
+    /// <summary>
+    /// Modifies the attack distance from one player to another.
+    /// Returns null if no modification is needed, otherwise returns the modified value.
+    /// </summary>
+    /// <param name="current">The current attack distance.</param>
+    /// <param name="game">The current game state.</param>
+    /// <param name="from">The attacking player.</param>
+    /// <param name="to">The target player.</param>
+    /// <returns>Null if no modification, otherwise the modified value.</returns>
+    int? ModifyAttackDistance(int current, Game game, Player from, Player to);
+
+    /// <summary>
+    /// Modifies the seat distance from one player to another.
+    /// This is used for defensive equipment like defensive horse (+1 defense distance).
+    /// Returns null if no modification is needed, otherwise returns the modified value.
+    /// </summary>
+    /// <param name="current">The current seat distance.</param>
+    /// <param name="game">The current game state.</param>
+    /// <param name="from">The source player (e.g., attacker).</param>
+    /// <param name="to">The target player (e.g., defender).</param>
+    /// <returns>Null if no modification, otherwise the modified value.</returns>
+    int? ModifySeatDistance(int current, Game game, Player from, Player to);
+}
+
+/// <summary>
+/// Interface for skills that modify attack distance.
+/// Used by weapons and offensive equipment that increase attack range.
+/// </summary>
+public interface IAttackDistanceModifyingSkill : ISkill
+{
+    /// <summary>
+    /// Modifies the attack distance from one player to another.
+    /// Returns null if no modification is needed, otherwise returns the modified value.
+    /// </summary>
+    /// <param name="current">The current attack distance.</param>
+    /// <param name="game">The current game state.</param>
+    /// <param name="from">The attacking player.</param>
+    /// <param name="to">The target player.</param>
+    /// <returns>Null if no modification, otherwise the modified value.</returns>
+    int? ModifyAttackDistance(int current, Game game, Player from, Player to);
+}
+
+/// <summary>
+/// Interface for skills that modify seat distance.
+/// Used by defensive/offensive horses that affect the distance calculation for attacks.
+/// </summary>
+public interface ISeatDistanceModifyingSkill : ISkill
+{
+    /// <summary>
+    /// Modifies the seat distance from one player to another.
+    /// This is used for defensive equipment like defensive horse (+1 defense distance)
+    /// or offensive equipment like offensive horse (-1 attack distance requirement).
+    /// Returns null if no modification is needed, otherwise returns the modified value.
+    /// </summary>
+    /// <param name="current">The current seat distance.</param>
+    /// <param name="game">The current game state.</param>
+    /// <param name="from">The source player (e.g., attacker).</param>
+    /// <param name="to">The target player (e.g., defender).</param>
+    /// <returns>Null if no modification, otherwise the modified value.</returns>
+    int? ModifySeatDistance(int current, Game game, Player from, Player to);
 }

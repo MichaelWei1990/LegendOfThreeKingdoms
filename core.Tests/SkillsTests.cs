@@ -7,6 +7,7 @@ using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Model.Zones;
 using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Skills;
+using LegendOfThreeKingdoms.Core.Skills.Hero;
 using LegendOfThreeKingdoms.Core.Zones;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 

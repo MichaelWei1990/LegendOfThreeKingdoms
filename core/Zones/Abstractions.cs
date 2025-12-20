@@ -90,7 +90,15 @@ public enum CardMoveReason
 
     /// </summary>
 
-    ReturnToDeckBottom
+    ReturnToDeckBottom,
+
+    /// <summary>
+
+    /// Equipping a card (moving from hand to equipment zone).
+
+    /// </summary>
+
+    Equip
 
 }
 

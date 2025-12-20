@@ -47,6 +47,17 @@ public sealed class LimitRuleService : ILimitRuleService
 /// </summary>
 public sealed class RangeRuleService : IRangeRuleService
 {
+    private readonly IRuleModifierProvider? _modifierProvider;
+
+    /// <summary>
+    /// Creates a new RangeRuleService.
+    /// </summary>
+    /// <param name="modifierProvider">Optional rule modifier provider for applying equipment and skill modifications.</param>
+    public RangeRuleService(IRuleModifierProvider? modifierProvider = null)
+    {
+        _modifierProvider = modifierProvider;
+    }
+
     public int GetSeatDistance(Game game, Player from, Player to)
     {
         if (game is null) throw new ArgumentNullException(nameof(game));
@@ -92,9 +103,24 @@ public sealed class RangeRuleService : IRangeRuleService
         if (from is null) throw new ArgumentNullException(nameof(from));
         if (to is null) throw new ArgumentNullException(nameof(to));
 
-        // Initial implementation: base attack distance is always 1.
-        // Equipment and skills will modify this in later phases.
-        return 1;
+        // Base attack distance is always 1.
+        int baseDistance = 1;
+
+        // Apply rule modifiers from the attacker's perspective
+        if (_modifierProvider is not null)
+        {
+            var modifiers = _modifierProvider.GetModifiersFor(game, from);
+            foreach (var modifier in modifiers)
+            {
+                var modified = modifier.ModifyAttackDistance(baseDistance, game, from, to);
+                if (modified.HasValue)
+                {
+                    baseDistance = modified.Value;
+                }
+            }
+        }
+
+        return baseDistance;
     }
 
     public bool IsWithinAttackRange(Game game, Player from, Player to)
@@ -110,6 +136,22 @@ public sealed class RangeRuleService : IRangeRuleService
 
         var seatDistance = GetSeatDistance(game, from, to);
         var attackDistance = GetAttackDistance(game, from, to);
+
+        // Apply defensive rule modifiers from the defender's perspective
+        // This allows defensive equipment (like defensive horse) to modify the seat distance requirement
+        if (_modifierProvider is not null)
+        {
+            var modifiers = _modifierProvider.GetModifiersFor(game, to);
+            foreach (var modifier in modifiers)
+            {
+                var modified = modifier.ModifySeatDistance(seatDistance, game, from, to);
+                if (modified.HasValue)
+                {
+                    seatDistance = modified.Value;
+                }
+            }
+        }
+
         return seatDistance <= attackDistance;
     }
 
@@ -164,6 +206,14 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
         if (!_phaseRules.IsCardUsagePhase(game, source))
         {
             return RuleResult.Disallowed(RuleErrorCode.PhaseNotAllowed);
+        }
+
+        // Check card type first
+        if (context.Card.CardType == CardType.Equip)
+        {
+            // Equipment cards can be used during play phase
+            // No target required, no usage limit
+            return RuleResult.Allowed;
         }
 
         switch (context.Card.CardSubType)
@@ -318,9 +368,9 @@ public sealed class RuleService : IRuleService
         IRuleModifierProvider? modifierProvider = null)
     {
         _phaseRules = phaseRules ?? new PhaseRuleService();
-        _rangeRules = rangeRules ?? new RangeRuleService();
         _limitRules = limitRules ?? new LimitRuleService();
         _modifierProvider = modifierProvider ?? new NoOpRuleModifierProvider();
+        _rangeRules = rangeRules ?? new RangeRuleService(_modifierProvider);
         _cardUsageRules = cardUsageRules ?? new CardUsageRuleService(_phaseRules, _rangeRules, _limitRules, _modifierProvider);
         _responseRules = responseRules ?? new ResponseRuleService();
         _actionQuery = actionQuery ?? new ActionQueryService(_phaseRules, _cardUsageRules);
@@ -543,6 +593,18 @@ public sealed class NoOpRuleModifier : IRuleModifier
 
     /// <inheritdoc />
     public int? ModifyMaxSlashPerTurn(int current, Game game, Player player)
+    {
+        return null;
+    }
+
+    /// <inheritdoc />
+    public int? ModifyAttackDistance(int current, Game game, Player from, Player to)
+    {
+        return null;
+    }
+
+    /// <inheritdoc />
+    public int? ModifySeatDistance(int current, Game game, Player from, Player to)
     {
         return null;
     }

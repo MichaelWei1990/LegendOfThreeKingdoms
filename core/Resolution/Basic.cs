@@ -143,31 +143,40 @@ public sealed class UseCardResolver : IResolver
                 details: validationResult.Details);
         }
 
-        // Move card from hand to discard pile
-        try
-        {
-            var cardsToMove = new[] { card };
-            context.CardMoveService.DiscardFromHand(game, sourcePlayer, cardsToMove);
-        }
-        catch (Exception ex)
-        {
-            return ResolutionResult.Failure(
-                ResolutionErrorCode.InvalidState,
-                messageKey: "resolution.usecard.cardMoveFailed",
-                details: new { Exception = ex.Message });
-        }
-
         // Push specific resolver based on card type
-        IResolver? specificResolver = card.CardSubType switch
+        IResolver? specificResolver = card.CardType switch
         {
-            CardSubType.Slash => new SlashResolver(),
-            // Other card types can be added here in the future
-            _ => null
+            CardType.Equip => new EquipResolver(),
+            _ => card.CardSubType switch
+            {
+                CardSubType.Slash => new SlashResolver(),
+                // Other card types can be added here in the future
+                _ => null
+            }
         };
+
+        // For equipment cards, don't move to discard pile yet - EquipResolver will handle it
+        // For other cards, move to discard pile first
+        if (card.CardType != CardType.Equip)
+        {
+            try
+            {
+                var cardsToMove = new[] { card };
+                context.CardMoveService.DiscardFromHand(game, sourcePlayer, cardsToMove);
+            }
+            catch (Exception ex)
+            {
+                return ResolutionResult.Failure(
+                    ResolutionErrorCode.InvalidState,
+                    messageKey: "resolution.usecard.cardMoveFailed",
+                    details: new { Exception = ex.Message });
+            }
+        }
 
         if (specificResolver is null)
         {
-            // Card type not supported yet, but card was already moved
+            // Card type not supported yet
+            // For non-equipment cards, card was already moved to discard pile
             // This is acceptable for now as the card was successfully "used"
             return ResolutionResult.SuccessResult;
         }
@@ -203,7 +212,9 @@ public sealed class UseCardResolver : IResolver
             context.GetPlayerChoice,
             context.IntermediateResults,
             context.EventBus,
-            context.LogCollector
+            context.LogCollector,
+            context.SkillManager,
+            context.EquipmentSkillRegistry
         );
 
         // Push the specific resolver onto the stack

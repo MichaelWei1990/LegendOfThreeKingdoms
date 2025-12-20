@@ -41,7 +41,9 @@ public sealed record ResolutionContext(
     Func<ChoiceRequest, ChoiceResult>? GetPlayerChoice = null,
     Dictionary<string, object>? IntermediateResults = null,
     IEventBus? EventBus = null,
-    ILogCollector? LogCollector = null
+    ILogCollector? LogCollector = null,
+    Skills.SkillManager? SkillManager = null,
+    Skills.EquipmentSkillRegistry? EquipmentSkillRegistry = null
 );
 
 /// <summary>
