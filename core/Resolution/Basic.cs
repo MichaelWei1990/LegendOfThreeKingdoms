@@ -148,6 +148,15 @@ public sealed class UseCardResolver : IResolver
         IResolver? specificResolver = card.CardType switch
         {
             CardType.Equip => new EquipResolver(),
+            CardType.Trick => card.CardSubType switch
+            {
+                CardSubType.ImmediateTrick => new ImmediateTrickResolver(),
+                CardSubType.DelayedTrick => new DelayedTrickResolver(),
+                CardSubType.WuzhongShengyou => new ImmediateTrickResolver(),
+                CardSubType.Lebusishu => new DelayedTrickResolver(),
+                CardSubType.Shandian => new DelayedTrickResolver(),
+                _ => null
+            },
             _ => card.CardSubType switch
             {
                 CardSubType.Slash => new SlashResolver(),
@@ -157,8 +166,14 @@ public sealed class UseCardResolver : IResolver
         };
 
         // For equipment cards, don't move to discard pile yet - EquipResolver will handle it
+        // For delayed tricks, don't move to discard pile yet - DelayedTrickResolver will move to judgement zone
         // For other cards, move to discard pile first
-        if (card.CardType != CardType.Equip)
+        var isDelayedTrick = card.CardType == CardType.Trick &&
+                            (card.CardSubType == CardSubType.DelayedTrick ||
+                             card.CardSubType == CardSubType.Lebusishu ||
+                             card.CardSubType == CardSubType.Shandian);
+
+        if (card.CardType != CardType.Equip && !isDelayedTrick)
         {
             try
             {
@@ -215,7 +230,8 @@ public sealed class UseCardResolver : IResolver
             context.EventBus,
             context.LogCollector,
             context.SkillManager,
-            context.EquipmentSkillRegistry
+            context.EquipmentSkillRegistry,
+            context.JudgementService
         );
 
         // Push the specific resolver onto the stack

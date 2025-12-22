@@ -284,6 +284,17 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
 
                     return RuleResult.Allowed;
                 }
+            case CardSubType.ImmediateTrick:
+            case CardSubType.DelayedTrick:
+            case CardSubType.WuzhongShengyou:
+            case CardSubType.Lebusishu:
+            case CardSubType.Shandian:
+                {
+                    // Trick cards can be used during play phase.
+                    // Specific rules for each trick card type will be handled by their respective resolvers.
+                    // For now, we allow all trick cards to be used if the phase is correct.
+                    return RuleResult.Allowed;
+                }
             default:
                 // Other card types are not handled in the initial implementation.
                 return RuleResult.Disallowed(RuleErrorCode.CardTypeNotAllowed);

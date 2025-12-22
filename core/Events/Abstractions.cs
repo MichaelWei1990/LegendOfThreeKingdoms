@@ -204,3 +204,19 @@ public sealed record JudgementCompletedEvent(
     /// <inheritdoc />
     public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
 }
+
+/// <summary>
+/// Event published when a delayed trick is placed in a player's judgement zone.
+/// </summary>
+public sealed record DelayedTrickPlacedEvent(
+    Game Game,
+    int SourcePlayerSeat,
+    int TargetPlayerSeat,
+    int CardId,
+    CardSubType CardSubType,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}

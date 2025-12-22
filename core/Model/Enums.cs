@@ -31,7 +31,35 @@ public enum CardSubType
     /// <summary>
     /// 防御马（+1 距离）。
     /// </summary>
-    DefensiveHorse
+    DefensiveHorse,
+
+    // Trick card categories
+    /// <summary>
+    /// Immediate trick card (即时锦囊).
+    /// </summary>
+    ImmediateTrick,
+
+    /// <summary>
+    /// Delayed trick card (延时锦囊).
+    /// </summary>
+    DelayedTrick,
+
+    // Specific immediate tricks
+    /// <summary>
+    /// 无中生有 (Wuzhong Shengyou).
+    /// </summary>
+    WuzhongShengyou,
+
+    // Specific delayed tricks
+    /// <summary>
+    /// 乐不思蜀 (Le Bu Si Shu).
+    /// </summary>
+    Lebusishu,
+
+    /// <summary>
+    /// 闪电 (Shandian).
+    /// </summary>
+    Shandian
 }
 
 /// <summary>
