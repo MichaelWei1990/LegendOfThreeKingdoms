@@ -85,6 +85,12 @@ public abstract class RuleModifyingSkillBase : BaseSkill, IRuleModifyingSkill
     {
         return null;
     }
+
+    /// <inheritdoc />
+    public virtual int? ModifyDrawCount(int current, Game game, Player owner)
+    {
+        return null;
+    }
 }
 
 /// <summary>
@@ -104,5 +110,22 @@ public abstract class OffensiveDistanceModifyingSkillBase : BaseSkill, ISeatDist
         // Decrease seat distance by 1
         // Ensure the result is at least 1 (distance cannot be negative)
         return Math.Max(1, current - 1);
+    }
+}
+
+/// <summary>
+/// Base class for skills that allow unlimited Slash usage per turn.
+/// Used by both Roar (hero skill) and Zhuge Crossbow (equipment skill).
+/// </summary>
+public abstract class UnlimitedSlashSkillBase : RuleModifyingSkillBase
+{
+    /// <inheritdoc />
+    public override int? ModifyMaxSlashPerTurn(int current, Game game, Player owner)
+    {
+        if (!IsActive(game, owner))
+            return null;
+
+        // Return int.MaxValue to represent unlimited Slash usage
+        return int.MaxValue;
     }
 }

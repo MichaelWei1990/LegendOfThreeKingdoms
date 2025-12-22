@@ -481,6 +481,17 @@ public sealed class RuleService : IRuleService
 
         return result;
     }
+
+    /// <summary>
+    /// Gets all rule modifiers for the specified player.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="player">The player whose modifiers are requested.</param>
+    /// <returns>A list of rule modifiers applicable to the player.</returns>
+    public IReadOnlyList<IRuleModifier> GetModifiersFor(Game game, Player player)
+    {
+        return _modifierProvider.GetModifiersFor(game, player);
+    }
 }
 
 /// <summary>
@@ -625,6 +636,12 @@ public sealed class NoOpRuleModifier : IRuleModifier
 
     /// <inheritdoc />
     public int? ModifySeatDistance(int current, Game game, Player from, Player to)
+    {
+        return null;
+    }
+
+    /// <inheritdoc />
+    public int? ModifyDrawCount(int current, Game game, Player player)
     {
         return null;
     }

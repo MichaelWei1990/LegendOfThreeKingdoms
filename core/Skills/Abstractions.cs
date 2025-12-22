@@ -141,6 +141,16 @@ public interface IRuleModifyingSkill : ISkill
     /// <param name="to">The target player (e.g., defender).</param>
     /// <returns>Null if no modification, otherwise the modified value.</returns>
     int? ModifySeatDistance(int current, Game game, Player from, Player to);
+
+    /// <summary>
+    /// Modifies the number of cards drawn during draw phase.
+    /// Returns null if no modification is needed, otherwise returns the modified value.
+    /// </summary>
+    /// <param name="current">The current draw count.</param>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <returns>Null if no modification, otherwise the modified value.</returns>
+    int? ModifyDrawCount(int current, Game game, Player owner);
 }
 
 /// <summary>

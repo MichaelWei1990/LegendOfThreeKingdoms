@@ -1,3 +1,4 @@
+using System;
 using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Zones;
 
@@ -8,6 +9,35 @@ namespace LegendOfThreeKingdoms.Core.Resolution;
 /// </summary>
 public static class ResolutionExtensions
 {
+    /// <summary>
+    /// Executes draw phase logic: draws cards for the current player.
+    /// This method should be called when entering Draw Phase.
+    /// </summary>
+    /// <param name="stack">The resolution stack to use for execution.</param>
+    /// <param name="context">The resolution context containing game state and dependencies.</param>
+    public static void ExecuteDrawPhase(
+        this IResolutionStack stack,
+        ResolutionContext context)
+    {
+        if (stack is null)
+            throw new ArgumentNullException(nameof(stack));
+        if (context is null)
+            throw new ArgumentNullException(nameof(context));
+
+        var resolver = new DrawPhaseResolver();
+        stack.Push(resolver, context);
+
+        // Execute immediately
+        while (!stack.IsEmpty)
+        {
+            var result = stack.Pop();
+            if (!result.Success)
+            {
+                throw new InvalidOperationException(
+                    $"Draw phase failed: {result.MessageKey ?? result.ErrorCode?.ToString()}");
+            }
+        }
+    }
     /// <summary>
     /// Registers the UseSlash action handler that uses the resolution pipeline.
     /// </summary>

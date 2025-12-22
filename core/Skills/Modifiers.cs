@@ -147,6 +147,23 @@ public sealed class SkillRuleModifier : IRuleModifier
 
         return null;
     }
+
+    /// <inheritdoc />
+    public int? ModifyDrawCount(int current, Game game, Player player)
+    {
+        if (!_skill.IsActive(_game, _owner))
+            return null;
+
+        if ((_skill.Capabilities & SkillCapability.ModifiesRules) == 0)
+            return null;
+
+        if (_skill is IRuleModifyingSkill ruleModifyingSkill)
+        {
+            return ruleModifyingSkill.ModifyDrawCount(current, game, _owner);
+        }
+
+        return null;
+    }
 }
 
 /// <summary>
