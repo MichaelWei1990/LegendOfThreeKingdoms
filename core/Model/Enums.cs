@@ -50,6 +50,11 @@ public enum CardSubType
     /// </summary>
     WuzhongShengyou,
 
+    /// <summary>
+    /// 桃园结义 (Taoyuan Jieyi).
+    /// </summary>
+    TaoyuanJieyi,
+
     // Specific delayed tricks
     /// <summary>
     /// 乐不思蜀 (Le Bu Si Shu).

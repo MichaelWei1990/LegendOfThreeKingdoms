@@ -287,6 +287,7 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
             case CardSubType.ImmediateTrick:
             case CardSubType.DelayedTrick:
             case CardSubType.WuzhongShengyou:
+            case CardSubType.TaoyuanJieyi:
             case CardSubType.Lebusishu:
             case CardSubType.Shandian:
                 {
