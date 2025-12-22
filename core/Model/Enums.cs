@@ -55,6 +55,11 @@ public enum CardSubType
     /// </summary>
     TaoyuanJieyi,
 
+    /// <summary>
+    /// 顺手牵羊 (Shunshou Qianyang / Steal).
+    /// </summary>
+    ShunshouQianyang,
+
     // Specific delayed tricks
     /// <summary>
     /// 乐不思蜀 (Le Bu Si Shu).

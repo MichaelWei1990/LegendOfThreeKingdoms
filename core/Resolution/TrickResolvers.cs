@@ -64,6 +64,7 @@ public sealed class ImmediateTrickResolver : IResolver
         {
             CardSubType.WuzhongShengyou => new WuzhongShengyouResolver(),
             CardSubType.TaoyuanJieyi => new TaoyuanJieyiResolver(),
+            CardSubType.ShunshouQianyang => new ShunshouQianyangResolver(),
             CardSubType.ImmediateTrick => null,   // Generic immediate trick - no specific resolver yet
             _ => null
         };

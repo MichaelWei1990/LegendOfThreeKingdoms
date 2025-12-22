@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using LegendOfThreeKingdoms.Core.Logging;
+using LegendOfThreeKingdoms.Core.Abstractions;
 using LegendOfThreeKingdoms.Core.Model;
 
 namespace LegendOfThreeKingdoms.Core.Resolution;

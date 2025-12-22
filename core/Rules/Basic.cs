@@ -288,6 +288,7 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
             case CardSubType.DelayedTrick:
             case CardSubType.WuzhongShengyou:
             case CardSubType.TaoyuanJieyi:
+            case CardSubType.ShunshouQianyang:
             case CardSubType.Lebusishu:
             case CardSubType.Shandian:
                 {
@@ -309,22 +310,38 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
         var game = context.Game;
         var source = context.SourcePlayer;
 
-        if (context.Card.CardSubType != CardSubType.Slash)
+        if (context.Card.CardSubType == CardSubType.Slash)
         {
-            // Only Slash has target logic at this phase.
-            return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
+            var legalTargets = game.Players
+                .Where(p => p.IsAlive && p.Seat != source.Seat && _rangeRules.IsWithinAttackRange(game, source, p))
+                .ToArray();
+
+            if (legalTargets.Length == 0)
+            {
+                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
+            }
+
+            return RuleQueryResult<Player>.FromItems(legalTargets);
         }
 
-        var legalTargets = game.Players
-            .Where(p => p.IsAlive && p.Seat != source.Seat && _rangeRules.IsWithinAttackRange(game, source, p))
-            .ToArray();
-
-        if (legalTargets.Length == 0)
+        if (context.Card.CardSubType == CardSubType.ShunshouQianyang)
         {
-            return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
+            var legalTargets = game.Players
+                .Where(p => p.IsAlive 
+                    && p.Seat != source.Seat 
+                    && _rangeRules.GetSeatDistance(game, source, p) <= 1)
+                .ToArray();
+
+            if (legalTargets.Length == 0)
+            {
+                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
+            }
+
+            return RuleQueryResult<Player>.FromItems(legalTargets);
         }
 
-        return RuleQueryResult<Player>.FromItems(legalTargets);
+        // Other card types don't have target logic at this phase.
+        return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
     }
 }
 

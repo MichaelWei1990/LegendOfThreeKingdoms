@@ -1,7 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using LegendOfThreeKingdoms.Core.Abstractions;
 using LegendOfThreeKingdoms.Core.Judgement;
-using LegendOfThreeKingdoms.Core.Logging;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Tricks;
 using LegendOfThreeKingdoms.Core.Zones;
@@ -71,11 +72,10 @@ public sealed class DelayedTrickJudgementResolver : IResolver
         );
 
         // Store judgement request in IntermediateResults for JudgementResolver
-        if (context.IntermediateResults is null)
-        {
-            context.IntermediateResults = new System.Collections.Generic.Dictionary<string, object>();
-        }
-        context.IntermediateResults["JudgementRequest"] = judgementRequest;
+        var intermediateResults = context.IntermediateResults != null
+            ? new Dictionary<string, object>(context.IntermediateResults)
+            : new Dictionary<string, object>();
+        intermediateResults["JudgementRequest"] = judgementRequest;
 
         // Create new context for JudgementResolver
         var judgementContext = new ResolutionContext(
@@ -89,7 +89,7 @@ public sealed class DelayedTrickJudgementResolver : IResolver
             context.PendingDamage,
             context.LogSink,
             context.GetPlayerChoice,
-            context.IntermediateResults,
+            intermediateResults,
             context.EventBus,
             context.LogCollector,
             context.SkillManager,
@@ -198,7 +198,7 @@ internal sealed class DelayedTrickEffectResolver : IResolver
                 // TODO: Implement skip play phase effect
                 if (context.LogSink is not null)
                 {
-                    var logEntry = new Logging.LogEntry
+                    var logEntry = new LogEntry
                     {
                         EventType = "DelayedTrickEffect",
                         Level = "Info",
@@ -257,7 +257,7 @@ internal sealed class DelayedTrickEffectResolver : IResolver
         // Judgement failed - no negative effect
         if (context.LogSink is not null)
         {
-            var logEntry = new Logging.LogEntry
+            var logEntry = new LogEntry
             {
                 EventType = "DelayedTrickEffect",
                 Level = "Info",
