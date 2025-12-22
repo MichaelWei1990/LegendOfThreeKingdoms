@@ -277,3 +277,4 @@ public sealed class EventsBasicTests
         Assert.AreEqual(cardMoveEvent, cardMovedEvent.CardMoveEvent);
     }
 }
+

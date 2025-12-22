@@ -273,3 +273,4 @@ public sealed class ReplayTests
         Assert.AreEqual(0, result.TotalChoices);
     }
 }
+
