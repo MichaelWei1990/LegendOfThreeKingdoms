@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using LegendOfThreeKingdoms.Core.Abstractions;
 using LegendOfThreeKingdoms.Core.Events;
+using LegendOfThreeKingdoms.Core.Judgement;
 using LegendOfThreeKingdoms.Core.Logging;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Response;
@@ -43,7 +44,8 @@ public sealed record ResolutionContext(
     IEventBus? EventBus = null,
     ILogCollector? LogCollector = null,
     Skills.SkillManager? SkillManager = null,
-    Skills.EquipmentSkillRegistry? EquipmentSkillRegistry = null
+    Skills.EquipmentSkillRegistry? EquipmentSkillRegistry = null,
+    IJudgementService? JudgementService = null
 );
 
 /// <summary>

@@ -1,4 +1,5 @@
 using System;
+using LegendOfThreeKingdoms.Core.Judgement;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Resolution;
 using LegendOfThreeKingdoms.Core.Zones;
@@ -168,6 +169,35 @@ public sealed record PlayerDiedEvent(
 public sealed record CardMovedEvent(
     Game Game,
     CardMoveEvent CardMoveEvent,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
+/// Event published when a judgement starts.
+/// </summary>
+public sealed record JudgementStartedEvent(
+    Game Game,
+    Guid JudgementId,
+    int JudgeOwnerSeat,
+    JudgementReason Reason,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
+/// Event published when a judgement completes.
+/// </summary>
+public sealed record JudgementCompletedEvent(
+    Game Game,
+    Guid JudgementId,
+    JudgementResult Result,
     DateTime Timestamp = default
 ) : IGameEvent
 {
