@@ -126,10 +126,12 @@ public sealed class BasicJudgementService : IJudgementService
         if (judgementCard is null) throw new ArgumentNullException(nameof(judgementCard));
         if (cardMoveService is null) throw new ArgumentNullException(nameof(cardMoveService));
 
-        // Verify the card is in JudgementZone
+        // Check if the card is still in JudgementZone
+        // If the card has been moved by another skill (e.g., Tiandu), skip moving to discard pile
         if (!judgeOwner.JudgementZone.Cards.Contains(judgementCard))
         {
-            throw new InvalidOperationException($"Judgement card {judgementCard.Id} is not in player {judgeOwner.Seat}'s JudgementZone.");
+            // Card has been moved by another skill, skip moving to discard pile
+            return;
         }
 
         // Move the card from JudgementZone to discard pile
