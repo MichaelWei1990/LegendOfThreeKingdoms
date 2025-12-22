@@ -2,19 +2,20 @@ using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Skills;
 
-namespace LegendOfThreeKingdoms.Core.Skills.Equipment;
+namespace LegendOfThreeKingdoms.Core.Skills.Hero;
 
 /// <summary>
-/// Offensive Horse skill: provides -1 attack distance requirement.
+/// Horsemanship skill: provides -1 attack distance requirement.
 /// When the owner attacks someone, the seat distance requirement is decreased by 1.
+/// This effect stacks with offensive horse equipment (total effect: -2).
 /// </summary>
-public sealed class OffensiveHorseSkill : OffensiveDistanceModifyingSkillBase
+public sealed class HorsemanshipSkill : OffensiveDistanceModifyingSkillBase
 {
     /// <inheritdoc />
-    public override string Id => "offensive_horse";
+    public override string Id => "horsemanship";
 
     /// <inheritdoc />
-    public override string Name => "进攻马";
+    public override string Name => "马术";
 
     /// <inheritdoc />
     public override SkillType Type => SkillType.Locked;
@@ -24,13 +25,13 @@ public sealed class OffensiveHorseSkill : OffensiveDistanceModifyingSkillBase
 }
 
 /// <summary>
-/// Factory for creating OffensiveHorseSkill instances.
+/// Factory for creating HorsemanshipSkill instances.
 /// </summary>
-public sealed class OffensiveHorseSkillFactory : IEquipmentSkillFactory
+public sealed class HorsemanshipSkillFactory : ISkillFactory
 {
     /// <inheritdoc />
     public ISkill CreateSkill()
     {
-        return new OffensiveHorseSkill();
+        return new HorsemanshipSkill();
     }
 }

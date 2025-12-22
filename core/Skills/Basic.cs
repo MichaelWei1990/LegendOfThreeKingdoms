@@ -1,3 +1,4 @@
+using System;
 using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Rules;
@@ -83,5 +84,25 @@ public abstract class RuleModifyingSkillBase : BaseSkill, IRuleModifyingSkill
     public virtual int? ModifySeatDistance(int current, Game game, Player from, Player to)
     {
         return null;
+    }
+}
+
+/// <summary>
+/// Base class for skills that decrease attack distance requirement by 1.
+/// Used by both Horsemanship (hero skill) and Offensive Horse (equipment skill).
+/// </summary>
+public abstract class OffensiveDistanceModifyingSkillBase : BaseSkill, ISeatDistanceModifyingSkill
+{
+    /// <inheritdoc />
+    public int? ModifySeatDistance(int current, Game game, Player from, Player to)
+    {
+        // Decrease seat distance by 1 (making it easier to attack from farther away)
+        // This applies when the owner (from) attacks someone
+        if (!IsActive(game, from))
+            return null;
+
+        // Decrease seat distance by 1
+        // Ensure the result is at least 1 (distance cannot be negative)
+        return Math.Max(1, current - 1);
     }
 }
