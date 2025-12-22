@@ -485,9 +485,10 @@ public sealed class SlashResolver : IResolver
         context.Stack.Push(new SlashResponseHandlerResolver(damage), handlerContext);
 
         // Create response window for Jink
+        // Include SlashCard in sourceEvent for equipment skills that need to check armor validity
         var responseWindow = responseContext.CreateJinkResponseWindow(
             targetPlayer: target,
-            sourceEvent: new { Type = "Slash", SourceSeat = sourcePlayer.Seat, TargetSeat = target.Seat },
+            sourceEvent: new { Type = "Slash", SourceSeat = sourcePlayer.Seat, TargetSeat = target.Seat, SlashCard = slashCard },
             getPlayerChoice: context.GetPlayerChoice);
 
         // Push response window onto stack last (will execute first due to LIFO)

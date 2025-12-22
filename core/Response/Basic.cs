@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using LegendOfThreeKingdoms.Core.Abstractions;
+using LegendOfThreeKingdoms.Core.Judgement;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Resolution;
 using LegendOfThreeKingdoms.Core.Rules;
+using LegendOfThreeKingdoms.Core.Skills;
 using LegendOfThreeKingdoms.Core.Zones;
 
 namespace LegendOfThreeKingdoms.Core.Response;
@@ -114,36 +117,58 @@ public sealed class BasicResponseWindow : IResponseWindow
             context.SourceEvent,
             responseRuleService);
 
-        if (legalCards is null)
+        // Priority 1: Check for response enhancement skills (e.g., Bagua Array)
+        // Skills are executed in priority order (lower Priority value = higher priority)
+        // This allows players to try enhancement skills first, even if they have legal cards
+        // If enhancement fails, they can still use legal cards
+        if (context.SkillManager is not null && context.JudgementService is not null)
         {
-            return null;
+            var enhancementResult = TryResponseEnhancement(
+                context,
+                responder,
+                game,
+                responseType,
+                getPlayerChoice);
+            
+            if (enhancementResult is not null)
+            {
+                // Enhancement was successful
+                return enhancementResult;
+            }
+            // If enhancement was attempted but failed, continue to check legal cards
         }
 
-        // Get player choice
-        var choice = GetPlayerChoiceForResponse(
-            game,
-            responder,
-            responseType,
-            context.SourceEvent,
-            choiceFactory,
-            getPlayerChoice);
-
-        if (choice is null || choice.SelectedCardIds is null || choice.SelectedCardIds.Count == 0)
+        // Priority 2: If no enhancement or enhancement failed, check for legal cards
+        if (legalCards is not null && legalCards.Count > 0)
         {
+            // Get player choice
+            var choice = GetPlayerChoiceForResponse(
+                game,
+                responder,
+                responseType,
+                context.SourceEvent,
+                choiceFactory,
+                getPlayerChoice);
+
+            if (choice is not null && choice.SelectedCardIds is not null && choice.SelectedCardIds.Count > 0)
+            {
+                // Player chose to respond with a card
+                return ProcessPlayerResponse(
+                    context,
+                    responder,
+                    game,
+                    responseType,
+                    legalCards,
+                    choice,
+                    cardMoveService);
+            }
+
             // Player chose not to respond (passed)
             LogResponsePassed(context.LogSink, responder, responseType);
-            return null;
         }
 
-        // Process player response
-        return ProcessPlayerResponse(
-            context,
-            responder,
-            game,
-            responseType,
-            legalCards,
-            choice,
-            cardMoveService);
+        // No response and no enhancement available
+        return null;
     }
 
     /// <summary>
@@ -356,6 +381,136 @@ public sealed class BasicResponseWindow : IResponseWindow
             }
         };
         logSink.Log(logEntry);
+    }
+
+    /// <summary>
+    /// Attempts to use response enhancement skills (e.g., Bagua Array) when player has no legal cards or chose not to respond.
+    /// </summary>
+    /// <returns>ResponseWindowResult if enhancement was successful, null otherwise.</returns>
+    private static ResponseWindowResult? TryResponseEnhancement(
+        ResponseWindowContext context,
+        Player responder,
+        Game game,
+        ResponseType responseType,
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice)
+    {
+        if (context.SkillManager is null || context.JudgementService is null)
+            return null;
+
+        // For JinkAgainstSlash, check if armor is ignored by attacker
+        if (responseType == ResponseType.JinkAgainstSlash)
+        {
+            if (IsArmorIgnoredByAttacker(context, responder, game))
+            {
+                // Armor is ignored, cannot use armor-based response enhancement
+                return null;
+            }
+        }
+
+        // Get all active skills for the responder
+        var skills = context.SkillManager.GetActiveSkills(game, responder);
+        
+        // Find and sort response enhancement skills by priority (lower priority value = higher priority)
+        var enhancementSkills = skills
+            .OfType<IResponseEnhancementSkill>()
+            .Where(skill => skill.CanProvideResponse(game, responder, responseType, context.SourceEvent))
+            .OrderBy(skill => skill.Priority)
+            .ToList();
+
+        // Try each enhancement skill in priority order
+        foreach (var enhancementSkill in enhancementSkills)
+        {
+            // Execute the alternative response
+            var success = enhancementSkill.ExecuteAlternativeResponse(
+                game,
+                responder,
+                responseType,
+                context.SourceEvent,
+                getPlayerChoice,
+                context.JudgementService,
+                context.CardMoveService);
+
+            if (success)
+            {
+                // Enhancement successful - treat as response success
+                if (context.LogSink is not null)
+                {
+                    var logEntry = new LogEntry
+                    {
+                        EventType = "ResponseEnhancementSuccess",
+                        Level = "Info",
+                        Message = $"Player {responder.Seat} used {enhancementSkill.Name} to successfully respond to {responseType}",
+                        Data = new
+                        {
+                            ResponderSeat = responder.Seat,
+                            ResponseType = responseType.ToString(),
+                            SkillId = enhancementSkill.Id,
+                            SkillName = enhancementSkill.Name
+                        }
+                    };
+                    context.LogSink.Log(logEntry);
+                }
+
+                return new ResponseWindowResult(
+                    State: ResponseWindowState.ResponseSuccess,
+                    Responder: responder);
+            }
+            // If enhancement failed, continue to next skill or fall back to legal cards
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Checks if armor effects are ignored by the attacker for a Slash response.
+    /// </summary>
+    private static bool IsArmorIgnoredByAttacker(
+        ResponseWindowContext context,
+        Player responder,
+        Game game)
+    {
+        if (context.SourceEvent is null || context.SkillManager is null)
+            return false;
+
+        // Extract source player seat and slash card from sourceEvent
+        var sourceSeatProperty = context.SourceEvent.GetType().GetProperty("SourceSeat");
+        var slashCardProperty = context.SourceEvent.GetType().GetProperty("SlashCard");
+
+        if (sourceSeatProperty is null || slashCardProperty is null)
+            return false;
+
+        var sourceSeatObj = sourceSeatProperty.GetValue(context.SourceEvent);
+        var slashCard = slashCardProperty.GetValue(context.SourceEvent) as Card;
+
+        if (sourceSeatObj is not int sourceSeat || slashCard is null)
+            return false;
+
+        // Find source player
+        var sourcePlayer = game.Players.FirstOrDefault(p => p.Seat == sourceSeat);
+        if (sourcePlayer is null)
+            return false;
+
+        // Check if source player has IArmorIgnoreProvider skills
+        var sourceSkills = context.SkillManager.GetActiveSkills(game, sourcePlayer);
+        foreach (var skill in sourceSkills)
+        {
+            if (skill is IArmorIgnoreProvider ignoreProvider)
+            {
+                var effectContext = new CardEffectContext(
+                    Game: game,
+                    Card: slashCard,
+                    SourcePlayer: sourcePlayer,
+                    TargetPlayer: responder
+                );
+
+                if (ignoreProvider.ShouldIgnoreArmor(effectContext))
+                {
+                    return true; // Armor is ignored
+                }
+            }
+        }
+
+        return false; // Armor is not ignored
     }
 }
 

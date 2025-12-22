@@ -47,7 +47,9 @@ public static class ResponseExtensions
             ResponseRuleService: responseRuleService,
             ChoiceFactory: new ChoiceRequestFactory(), // TODO: Should be injected
             CardMoveService: context.CardMoveService,
-            LogSink: context.LogSink
+            LogSink: context.LogSink,
+            SkillManager: context.SkillManager,
+            JudgementService: context.JudgementService
         );
 
         return new ResponseWindowResolver(windowContext, getPlayerChoice);
@@ -86,7 +88,9 @@ public static class ResponseExtensions
             ResponseRuleService: responseRuleService,
             ChoiceFactory: new ChoiceRequestFactory(), // TODO: Should be injected
             CardMoveService: context.CardMoveService,
-            LogSink: context.LogSink
+            LogSink: context.LogSink,
+            SkillManager: context.SkillManager,
+            JudgementService: context.JudgementService
         );
 
         return new ResponseWindowResolver(windowContext, getPlayerChoice);
@@ -173,7 +177,9 @@ public static class ResponseExtensions
             ResponseRuleService: responseRuleService,
             ChoiceFactory: new ChoiceRequestFactory(), // TODO: Should be injected
             CardMoveService: context.CardMoveService,
-            LogSink: context.LogSink
+            LogSink: context.LogSink,
+            SkillManager: context.SkillManager,
+            JudgementService: context.JudgementService
         );
         
         return new ResponseWindowResolver(windowContext, getPlayerChoice);

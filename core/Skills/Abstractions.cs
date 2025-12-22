@@ -1,7 +1,10 @@
+using System;
 using LegendOfThreeKingdoms.Core.Events;
+using LegendOfThreeKingdoms.Core.Judgement;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Resolution;
 using LegendOfThreeKingdoms.Core.Rules;
+using LegendOfThreeKingdoms.Core.Zones;
 
 namespace LegendOfThreeKingdoms.Core.Skills;
 
@@ -209,4 +212,49 @@ public interface ICardEffectFilteringSkill : ISkill
     /// <param name="reason">If the effect is vetoed, contains the reason; otherwise null.</param>
     /// <returns>True if the effect is effective, false if it should be vetoed.</returns>
     bool IsEffective(CardEffectContext context, out EffectVetoReason? reason);
+}
+
+/// <summary>
+/// Interface for skills that can provide alternative response capabilities.
+/// Used by equipment like Bagua Array that can provide virtual responses through judgement.
+/// </summary>
+public interface IResponseEnhancementSkill : ISkill
+{
+    /// <summary>
+    /// Gets the priority of this response enhancement skill.
+    /// Lower values indicate higher priority (executed first).
+    /// Skills with higher priority are checked before skills with lower priority.
+    /// </summary>
+    int Priority { get; }
+
+    /// <summary>
+    /// Checks whether this skill can provide an alternative response for the given response type.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <param name="responseType">The type of response needed.</param>
+    /// <param name="sourceEvent">The source event that triggered the response window.</param>
+    /// <returns>True if this skill can provide an alternative response, false otherwise.</returns>
+    bool CanProvideResponse(Game game, Player owner, ResponseType responseType, object? sourceEvent);
+
+    /// <summary>
+    /// Executes the alternative response mechanism (e.g., judgement).
+    /// This method should handle the full flow including player choice and judgement execution.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <param name="responseType">The type of response needed.</param>
+    /// <param name="sourceEvent">The source event that triggered the response window.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for a given choice request.</param>
+    /// <param name="judgementService">The judgement service for executing judgements.</param>
+    /// <param name="cardMoveService">The card move service for moving cards.</param>
+    /// <returns>True if the alternative response was successful, false otherwise.</returns>
+    bool ExecuteAlternativeResponse(
+        Game game,
+        Player owner,
+        ResponseType responseType,
+        object? sourceEvent,
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice,
+        Judgement.IJudgementService judgementService,
+        Zones.ICardMoveService cardMoveService);
 }

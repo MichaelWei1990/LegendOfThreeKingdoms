@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using LegendOfThreeKingdoms.Core.Abstractions;
+using LegendOfThreeKingdoms.Core.Judgement;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Rules;
+using LegendOfThreeKingdoms.Core.Skills;
 using LegendOfThreeKingdoms.Core.Zones;
 
 namespace LegendOfThreeKingdoms.Core.Response;
@@ -38,7 +40,9 @@ public sealed record ResponseWindowContext(
     IResponseRuleService ResponseRuleService,
     IChoiceRequestFactory ChoiceFactory,
     ICardMoveService CardMoveService,
-    ILogSink? LogSink = null
+    ILogSink? LogSink = null,
+    SkillManager? SkillManager = null,
+    IJudgementService? JudgementService = null
 );
 
 /// <summary>
