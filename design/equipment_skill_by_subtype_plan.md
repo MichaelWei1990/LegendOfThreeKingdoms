@@ -148,3 +148,4 @@ var dilu = CreateDefensiveHorseCard(definitionId: "dilu");
 1. `Clear()` 方法需要同时清空两个字典
 2. 测试中需要确保注册方式正确（按 SubType 而不是 DefinitionId）
 3. 如果未来有特殊装备需要覆盖类别技能，可以同时注册 DefinitionId 和 SubType，DefinitionId 会优先匹配
+

@@ -1,5 +1,6 @@
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Rules;
+using LegendOfThreeKingdoms.Core.Skills;
 
 namespace LegendOfThreeKingdoms.Core.Skills.Equipment;
 
@@ -7,7 +8,7 @@ namespace LegendOfThreeKingdoms.Core.Skills.Equipment;
 /// Zhuge Crossbow skill: allows unlimited Slash usage per turn.
 /// When equipped, the owner can use Slash cards without any per-turn limit.
 /// </summary>
-public sealed class ZhugeCrossbowSkill : RuleModifyingSkillBase
+public sealed class ZhugeCrossbowSkill : UnlimitedSlashSkillBase
 {
     /// <inheritdoc />
     public override string Id => "zhuge_crossbow";
@@ -20,16 +21,6 @@ public sealed class ZhugeCrossbowSkill : RuleModifyingSkillBase
 
     /// <inheritdoc />
     public override SkillCapability Capabilities => SkillCapability.ModifiesRules;
-
-    /// <inheritdoc />
-    public override int? ModifyMaxSlashPerTurn(int current, Game game, Player owner)
-    {
-        if (!IsActive(game, owner))
-            return null;
-
-        // Return int.MaxValue to represent unlimited Slash usage
-        return int.MaxValue;
-    }
 }
 
 /// <summary>

@@ -85,3 +85,4 @@ foreach (var cardId in offensiveHorseCards)
     registry.RegisterEquipmentSkill(cardId, factory);
 }
 ```
+

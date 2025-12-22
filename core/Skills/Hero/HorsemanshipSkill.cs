@@ -35,3 +35,4 @@ public sealed class HorsemanshipSkillFactory : ISkillFactory
         return new HorsemanshipSkill();
     }
 }
+
