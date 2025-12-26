@@ -225,6 +225,34 @@ public interface ICardEffectFilteringSkill : ISkill
 }
 
 /// <summary>
+/// Interface for skills that can modify Slash response capabilities.
+/// Used by skills like Tieqi (铁骑) that can prevent targets from using Dodge to respond to Slash.
+/// </summary>
+public interface ISlashResponseModifier : ISkill
+{
+    /// <summary>
+    /// Processes the Slash target confirmation and may perform actions (e.g., judgement).
+    /// This method is called when a Slash card's targets are confirmed, before the response window opens.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="sourcePlayer">The player who used the Slash.</param>
+    /// <param name="slashCard">The Slash card being used.</param>
+    /// <param name="targetPlayer">The target player.</param>
+    /// <param name="judgementService">The judgement service for executing judgements.</param>
+    /// <param name="cardMoveService">The card move service for moving cards.</param>
+    /// <param name="eventBus">The event bus for publishing events.</param>
+    /// <returns>True if the target cannot use Dodge to respond to this Slash, false otherwise.</returns>
+    bool ProcessSlashTargetConfirmed(
+        Game game,
+        Player sourcePlayer,
+        Card slashCard,
+        Player targetPlayer,
+        IJudgementService judgementService,
+        ICardMoveService cardMoveService,
+        IEventBus? eventBus);
+}
+
+/// <summary>
 /// Interface for skills that can provide alternative response capabilities.
 /// Used by equipment like Bagua Array that can provide virtual responses through judgement.
 /// </summary>

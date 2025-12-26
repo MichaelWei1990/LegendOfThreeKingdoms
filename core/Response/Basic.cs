@@ -116,7 +116,8 @@ public sealed class BasicResponseWindow : IResponseWindow
             responder,
             responseType,
             context.SourceEvent,
-            responseRuleService);
+            responseRuleService,
+            context.IntermediateResults);
 
         // Priority 1: Check for response enhancement skills (e.g., Bagua Array)
         // Skills are executed in priority order (lower Priority value = higher priority)
@@ -181,8 +182,25 @@ public sealed class BasicResponseWindow : IResponseWindow
         Player responder,
         ResponseType responseType,
         object? sourceEvent,
-        IResponseRuleService responseRuleService)
+        IResponseRuleService responseRuleService,
+        Dictionary<string, object>? intermediateResults = null)
     {
+        // Check if this is a Jink response and if the target cannot use Dodge (e.g., due to Tieqi)
+        if (responseType == ResponseType.JinkAgainstSlash && intermediateResults is not null && sourceEvent is not null)
+        {
+            // Try to extract SlashCard from sourceEvent
+            var slashCardProperty = sourceEvent.GetType().GetProperty("SlashCard");
+            if (slashCardProperty?.GetValue(sourceEvent) is Card slashCard)
+            {
+                var key = $"SlashCannotUseDodge_{slashCard.Id}_{responder.Seat}";
+                if (intermediateResults.TryGetValue(key, out var cannotUseDodge) && cannotUseDodge is true)
+                {
+                    // Target cannot use Dodge, return empty list
+                    return Array.Empty<Card>();
+                }
+            }
+        }
+
         var responseContext = new ResponseContext(
             game,
             responder,

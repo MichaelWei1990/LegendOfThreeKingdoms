@@ -44,7 +44,8 @@ public sealed record ResponseWindowContext(
     ILogSink? LogSink = null,
     SkillManager? SkillManager = null,
     IJudgementService? JudgementService = null,
-    IEventBus? EventBus = null
+    IEventBus? EventBus = null,
+    Dictionary<string, object>? IntermediateResults = null
 );
 
 /// <summary>

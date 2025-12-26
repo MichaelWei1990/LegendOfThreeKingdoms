@@ -304,7 +304,8 @@ internal sealed class NanmanRushinResponseWindowResolver : IResolver
             LogSink: context.LogSink,
             SkillManager: context.SkillManager,
             JudgementService: context.JudgementService,
-            EventBus: context.EventBus
+            EventBus: context.EventBus,
+            IntermediateResults: context.IntermediateResults
         );
     }
 

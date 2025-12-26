@@ -50,7 +50,8 @@ public static class ResponseExtensions
             LogSink: context.LogSink,
             SkillManager: context.SkillManager,
             JudgementService: context.JudgementService,
-            EventBus: context.EventBus
+            EventBus: context.EventBus,
+            IntermediateResults: context.IntermediateResults
         );
 
         return new ResponseWindowResolver(windowContext, getPlayerChoice);
@@ -182,7 +183,8 @@ public static class ResponseExtensions
             LogSink: context.LogSink,
             SkillManager: context.SkillManager,
             JudgementService: context.JudgementService,
-            EventBus: context.EventBus
+            EventBus: context.EventBus,
+            IntermediateResults: context.IntermediateResults
         );
         
         return new ResponseWindowResolver(windowContext, getPlayerChoice);
