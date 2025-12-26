@@ -333,6 +333,9 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
                     && _rangeRules.GetSeatDistance(game, source, p) <= 1)
                 .ToArray();
 
+            // Apply target filtering skills (e.g., Modesty)
+            legalTargets = ApplyTargetFilteringSkills(game, context.Card, legalTargets).ToArray();
+
             if (legalTargets.Length == 0)
             {
                 return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
@@ -363,6 +366,9 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
                 .Where(p => p.IsAlive && p.Seat != source.Seat)
                 .ToArray();
 
+            // Apply target filtering skills (e.g., Modesty)
+            legalTargets = ApplyTargetFilteringSkills(game, context.Card, legalTargets).ToArray();
+
             if (legalTargets.Length == 0)
             {
                 return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
@@ -373,6 +379,41 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
 
         // Other card types don't have target logic at this phase.
         return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
+    }
+
+    /// <summary>
+    /// Applies target filtering skills from all players to filter out excluded targets.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="card">The card being used.</param>
+    /// <param name="potentialTargets">The list of potential targets before filtering.</param>
+    /// <returns>The filtered list of targets after applying all target filtering skills.</returns>
+    private IEnumerable<Player> ApplyTargetFilteringSkills(Game game, Card card, IEnumerable<Player> potentialTargets)
+    {
+        if (_skillManager is null)
+        {
+            // No skill manager available, return targets as-is
+            return potentialTargets;
+        }
+
+        var filteredTargets = potentialTargets.ToList();
+
+        // Check each player's target filtering skills
+        foreach (var player in game.Players)
+        {
+            var skills = _skillManager.GetActiveSkills(game, player);
+            foreach (var skill in skills)
+            {
+                if (skill is ITargetFilteringSkill targetFilteringSkill)
+                {
+                    // Remove targets that should be excluded by this skill
+                    filteredTargets.RemoveAll(target => 
+                        targetFilteringSkill.ShouldExcludeTarget(game, player, card, target));
+                }
+            }
+        }
+
+        return filteredTargets;
     }
 }
 
