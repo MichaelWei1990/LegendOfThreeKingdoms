@@ -20,6 +20,7 @@ namespace LegendOfThreeKingdoms.Core.Resolution;
 public sealed class DelayedTrickJudgementResolver : IResolver
 {
     private readonly Card _delayedTrickCard;
+    private readonly IDelayedTrickEffectResolver? _effectResolver;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DelayedTrickJudgementResolver"/> class.
@@ -28,6 +29,20 @@ public sealed class DelayedTrickJudgementResolver : IResolver
     public DelayedTrickJudgementResolver(Card delayedTrickCard)
     {
         _delayedTrickCard = delayedTrickCard ?? throw new ArgumentNullException(nameof(delayedTrickCard));
+        _effectResolver = CreateEffectResolver(delayedTrickCard);
+    }
+
+    /// <summary>
+    /// Creates the appropriate effect resolver for the given delayed trick card.
+    /// </summary>
+    private static IDelayedTrickEffectResolver? CreateEffectResolver(Card card)
+    {
+        return card.CardSubType switch
+        {
+            CardSubType.Lebusishu => new LebusishuResolver(),
+            CardSubType.Shandian => new ShandianResolver(),
+            _ => null // Generic delayed trick or unknown type
+        };
     }
 
     /// <inheritdoc />
@@ -48,14 +63,11 @@ public sealed class DelayedTrickJudgementResolver : IResolver
         // Get judgement service
         var judgementService = context.JudgementService ?? new BasicJudgementService(context.EventBus);
 
-        // Create judgement rule based on card subtype
-        IJudgementRule judgementRule = _delayedTrickCard.CardSubType switch
-        {
-            CardSubType.Lebusishu => new SuitJudgementRule(Suit.Heart), // 乐不思蜀：红桃判定成功
-            CardSubType.Shandian => new BlackJudgementRule(), // 闪电：黑色判定成功
-            CardSubType.DelayedTrick => new RedJudgementRule(), // Default for generic delayed trick
-            _ => throw new InvalidOperationException($"Unknown delayed trick subtype: {_delayedTrickCard.CardSubType}")
-        };
+        // Get judgement rule from effect resolver, or use default for generic delayed trick
+        IJudgementRule judgementRule = _effectResolver?.JudgementRule 
+            ?? (_delayedTrickCard.CardSubType == CardSubType.DelayedTrick 
+                ? new RedJudgementRule() 
+                : throw new InvalidOperationException($"Unknown delayed trick subtype: {_delayedTrickCard.CardSubType}"));
 
         // Create effect source for the delayed trick
         var effectSource = new DelayedTrickEffectSource(_delayedTrickCard);
@@ -118,7 +130,7 @@ public sealed class DelayedTrickJudgementResolver : IResolver
             judgementService
         );
 
-        context.Stack.Push(new DelayedTrickEffectResolver(_delayedTrickCard), handlerContext);
+        context.Stack.Push(new DelayedTrickEffectResolver(_delayedTrickCard, _effectResolver), handlerContext);
 
         // Push JudgementResolver to execute the judgement (push last so it executes first)
         context.Stack.Push(new JudgementResolver(), judgementContext);
@@ -133,10 +145,12 @@ public sealed class DelayedTrickJudgementResolver : IResolver
 internal sealed class DelayedTrickEffectResolver : IResolver
 {
     private readonly Card _delayedTrickCard;
+    private readonly IDelayedTrickEffectResolver? _effectResolver;
 
-    public DelayedTrickEffectResolver(Card delayedTrickCard)
+    public DelayedTrickEffectResolver(Card delayedTrickCard, IDelayedTrickEffectResolver? effectResolver)
     {
         _delayedTrickCard = delayedTrickCard ?? throw new ArgumentNullException(nameof(delayedTrickCard));
+        _effectResolver = effectResolver;
     }
 
     public ResolutionResult Resolve(ResolutionContext context)
@@ -171,99 +185,71 @@ internal sealed class DelayedTrickEffectResolver : IResolver
 
         // Apply effect based on judgement result and card type
         // For Lebusishu: 红桃 = 判定成功 = 无效果（正常进行回合），非红桃 = 判定失败 = 跳过出牌阶段
+        // For Shandian: 黑桃2-9 = 判定成功 = 受到3点雷电伤害，其他 = 判定失败 = 移动到下家
         if (judgementResult.IsSuccess)
         {
-            // Judgement succeeded - no negative effect for Lebusishu
+            // Judgement succeeded - apply success effect
             ApplyJudgementSuccessEffect(context, game, judgeOwner, cardInZone);
         }
         else
         {
-            // Judgement failed - apply negative effect for Lebusishu
+            // Judgement failed - apply failure effect
             ApplyJudgementFailureEffect(context, game, judgeOwner, cardInZone);
         }
 
         // Complete the judgement: move card from judgement zone to discard pile
-        var judgementService = context.JudgementService ?? new BasicJudgementService(context.EventBus);
-        judgementService.CompleteJudgement(game, judgeOwner, cardInZone, context.CardMoveService);
+        // Exception: For Shandian on failure, the card is moved to next player's judgement zone,
+        // so we skip CompleteJudgement in that case
+        var shouldCompleteJudgement = !(cardInZone.CardSubType == CardSubType.Shandian && !judgementResult.IsSuccess);
+        
+        if (shouldCompleteJudgement)
+        {
+            var judgementService = context.JudgementService ?? new BasicJudgementService(context.EventBus);
+            judgementService.CompleteJudgement(game, judgeOwner, cardInZone, context.CardMoveService);
+        }
 
         return ResolutionResult.SuccessResult;
     }
 
     private void ApplyJudgementSuccessEffect(ResolutionContext context, Game game, Player judgeOwner, Card card)
     {
-        // Judgement succeeded - apply effect based on card type
-        switch (card.CardSubType)
+        // Judgement succeeded - apply effect using resolver if available
+        if (_effectResolver is not null)
         {
-            case CardSubType.Lebusishu:
-                LebusishuResolver.ApplySuccessEffect(context, judgeOwner);
-                break;
-
-            case CardSubType.Shandian:
-                // 闪电：判定成功，受到3点雷电伤害
-                var damage = new DamageDescriptor(
-                    SourceSeat: -1, // No source player for delayed trick damage
-                    TargetSeat: judgeOwner.Seat,
-                    Amount: 3,
-                    Type: DamageType.Thunder,
-                    Reason: "Shandian"
-                );
-
-                var damageContext = new ResolutionContext(
-                    game,
-                    judgeOwner,
-                    context.Action,
-                    context.Choice,
-                    context.Stack,
-                    context.CardMoveService,
-                    context.RuleService,
-                    PendingDamage: damage,
-                    LogSink: context.LogSink,
-                    context.GetPlayerChoice,
-                    context.IntermediateResults,
-                    context.EventBus,
-                    context.LogCollector,
-                    context.SkillManager,
-                    context.EquipmentSkillRegistry,
-                    context.JudgementService
-                );
-
-                context.Stack.Push(new DamageResolver(), damageContext);
-                break;
-
-            default:
-                // Generic delayed trick - no specific effect yet
-                break;
+            _effectResolver.ApplySuccessEffect(context, game, judgeOwner);
+        }
+        else
+        {
+            // Generic delayed trick - no specific effect yet
         }
     }
 
     private void ApplyJudgementFailureEffect(ResolutionContext context, Game game, Player judgeOwner, Card card)
     {
-        // Judgement failed - apply negative effect based on card type
-        switch (card.CardSubType)
+        // Judgement failed - apply failure effect using resolver if available
+        if (_effectResolver is not null)
         {
-            case CardSubType.Lebusishu:
-                LebusishuResolver.ApplyFailureEffect(context, judgeOwner);
-                break;
-
-            default:
-                // Other delayed tricks - no negative effect on failure
-                if (context.LogSink is not null)
+            _effectResolver.ApplyFailureEffect(context, game, judgeOwner, card);
+        }
+        else
+        {
+            // Generic delayed trick - no negative effect on failure
+            if (context.LogSink is not null)
+            {
+                var logEntry = new LogEntry
                 {
-                    var logEntry = new LogEntry
+                    EventType = "DelayedTrickEffect",
+                    Level = "Info",
+                    Message = $"Player {judgeOwner.Seat} avoided delayed trick effect: {card.CardSubType}",
+                    Data = new
                     {
-                        EventType = "DelayedTrickEffect",
-                        Level = "Info",
-                        Message = $"Player {judgeOwner.Seat} avoided delayed trick effect: {card.CardSubType}",
-                        Data = new
-                        {
-                            PlayerSeat = judgeOwner.Seat,
-                            CardSubType = card.CardSubType.ToString(),
-                            JudgementSuccess = false
-                        }
-                    };
-                    context.LogSink.Log(logEntry);
-                }
-                break;
+                        PlayerSeat = judgeOwner.Seat,
+                        CardSubType = card.CardSubType.ToString(),
+                        JudgementSuccess = false
+                    }
+                };
+                context.LogSink.Log(logEntry);
+            }
         }
     }
 }
