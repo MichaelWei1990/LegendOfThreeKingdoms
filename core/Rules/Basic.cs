@@ -194,7 +194,7 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
     private readonly IRangeRuleService _rangeRules;
     private readonly ILimitRuleService _limitRules;
     private readonly IRuleModifierProvider? _modifierProvider;
-    private readonly SkillManager? _skillManager;
+    private readonly TargetSelectionService _targetSelection;
 
     public CardUsageRuleService(
         IPhaseRuleService phaseRules,
@@ -207,7 +207,7 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
         _rangeRules = rangeRules ?? throw new ArgumentNullException(nameof(rangeRules));
         _limitRules = limitRules ?? throw new ArgumentNullException(nameof(limitRules));
         _modifierProvider = modifierProvider;
-        _skillManager = skillManager;
+        _targetSelection = new TargetSelectionService(rangeRules, skillManager);
     }
 
     public RuleResult CanUseCard(CardUsageContext context)
@@ -265,7 +265,7 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
                             details: new { context.UsageCountThisTurn, maxSlash });
                     }
 
-                    var targets = GetLegalTargets(context);
+                    var targets = _targetSelection.GetLegalTargets(context);
                     if (!targets.HasAny)
                     {
                         return RuleResult.Disallowed(RuleErrorCode.NoLegalOptions);
@@ -309,181 +309,7 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
 
     public RuleQueryResult<Player> GetLegalTargets(CardUsageContext context)
     {
-        if (context is null) throw new ArgumentNullException(nameof(context));
-
-        var game = context.Game;
-        var source = context.SourcePlayer;
-
-        if (context.Card.CardSubType == CardSubType.Slash)
-        {
-            var legalTargets = game.Players
-                .Where(p => p.IsAlive && p.Seat != source.Seat && _rangeRules.IsWithinAttackRange(game, source, p))
-                .ToArray();
-
-            if (legalTargets.Length == 0)
-            {
-                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
-            }
-
-            return RuleQueryResult<Player>.FromItems(legalTargets);
-        }
-
-        if (context.Card.CardSubType == CardSubType.ShunshouQianyang)
-        {
-            var legalTargets = game.Players
-                .Where(p => p.IsAlive 
-                    && p.Seat != source.Seat 
-                    && _rangeRules.GetSeatDistance(game, source, p) <= 1)
-                .ToArray();
-
-            // Apply target filtering skills (e.g., Modesty)
-            legalTargets = ApplyTargetFilteringSkills(game, context.Card, legalTargets).ToArray();
-
-            if (legalTargets.Length == 0)
-            {
-                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
-            }
-
-            return RuleQueryResult<Player>.FromItems(legalTargets);
-        }
-
-        if (context.Card.CardSubType == CardSubType.GuoheChaiqiao)
-        {
-            // GuoheChaiqiao has no distance restriction
-            var legalTargets = game.Players
-                .Where(p => p.IsAlive && p.Seat != source.Seat)
-                .ToArray();
-
-            if (legalTargets.Length == 0)
-            {
-                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
-            }
-
-            return RuleQueryResult<Player>.FromItems(legalTargets);
-        }
-
-        if (context.Card.CardSubType == CardSubType.WanjianQifa)
-        {
-            // Wanjian Qifa: all alive players except source (no target selection needed, but we validate at least one target exists)
-            var legalTargets = game.Players
-                .Where(p => p.IsAlive && p.Seat != source.Seat)
-                .ToArray();
-
-            if (legalTargets.Length == 0)
-            {
-                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
-            }
-
-            // Return empty list since no target selection is needed (all targets are automatically selected)
-            // But we validate that at least one target exists above
-            return RuleQueryResult<Player>.FromItems(Array.Empty<Player>());
-        }
-
-        if (context.Card.CardSubType == CardSubType.NanmanRushin)
-        {
-            // Nanman Rushin: all alive players except source (no target selection needed, but we validate at least one target exists)
-            var legalTargets = game.Players
-                .Where(p => p.IsAlive && p.Seat != source.Seat)
-                .ToArray();
-
-            if (legalTargets.Length == 0)
-            {
-                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
-            }
-
-            // Return empty list since no target selection is needed (all targets are automatically selected)
-            // But we validate that at least one target exists above
-            return RuleQueryResult<Player>.FromItems(Array.Empty<Player>());
-        }
-
-        if (context.Card.CardSubType == CardSubType.Lebusishu)
-        {
-            // Lebusishu: single other alive player
-            var legalTargets = game.Players
-                .Where(p => p.IsAlive && p.Seat != source.Seat)
-                .ToArray();
-
-            // Apply target filtering skills (e.g., Modesty)
-            legalTargets = ApplyTargetFilteringSkills(game, context.Card, legalTargets).ToArray();
-
-            if (legalTargets.Length == 0)
-            {
-                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
-            }
-
-            return RuleQueryResult<Player>.FromItems(legalTargets);
-        }
-
-        if (context.Card.CardSubType == CardSubType.Shandian)
-        {
-            // Shandian: self-targeting (place in own judgement zone)
-            var legalTargets = game.Players
-                .Where(p => p.IsAlive && p.Seat == source.Seat)
-                .ToArray();
-
-            if (legalTargets.Length == 0)
-            {
-                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
-            }
-
-            return RuleQueryResult<Player>.FromItems(legalTargets);
-        }
-
-        if (context.Card.CardSubType == CardSubType.Duel)
-        {
-            // Duel: single other alive player (no distance restriction)
-            var legalTargets = game.Players
-                .Where(p => p.IsAlive && p.Seat != source.Seat)
-                .ToArray();
-
-            // Apply target filtering skills (e.g., Modesty)
-            legalTargets = ApplyTargetFilteringSkills(game, context.Card, legalTargets).ToArray();
-
-            if (legalTargets.Length == 0)
-            {
-                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
-            }
-
-            return RuleQueryResult<Player>.FromItems(legalTargets);
-        }
-
-        // Other card types don't have target logic at this phase.
-        return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
-    }
-
-    /// <summary>
-    /// Applies target filtering skills from all players to filter out excluded targets.
-    /// </summary>
-    /// <param name="game">The current game state.</param>
-    /// <param name="card">The card being used.</param>
-    /// <param name="potentialTargets">The list of potential targets before filtering.</param>
-    /// <returns>The filtered list of targets after applying all target filtering skills.</returns>
-    private IEnumerable<Player> ApplyTargetFilteringSkills(Game game, Card card, IEnumerable<Player> potentialTargets)
-    {
-        if (_skillManager is null)
-        {
-            // No skill manager available, return targets as-is
-            return potentialTargets;
-        }
-
-        var filteredTargets = potentialTargets.ToList();
-
-        // Check each player's target filtering skills
-        foreach (var player in game.Players)
-        {
-            var skills = _skillManager.GetActiveSkills(game, player);
-            foreach (var skill in skills)
-            {
-                if (skill is ITargetFilteringSkill targetFilteringSkill)
-                {
-                    // Remove targets that should be excluded by this skill
-                    filteredTargets.RemoveAll(target => 
-                        targetFilteringSkill.ShouldExcludeTarget(game, player, card, target));
-                }
-            }
-        }
-
-        return filteredTargets;
+        return _targetSelection.GetLegalTargets(context);
     }
 }
 

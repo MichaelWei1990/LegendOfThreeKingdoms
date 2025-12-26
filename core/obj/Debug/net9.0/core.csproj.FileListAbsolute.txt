@@ -1,11 +1,11 @@
-C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core\bin\Debug\net9.0\core.deps.json
-C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core\bin\Debug\net9.0\core.dll
-C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core\bin\Debug\net9.0\core.pdb
 C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core\obj\Debug\net9.0\core.GeneratedMSBuildEditorConfig.editorconfig
 C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core\obj\Debug\net9.0\core.AssemblyInfoInputs.cache
 C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core\obj\Debug\net9.0\core.AssemblyInfo.cs
 C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core\obj\Debug\net9.0\core.csproj.CoreCompileInputs.cache
 C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core\obj\Debug\net9.0\core.sourcelink.json
+C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core\bin\Debug\net9.0\core.deps.json
+C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core\bin\Debug\net9.0\core.dll
+C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core\bin\Debug\net9.0\core.pdb
 C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core\obj\Debug\net9.0\core.dll
 C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core\obj\Debug\net9.0\refint\core.dll
 C:\Users\MichaelWei\Documents\PersonalProj\LegendOfThreeKingdoms\core\obj\Debug\net9.0\core.pdb

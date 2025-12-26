@@ -3,6 +3,42 @@ using LegendOfThreeKingdoms.Core.Model;
 namespace LegendOfThreeKingdoms.Core.Rules;
 
 /// <summary>
+/// Target selection type for cards.
+/// </summary>
+internal enum TargetSelectionType
+{
+    /// <summary>
+    /// No target selection required.
+    /// </summary>
+    None,
+
+    /// <summary>
+    /// Single other player within attack range.
+    /// </summary>
+    SingleOtherWithRange,
+
+    /// <summary>
+    /// Single other player within distance 1.
+    /// </summary>
+    SingleOtherWithDistance1,
+
+    /// <summary>
+    /// Single other player with no distance restriction.
+    /// </summary>
+    SingleOtherNoDistance,
+
+    /// <summary>
+    /// All other players (automatic selection, no player choice needed).
+    /// </summary>
+    AllOther,
+
+    /// <summary>
+    /// Self-targeting.
+    /// </summary>
+    Self
+}
+
+/// <summary>
 /// High-level entry point for rule evaluation and queries.
 /// This interface is intentionally read-only over <see cref="Game"/> state.
 /// </summary>

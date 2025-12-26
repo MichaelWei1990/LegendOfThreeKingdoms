@@ -260,6 +260,9 @@ public sealed class ResolutionTests
         var source = game.Players[0];
         var target = game.Players[1];
 
+        var slash = CreateSlashCard();
+        ((Zone)source.HandZone).MutableCards.Add(slash);
+
         var stack = new BasicResolutionStack();
         var cardMoveService = new BasicCardMoveService();
         var ruleService = new RuleService();
@@ -269,14 +272,14 @@ public sealed class ResolutionTests
             DisplayKey: "action.useSlash",
             RequiresTargets: true,
             TargetConstraints: new TargetConstraints(1, 1, TargetFilterType.Enemies),
-            CardCandidates: null
+            CardCandidates: new[] { slash }
         );
 
         var choice = new ChoiceResult(
             RequestId: "test-request",
             PlayerSeat: source.Seat,
             SelectedTargetSeats: new[] { target.Seat },
-            SelectedCardIds: null,
+            SelectedCardIds: new[] { slash.Id },
             SelectedOptionId: null,
             Confirmed: null
         );
@@ -1030,6 +1033,9 @@ public sealed class ResolutionTests
         var target = game.Players[1];
         var initialHealth = target.CurrentHealth;
 
+        var slash = CreateSlashCard();
+        ((Zone)source.HandZone).MutableCards.Add(slash);
+
         var stack = new BasicResolutionStack();
         var cardMoveService = new BasicCardMoveService();
         var ruleService = new RuleService();
@@ -1039,14 +1045,14 @@ public sealed class ResolutionTests
             DisplayKey: "action.useSlash",
             RequiresTargets: true,
             TargetConstraints: new TargetConstraints(1, 1, TargetFilterType.Enemies),
-            CardCandidates: null
+            CardCandidates: new[] { slash }
         );
 
         var choice = new ChoiceResult(
             RequestId: "test-request",
             PlayerSeat: source.Seat,
             SelectedTargetSeats: new[] { target.Seat },
-            SelectedCardIds: null,
+            SelectedCardIds: new[] { slash.Id },
             SelectedOptionId: null,
             Confirmed: null
         );
@@ -1128,6 +1134,9 @@ public sealed class ResolutionTests
         var target = game.Players[1];
         var initialHealth = target.CurrentHealth;
 
+        var slash = CreateSlashCard();
+        ((Zone)source.HandZone).MutableCards.Add(slash);
+
         var dodge = CreateDodgeCard(1);
         ((Zone)target.HandZone).MutableCards.Add(dodge);
 
@@ -1140,14 +1149,14 @@ public sealed class ResolutionTests
             DisplayKey: "action.useSlash",
             RequiresTargets: true,
             TargetConstraints: new TargetConstraints(1, 1, TargetFilterType.Enemies),
-            CardCandidates: null
+            CardCandidates: new[] { slash }
         );
 
         var choice = new ChoiceResult(
             RequestId: "test-request",
             PlayerSeat: source.Seat,
             SelectedTargetSeats: new[] { target.Seat },
-            SelectedCardIds: null,
+            SelectedCardIds: new[] { slash.Id },
             SelectedOptionId: null,
             Confirmed: null
         );
