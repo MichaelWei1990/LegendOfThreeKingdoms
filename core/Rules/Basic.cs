@@ -291,6 +291,7 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
             case CardSubType.ShunshouQianyang:
             case CardSubType.GuoheChaiqiao:
             case CardSubType.WanjianQifa:
+            case CardSubType.NanmanRushin:
             case CardSubType.Lebusishu:
             case CardSubType.Shandian:
                 {
@@ -363,6 +364,23 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
         if (context.Card.CardSubType == CardSubType.WanjianQifa)
         {
             // Wanjian Qifa: all alive players except source (no target selection needed, but we validate at least one target exists)
+            var legalTargets = game.Players
+                .Where(p => p.IsAlive && p.Seat != source.Seat)
+                .ToArray();
+
+            if (legalTargets.Length == 0)
+            {
+                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
+            }
+
+            // Return empty list since no target selection is needed (all targets are automatically selected)
+            // But we validate that at least one target exists above
+            return RuleQueryResult<Player>.FromItems(Array.Empty<Player>());
+        }
+
+        if (context.Card.CardSubType == CardSubType.NanmanRushin)
+        {
+            // Nanman Rushin: all alive players except source (no target selection needed, but we validate at least one target exists)
             var legalTargets = game.Players
                 .Where(p => p.IsAlive && p.Seat != source.Seat)
                 .ToArray();
@@ -468,8 +486,14 @@ public sealed class ResponseRuleService : IResponseRuleService
             ResponseType.JinkAgainstSlash => handCards
                 .Where(c => c.CardSubType == CardSubType.Dodge)
                 .ToArray(),
+            ResponseType.JinkAgainstWanjianqifa => handCards
+                .Where(c => c.CardSubType == CardSubType.Dodge)
+                .ToArray(),
             ResponseType.PeachForDying => handCards
                 .Where(c => c.CardSubType == CardSubType.Peach)
+                .ToArray(),
+            ResponseType.SlashAgainstNanmanRushin => handCards
+                .Where(c => c.CardSubType == CardSubType.Slash)
                 .ToArray(),
             _ => Array.Empty<Card>()
         };

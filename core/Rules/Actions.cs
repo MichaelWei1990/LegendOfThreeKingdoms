@@ -52,8 +52,14 @@ public sealed class ChoiceRequestFactory : IChoiceRequestFactory
             ResponseType.JinkAgainstSlash => responder.HandZone.Cards
                 .Where(c => c.CardSubType == CardSubType.Dodge)
                 .ToArray(),
+            ResponseType.JinkAgainstWanjianqifa => responder.HandZone.Cards
+                .Where(c => c.CardSubType == CardSubType.Dodge)
+                .ToArray(),
             ResponseType.PeachForDying => responder.HandZone.Cards
                 .Where(c => c.CardSubType == CardSubType.Peach)
+                .ToArray(),
+            ResponseType.SlashAgainstNanmanRushin => responder.HandZone.Cards
+                .Where(c => c.CardSubType == CardSubType.Slash)
                 .ToArray(),
             _ => Array.Empty<Card>()
         };

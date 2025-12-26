@@ -9,14 +9,14 @@ using LegendOfThreeKingdoms.Core.Rules;
 namespace LegendOfThreeKingdoms.Core.Resolution;
 
 /// <summary>
-/// Resolver for Wanjian Qifa (万箭齐发) immediate trick card.
-/// Effect: All alive players except the user must play a Jink, or take 1 damage.
+/// Resolver for Nanman Rushin (南蛮入侵) immediate trick card.
+/// Effect: All alive players except the user must play a Slash, or take 1 damage.
 /// Targets are processed in turn order starting from the user's next player.
 /// </summary>
-public sealed class WanjianqifaResolver : IResolver
+public sealed class NanmanRushinResolver : IResolver
 {
-    private const string TargetsKey = "WanjianqifaTargets";
-    private const string CurrentTargetIndexKey = "WanjianqifaCurrentTargetIndex";
+    private const string TargetsKey = "NanmanRushinTargets";
+    private const string CurrentTargetIndexKey = "NanmanRushinCurrentTargetIndex";
 
     /// <inheritdoc />
     public ResolutionResult Resolve(ResolutionContext context)
@@ -53,9 +53,9 @@ public sealed class WanjianqifaResolver : IResolver
             {
                 var logEntry = new LogEntry
                 {
-                    EventType = "WanjianqifaEffect",
+                    EventType = "NanmanRushinEffect",
                     Level = "Info",
-                    Message = "Wanjian Qifa: No targets available",
+                    Message = "Nanman Rushin: No targets available",
                     Data = new { SourcePlayerSeat = sourcePlayer.Seat }
                 };
                 context.LogSink.Log(logEntry);
@@ -144,7 +144,7 @@ public sealed class WanjianqifaResolver : IResolver
             TargetSeat: target.Seat,
             Amount: 1,
             Type: DamageType.Normal,
-            Reason: "Wanjianqifa"
+            Reason: "NanmanRushin"
         );
 
         // Create handler resolver context (will check response result and apply damage if needed)
@@ -169,11 +169,11 @@ public sealed class WanjianqifaResolver : IResolver
 
         // Push handler resolver first (will execute after response window due to LIFO)
         // The handler will also push this resolver back to process next target
-        context.Stack.Push(new WanjianqifaTargetHandlerResolver(damage, targets, currentIndex), handlerContext);
+        context.Stack.Push(new NanmanRushinTargetHandlerResolver(damage, targets, currentIndex), handlerContext);
 
-        // Create response window for Jink
+        // Create response window for Slash
         // Use a unique key for this target's response result
-        var responseResultKey = $"WanjianqifaResponse_{target.Seat}";
+        var responseResultKey = $"NanmanRushinResponse_{target.Seat}";
         
         var responseContext = new ResolutionContext(
             context.Game,
@@ -195,7 +195,7 @@ public sealed class WanjianqifaResolver : IResolver
         );
 
         // Create a custom response window resolver that stores result with unique key
-        var responseWindow = new WanjianqifaResponseWindowResolver(
+        var responseWindow = new NanmanRushinResponseWindowResolver(
             responseContext,
             target,
             sourcePlayer,
@@ -206,7 +206,7 @@ public sealed class WanjianqifaResolver : IResolver
         context.Stack.Push(responseWindow, responseContext);
         
         // Store the response result key for the handler to use
-        intermediateResults[$"WanjianqifaResponseKey_{currentIndex}"] = responseResultKey;
+        intermediateResults[$"NanmanRushinResponseKey_{currentIndex}"] = responseResultKey;
 
         return ResolutionResult.SuccessResult;
     }
@@ -260,18 +260,18 @@ public sealed class WanjianqifaResolver : IResolver
 }
 
 /// <summary>
-/// Custom response window resolver for Wanjian Qifa that stores result with a unique key.
+/// Custom response window resolver for Nanman Rushin that stores result with a unique key.
 /// </summary>
-internal sealed class WanjianqifaResponseWindowResolver : IResolver
+internal sealed class NanmanRushinResponseWindowResolver : IResolver
 {
     private readonly ResponseWindowContext _windowContext;
     private readonly Func<ChoiceRequest, ChoiceResult> _getPlayerChoice;
     private readonly string _resultKey;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="WanjianqifaResponseWindowResolver"/> class.
+    /// Initializes a new instance of the <see cref="NanmanRushinResponseWindowResolver"/> class.
     /// </summary>
-    public WanjianqifaResponseWindowResolver(
+    public NanmanRushinResponseWindowResolver(
         ResolutionContext context,
         Player targetPlayer,
         Player sourcePlayer,
@@ -287,16 +287,16 @@ internal sealed class WanjianqifaResponseWindowResolver : IResolver
         _resultKey = resultKey;
         _getPlayerChoice = getPlayerChoice;
 
-        // Create responder order (only the target player for Jink response)
+        // Create responder order (only the target player for Slash response)
         var responderOrder = new[] { targetPlayer };
 
         // Create response window context
         var responseRuleService = new Rules.ResponseRuleService();
         _windowContext = new ResponseWindowContext(
             Game: context.Game,
-            ResponseType: Rules.ResponseType.JinkAgainstWanjianqifa,
+            ResponseType: Rules.ResponseType.SlashAgainstNanmanRushin,
             ResponderOrder: responderOrder,
-            SourceEvent: new { Type = "Wanjianqifa", SourceSeat = sourcePlayer.Seat, TargetSeat = targetPlayer.Seat },
+            SourceEvent: new { Type = "NanmanRushin", SourceSeat = sourcePlayer.Seat, TargetSeat = targetPlayer.Seat },
             RuleService: context.RuleService,
             ResponseRuleService: responseRuleService,
             ChoiceFactory: new Rules.ChoiceRequestFactory(),
@@ -320,7 +320,7 @@ internal sealed class WanjianqifaResponseWindowResolver : IResolver
         if (context.IntermediateResults is null)
         {
             throw new InvalidOperationException(
-                "IntermediateResults dictionary is required for WanjianqifaResponseWindowResolver.");
+                "IntermediateResults dictionary is required for NanmanRushinResponseWindowResolver.");
         }
 
         context.IntermediateResults[_resultKey] = result;
@@ -341,20 +341,20 @@ internal sealed class WanjianqifaResponseWindowResolver : IResolver
 }
 
 /// <summary>
-/// Handler resolver for a single Wanjian Qifa target.
+/// Handler resolver for a single Nanman Rushin target.
 /// Checks response result and applies damage if no response was made.
 /// Then continues processing next target.
 /// </summary>
-internal sealed class WanjianqifaTargetHandlerResolver : IResolver
+internal sealed class NanmanRushinTargetHandlerResolver : IResolver
 {
     private readonly DamageDescriptor _pendingDamage;
     private readonly IReadOnlyList<Player> _allTargets;
     private readonly int _currentTargetIndex;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="WanjianqifaTargetHandlerResolver"/> class.
+    /// Initializes a new instance of the <see cref="NanmanRushinTargetHandlerResolver"/> class.
     /// </summary>
-    public WanjianqifaTargetHandlerResolver(
+    public NanmanRushinTargetHandlerResolver(
         DamageDescriptor pendingDamage,
         IReadOnlyList<Player> allTargets,
         int currentTargetIndex)
@@ -375,16 +375,16 @@ internal sealed class WanjianqifaTargetHandlerResolver : IResolver
         {
             return ResolutionResult.Failure(
                 ResolutionErrorCode.InvalidState,
-                messageKey: "resolution.wanjianqifa.noIntermediateResults");
+                messageKey: "resolution.nanmanrushin.noIntermediateResults");
         }
 
         // Get the response result key for this target
-        var responseResultKey = $"WanjianqifaResponseKey_{_currentTargetIndex}";
+        var responseResultKey = $"NanmanRushinResponseKey_{_currentTargetIndex}";
         if (!intermediateResults.TryGetValue(responseResultKey, out var keyObj) || keyObj is not string resultKey)
         {
             return ResolutionResult.Failure(
                 ResolutionErrorCode.InvalidState,
-                messageKey: "resolution.wanjianqifa.noResponseResultKey");
+                messageKey: "resolution.nanmanrushin.noResponseResultKey");
         }
 
         // Get the actual response result using the stored key
@@ -392,14 +392,14 @@ internal sealed class WanjianqifaTargetHandlerResolver : IResolver
         {
             return ResolutionResult.Failure(
                 ResolutionErrorCode.InvalidState,
-                messageKey: "resolution.wanjianqifa.noResponseResult");
+                messageKey: "resolution.nanmanrushin.noResponseResult");
         }
 
         if (resultObj is not ResponseWindowResult responseResult)
         {
             return ResolutionResult.Failure(
                 ResolutionErrorCode.InvalidState,
-                messageKey: "resolution.wanjianqifa.invalidResponseResult");
+                messageKey: "resolution.nanmanrushin.invalidResponseResult");
         }
 
         // Decide whether to trigger damage based on response result
@@ -433,7 +433,7 @@ internal sealed class WanjianqifaTargetHandlerResolver : IResolver
         var nextIndex = _currentTargetIndex + 1;
         if (nextIndex < _allTargets.Count)
         {
-            intermediateResults["WanjianqifaCurrentTargetIndex"] = nextIndex;
+            intermediateResults["NanmanRushinCurrentTargetIndex"] = nextIndex;
             
             var nextContext = new ResolutionContext(
                 context.Game,
@@ -454,8 +454,8 @@ internal sealed class WanjianqifaTargetHandlerResolver : IResolver
                 context.JudgementService
             );
 
-            // Push WanjianqifaResolver back to process next target
-            context.Stack.Push(new WanjianqifaResolver(), nextContext);
+            // Push NanmanRushinResolver back to process next target
+            context.Stack.Push(new NanmanRushinResolver(), nextContext);
         }
 
         return ResolutionResult.SuccessResult;

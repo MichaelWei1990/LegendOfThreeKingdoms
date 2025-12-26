@@ -111,7 +111,15 @@ public enum ResponseType
     /// <summary>
     /// Playing a Peach in a dying window.
     /// </summary>
-    PeachForDying
+    PeachForDying,
+    /// <summary>
+    /// Playing a Jink/Dodge against Wanjian Qifa (万箭齐发).
+    /// </summary>
+    JinkAgainstWanjianqifa,
+    /// <summary>
+    /// Playing a Slash against Nanman Rushin (南蛮入侵).
+    /// </summary>
+    SlashAgainstNanmanRushin
 }
 
 /// <summary>
