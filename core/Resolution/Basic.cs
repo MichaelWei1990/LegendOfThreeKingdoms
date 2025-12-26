@@ -334,6 +334,18 @@ public sealed class DamageResolver : IResolver
             context.EventBus.Publish(damageAppliedEvent);
         }
 
+        // Publish DamageResolvedEvent after damage is fully resolved
+        // This event is used by skills that need to react to completed damage (e.g., Jianxiong)
+        if (context.EventBus is not null)
+        {
+            var damageResolvedEvent = new DamageResolvedEvent(
+                game,
+                damage,
+                previousHealth,
+                target.CurrentHealth);
+            context.EventBus.Publish(damageResolvedEvent);
+        }
+
         // Log damage event if log sink is available
         if (context.LogSink is not null)
         {

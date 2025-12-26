@@ -137,6 +137,23 @@ public sealed record DamageAppliedEvent(
 }
 
 /// <summary>
+/// Event published when damage is resolved (after all damage-related effects are processed).
+/// This event is published after DamageAppliedEvent and is used by skills that need to react
+/// to completed damage, such as Jianxiong (奸雄).
+/// </summary>
+public sealed record DamageResolvedEvent(
+    Game Game,
+    DamageDescriptor Damage,
+    int PreviousHealth,
+    int CurrentHealth,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
 /// Event published when a player enters the dying state.
 /// </summary>
 public sealed record DyingStartEvent(

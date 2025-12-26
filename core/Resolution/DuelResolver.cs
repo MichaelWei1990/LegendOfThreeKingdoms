@@ -94,6 +94,13 @@ public sealed class DuelResolver : IResolver
         intermediateResults[OtherPlayerSeatKey] = sourcePlayer.Seat;
         intermediateResults[SourcePlayerSeatKey] = sourcePlayer.Seat;
         intermediateResults[TargetPlayerSeatKey] = targetPlayer.Seat;
+        
+        // Store the Duel card
+        var duelCard = context.ExtractCausingCard();
+        if (duelCard is not null)
+        {
+            intermediateResults["DuelCard"] = duelCard;
+        }
 
         // Create new context with IntermediateResults
         var newContext = new ResolutionContext(
@@ -348,13 +355,21 @@ internal sealed class DuelResponseHandlerResolver : IResolver
         // Decide whether to continue or deal damage
         if (responseResult.State == ResponseWindowState.NoResponse)
         {
+            // Get the Duel card from intermediate results
+            Card? duelCard = null;
+            if (intermediateResults.TryGetValue("DuelCard", out var cardObj) && cardObj is Card card)
+            {
+                duelCard = card;
+            }
+            
             // Current player cannot play Slash - deal damage to current player from other player
             var damage = new DamageDescriptor(
                 SourceSeat: _otherPlayerSeat,
                 TargetSeat: _currentPlayerSeat,
                 Amount: 1,
                 Type: DamageType.Normal,
-                Reason: "Duel"
+                Reason: "Duel",
+                CausingCard: duelCard  // The Duel card that causes the damage
             );
 
             var damageContext = new ResolutionContext(

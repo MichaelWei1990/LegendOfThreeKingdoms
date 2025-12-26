@@ -17,6 +17,7 @@ public sealed class NanmanRushinResolver : IResolver
 {
     private const string TargetsKey = "NanmanRushinTargets";
     private const string CurrentTargetIndexKey = "NanmanRushinCurrentTargetIndex";
+    private const string CausingCardKey = "NanmanRushinCausingCard";
 
     /// <inheritdoc />
     public ResolutionResult Resolve(ResolutionContext context)
@@ -43,8 +44,11 @@ public sealed class NanmanRushinResolver : IResolver
             return ProcessNextTarget(context, targets, currentIndex, intermediateResults);
         }
 
-        // First time: initialize target list
+        // First time: initialize target list and get causing card
         var allTargets = GetTargetsInTurnOrder(game, sourcePlayer);
+        
+        // Get the causing card from context
+        var causingCard = context.ExtractCausingCard();
         
         if (allTargets.Count == 0)
         {
@@ -63,9 +67,13 @@ public sealed class NanmanRushinResolver : IResolver
             return ResolutionResult.SuccessResult;
         }
 
-        // Store targets and start processing from index 0
+        // Store targets, causing card, and start processing from index 0
         intermediateResults[TargetsKey] = allTargets;
         intermediateResults[CurrentTargetIndexKey] = 0;
+        if (causingCard is not null)
+        {
+            intermediateResults[CausingCardKey] = causingCard;
+        }
 
         // Create new context with IntermediateResults
         var newContext = new ResolutionContext(
@@ -111,6 +119,13 @@ public sealed class NanmanRushinResolver : IResolver
         var target = targets[currentIndex];
         var sourcePlayer = context.SourcePlayer;
 
+        // Get causing card from intermediate results
+        Card? causingCard = null;
+        if (intermediateResults.TryGetValue(CausingCardKey, out var cardObj) && cardObj is Card card)
+        {
+            causingCard = card;
+        }
+
         // Skip if target is not alive (may have died during processing)
         if (!target.IsAlive)
         {
@@ -144,7 +159,8 @@ public sealed class NanmanRushinResolver : IResolver
             TargetSeat: target.Seat,
             Amount: 1,
             Type: DamageType.Normal,
-            Reason: "NanmanRushin"
+            Reason: "NanmanRushin",
+            CausingCard: causingCard  // The Nanman Rushin card that causes the damage
         );
 
         // Create handler resolver context (will check response result and apply damage if needed)

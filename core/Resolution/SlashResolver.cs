@@ -299,7 +299,8 @@ public sealed class SlashResolver : IResolver
             TargetSeat: target.Seat,
             Amount: 1,  // Basic Slash deals 1 damage
             Type: DamageType.Normal,
-            Reason: "Slash"
+            Reason: "Slash",
+            CausingCard: slashCard  // The Slash card that causes the damage
         );
 
         // Initialize IntermediateResults dictionary if not present
