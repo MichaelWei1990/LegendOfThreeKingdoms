@@ -70,6 +70,11 @@ public enum CardSubType
     /// </summary>
     WanjianQifa,
 
+    /// <summary>
+    /// 南蛮入侵 (Nanman Rushin / Barbarian Invasion).
+    /// </summary>
+    NanmanRushin,
+
     // Specific delayed tricks
     /// <summary>
     /// 乐不思蜀 (Le Bu Si Shu).

@@ -395,15 +395,30 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
             return RuleQueryResult<Player>.FromItems(Array.Empty<Player>());
         }
 
-        if (context.Card.CardSubType == CardSubType.Lebusishu || context.Card.CardSubType == CardSubType.Shandian)
+        if (context.Card.CardSubType == CardSubType.Lebusishu)
         {
-            // Delayed tricks: single other alive player
+            // Lebusishu: single other alive player
             var legalTargets = game.Players
                 .Where(p => p.IsAlive && p.Seat != source.Seat)
                 .ToArray();
 
             // Apply target filtering skills (e.g., Modesty)
             legalTargets = ApplyTargetFilteringSkills(game, context.Card, legalTargets).ToArray();
+
+            if (legalTargets.Length == 0)
+            {
+                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
+            }
+
+            return RuleQueryResult<Player>.FromItems(legalTargets);
+        }
+
+        if (context.Card.CardSubType == CardSubType.Shandian)
+        {
+            // Shandian: self-targeting (place in own judgement zone)
+            var legalTargets = game.Players
+                .Where(p => p.IsAlive && p.Seat == source.Seat)
+                .ToArray();
 
             if (legalTargets.Length == 0)
             {
