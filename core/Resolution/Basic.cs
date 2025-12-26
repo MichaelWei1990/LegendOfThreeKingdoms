@@ -156,6 +156,7 @@ public sealed class UseCardResolver : IResolver
                 CardSubType.TaoyuanJieyi => new ImmediateTrickResolver(),
                 CardSubType.ShunshouQianyang => new ImmediateTrickResolver(),
                 CardSubType.GuoheChaiqiao => new ImmediateTrickResolver(),
+                CardSubType.WanjianQifa => new ImmediateTrickResolver(),
                 CardSubType.Lebusishu => new DelayedTrickResolver(),
                 CardSubType.Shandian => new DelayedTrickResolver(),
                 _ => null

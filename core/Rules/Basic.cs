@@ -290,6 +290,7 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
             case CardSubType.TaoyuanJieyi:
             case CardSubType.ShunshouQianyang:
             case CardSubType.GuoheChaiqiao:
+            case CardSubType.WanjianQifa:
             case CardSubType.Lebusishu:
             case CardSubType.Shandian:
                 {
@@ -357,6 +358,23 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
             }
 
             return RuleQueryResult<Player>.FromItems(legalTargets);
+        }
+
+        if (context.Card.CardSubType == CardSubType.WanjianQifa)
+        {
+            // Wanjian Qifa: all alive players except source (no target selection needed, but we validate at least one target exists)
+            var legalTargets = game.Players
+                .Where(p => p.IsAlive && p.Seat != source.Seat)
+                .ToArray();
+
+            if (legalTargets.Length == 0)
+            {
+                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
+            }
+
+            // Return empty list since no target selection is needed (all targets are automatically selected)
+            // But we validate that at least one target exists above
+            return RuleQueryResult<Player>.FromItems(Array.Empty<Player>());
         }
 
         if (context.Card.CardSubType == CardSubType.Lebusishu || context.Card.CardSubType == CardSubType.Shandian)

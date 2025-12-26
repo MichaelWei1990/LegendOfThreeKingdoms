@@ -65,6 +65,11 @@ public enum CardSubType
     /// </summary>
     GuoheChaiqiao,
 
+    /// <summary>
+    /// 万箭齐发 (Wanjian Qifa / Arrow Barrage).
+    /// </summary>
+    WanjianQifa,
+
     // Specific delayed tricks
     /// <summary>
     /// 乐不思蜀 (Le Bu Si Shu).
