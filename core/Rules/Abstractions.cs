@@ -119,7 +119,11 @@ public enum ResponseType
     /// <summary>
     /// Playing a Slash against Nanman Rushin (南蛮入侵).
     /// </summary>
-    SlashAgainstNanmanRushin
+    SlashAgainstNanmanRushin,
+    /// <summary>
+    /// Playing a Slash in a Duel (决斗).
+    /// </summary>
+    SlashAgainstDuel
 }
 
 /// <summary>

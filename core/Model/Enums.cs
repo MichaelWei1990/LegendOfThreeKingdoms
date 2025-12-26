@@ -75,6 +75,11 @@ public enum CardSubType
     /// </summary>
     NanmanRushin,
 
+    /// <summary>
+    /// 决斗 (Duel).
+    /// </summary>
+    Duel,
+
     // Specific delayed tricks
     /// <summary>
     /// 乐不思蜀 (Le Bu Si Shu).

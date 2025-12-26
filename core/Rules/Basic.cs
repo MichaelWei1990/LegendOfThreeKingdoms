@@ -292,6 +292,7 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
             case CardSubType.GuoheChaiqiao:
             case CardSubType.WanjianQifa:
             case CardSubType.NanmanRushin:
+            case CardSubType.Duel:
             case CardSubType.Lebusishu:
             case CardSubType.Shandian:
                 {
@@ -428,6 +429,24 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
             return RuleQueryResult<Player>.FromItems(legalTargets);
         }
 
+        if (context.Card.CardSubType == CardSubType.Duel)
+        {
+            // Duel: single other alive player (no distance restriction)
+            var legalTargets = game.Players
+                .Where(p => p.IsAlive && p.Seat != source.Seat)
+                .ToArray();
+
+            // Apply target filtering skills (e.g., Modesty)
+            legalTargets = ApplyTargetFilteringSkills(game, context.Card, legalTargets).ToArray();
+
+            if (legalTargets.Length == 0)
+            {
+                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
+            }
+
+            return RuleQueryResult<Player>.FromItems(legalTargets);
+        }
+
         // Other card types don't have target logic at this phase.
         return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
     }
@@ -508,6 +527,9 @@ public sealed class ResponseRuleService : IResponseRuleService
                 .Where(c => c.CardSubType == CardSubType.Peach)
                 .ToArray(),
             ResponseType.SlashAgainstNanmanRushin => handCards
+                .Where(c => c.CardSubType == CardSubType.Slash)
+                .ToArray(),
+            ResponseType.SlashAgainstDuel => handCards
                 .Where(c => c.CardSubType == CardSubType.Slash)
                 .ToArray(),
             _ => Array.Empty<Card>()

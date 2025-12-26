@@ -99,6 +99,7 @@ public sealed class DelayedTrickManager
             CardSubType.GuoheChaiqiao => true,
             CardSubType.WanjianQifa => true,
             CardSubType.NanmanRushin => true,
+            CardSubType.Duel => true,
             _ => false
         };
     }
