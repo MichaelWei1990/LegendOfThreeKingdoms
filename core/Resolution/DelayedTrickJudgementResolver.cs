@@ -51,7 +51,7 @@ public sealed class DelayedTrickJudgementResolver : IResolver
         // Create judgement rule based on card subtype
         IJudgementRule judgementRule = _delayedTrickCard.CardSubType switch
         {
-            CardSubType.Lebusishu => new RedJudgementRule(), // 乐不思蜀：红色判定成功
+            CardSubType.Lebusishu => new SuitJudgementRule(Suit.Heart), // 乐不思蜀：红桃判定成功
             CardSubType.Shandian => new BlackJudgementRule(), // 闪电：黑色判定成功
             CardSubType.DelayedTrick => new RedJudgementRule(), // Default for generic delayed trick
             _ => throw new InvalidOperationException($"Unknown delayed trick subtype: {_delayedTrickCard.CardSubType}")
@@ -97,10 +97,8 @@ public sealed class DelayedTrickJudgementResolver : IResolver
             judgementService
         );
 
-        // Push JudgementResolver to execute the judgement
-        context.Stack.Push(new JudgementResolver(), judgementContext);
-
-        // Push handler resolver to process judgement result and apply effects
+        // Push handler resolver to process judgement result and apply effects (push first so it executes after JudgementResolver)
+        // Use the same intermediateResults dictionary so DelayedTrickEffectResolver can access JudgementResult
         var handlerContext = new ResolutionContext(
             game,
             judgeOwner,
@@ -112,7 +110,7 @@ public sealed class DelayedTrickJudgementResolver : IResolver
             context.PendingDamage,
             context.LogSink,
             context.GetPlayerChoice,
-            context.IntermediateResults,
+            intermediateResults, // Use the same intermediateResults so JudgementResult is accessible
             context.EventBus,
             context.LogCollector,
             context.SkillManager,
@@ -121,6 +119,9 @@ public sealed class DelayedTrickJudgementResolver : IResolver
         );
 
         context.Stack.Push(new DelayedTrickEffectResolver(_delayedTrickCard), handlerContext);
+
+        // Push JudgementResolver to execute the judgement (push last so it executes first)
+        context.Stack.Push(new JudgementResolver(), judgementContext);
 
         return ResolutionResult.SuccessResult;
     }
@@ -169,15 +170,15 @@ internal sealed class DelayedTrickEffectResolver : IResolver
         }
 
         // Apply effect based on judgement result and card type
-        // For now, we only handle specific delayed tricks
+        // For Lebusishu: 红桃 = 判定成功 = 无效果（正常进行回合），非红桃 = 判定失败 = 跳过出牌阶段
         if (judgementResult.IsSuccess)
         {
-            // Judgement succeeded - apply negative effect
+            // Judgement succeeded - no negative effect for Lebusishu
             ApplyJudgementSuccessEffect(context, game, judgeOwner, cardInZone);
         }
         else
         {
-            // Judgement failed - no effect or positive effect
+            // Judgement failed - apply negative effect for Lebusishu
             ApplyJudgementFailureEffect(context, game, judgeOwner, cardInZone);
         }
 
@@ -190,28 +191,11 @@ internal sealed class DelayedTrickEffectResolver : IResolver
 
     private void ApplyJudgementSuccessEffect(ResolutionContext context, Game game, Player judgeOwner, Card card)
     {
-        // Judgement succeeded - apply negative effect based on card type
+        // Judgement succeeded - apply effect based on card type
         switch (card.CardSubType)
         {
             case CardSubType.Lebusishu:
-                // 乐不思蜀：判定成功，跳过出牌阶段
-                // TODO: Implement skip play phase effect
-                if (context.LogSink is not null)
-                {
-                    var logEntry = new LogEntry
-                    {
-                        EventType = "DelayedTrickEffect",
-                        Level = "Info",
-                        Message = $"Player {judgeOwner.Seat} skipped play phase due to Lebusishu",
-                        Data = new
-                        {
-                            PlayerSeat = judgeOwner.Seat,
-                            CardSubType = card.CardSubType.ToString(),
-                            JudgementSuccess = true
-                        }
-                    };
-                    context.LogSink.Log(logEntry);
-                }
+                LebusishuResolver.ApplySuccessEffect(context, judgeOwner);
                 break;
 
             case CardSubType.Shandian:
@@ -254,22 +238,32 @@ internal sealed class DelayedTrickEffectResolver : IResolver
 
     private void ApplyJudgementFailureEffect(ResolutionContext context, Game game, Player judgeOwner, Card card)
     {
-        // Judgement failed - no negative effect
-        if (context.LogSink is not null)
+        // Judgement failed - apply negative effect based on card type
+        switch (card.CardSubType)
         {
-            var logEntry = new LogEntry
-            {
-                EventType = "DelayedTrickEffect",
-                Level = "Info",
-                Message = $"Player {judgeOwner.Seat} avoided delayed trick effect: {card.CardSubType}",
-                Data = new
+            case CardSubType.Lebusishu:
+                LebusishuResolver.ApplyFailureEffect(context, judgeOwner);
+                break;
+
+            default:
+                // Other delayed tricks - no negative effect on failure
+                if (context.LogSink is not null)
                 {
-                    PlayerSeat = judgeOwner.Seat,
-                    CardSubType = card.CardSubType.ToString(),
-                    JudgementSuccess = false
+                    var logEntry = new LogEntry
+                    {
+                        EventType = "DelayedTrickEffect",
+                        Level = "Info",
+                        Message = $"Player {judgeOwner.Seat} avoided delayed trick effect: {card.CardSubType}",
+                        Data = new
+                        {
+                            PlayerSeat = judgeOwner.Seat,
+                            CardSubType = card.CardSubType.ToString(),
+                            JudgementSuccess = false
+                        }
+                    };
+                    context.LogSink.Log(logEntry);
                 }
-            };
-            context.LogSink.Log(logEntry);
+                break;
         }
     }
 }

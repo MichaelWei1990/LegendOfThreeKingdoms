@@ -356,6 +356,21 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
             return RuleQueryResult<Player>.FromItems(legalTargets);
         }
 
+        if (context.Card.CardSubType == CardSubType.Lebusishu || context.Card.CardSubType == CardSubType.Shandian)
+        {
+            // Delayed tricks: single other alive player
+            var legalTargets = game.Players
+                .Where(p => p.IsAlive && p.Seat != source.Seat)
+                .ToArray();
+
+            if (legalTargets.Length == 0)
+            {
+                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
+            }
+
+            return RuleQueryResult<Player>.FromItems(legalTargets);
+        }
+
         // Other card types don't have target logic at this phase.
         return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
     }

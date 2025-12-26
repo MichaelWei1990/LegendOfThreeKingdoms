@@ -126,6 +126,34 @@ public sealed class BasicTurnEngine : ITurnEngine
             EventBus.Publish(phaseStartEvent);
         }
 
+        // Check if Play phase should be skipped (e.g., due to Lebusishu)
+        if (game.CurrentPhase == Phase.Play)
+        {
+            var currentPlayer = game.Players.FirstOrDefault(p => p.Seat == game.CurrentPlayerSeat);
+            if (currentPlayer is not null && currentPlayer.Flags.TryGetValue("SkipPlayPhase", out var skipFlag) && skipFlag is true)
+            {
+                // Clear the flag
+                currentPlayer.Flags.Remove("SkipPlayPhase");
+
+                // Publish PhaseEndEvent for Play phase (skipped)
+                if (EventBus is not null)
+                {
+                    var phaseEndEvent = new PhaseEndEvent(game, game.CurrentPlayerSeat, Phase.Play);
+                    EventBus.Publish(phaseEndEvent);
+                }
+
+                // Skip to Discard phase
+                game.CurrentPhase = Phase.Discard;
+
+                // Publish PhaseStartEvent for Discard phase
+                if (EventBus is not null)
+                {
+                    var phaseStartEvent = new PhaseStartEvent(game, game.CurrentPlayerSeat, game.CurrentPhase);
+                    EventBus.Publish(phaseStartEvent);
+                }
+            }
+        }
+
         return new TurnTransitionResult
         {
             IsSuccess = true,
