@@ -228,3 +228,4 @@ public sealed class ShunshouQianyangResolver : IResolver
         }
     }
 }
+
