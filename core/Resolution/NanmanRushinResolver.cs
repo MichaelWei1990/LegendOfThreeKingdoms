@@ -303,7 +303,8 @@ internal sealed class NanmanRushinResponseWindowResolver : IResolver
             CardMoveService: context.CardMoveService,
             LogSink: context.LogSink,
             SkillManager: context.SkillManager,
-            JudgementService: context.JudgementService
+            JudgementService: context.JudgementService,
+            EventBus: context.EventBus
         );
     }
 

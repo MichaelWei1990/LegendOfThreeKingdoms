@@ -220,6 +220,18 @@ public sealed class UseCardResolver : IResolver
             context.LogCollector.Collect(logEvent);
         }
 
+        // Publish CardUsedEvent for skills that need to track card usage (e.g., Keji)
+        if (context.EventBus is not null)
+        {
+            var cardUsedEvent = new CardUsedEvent(
+                game,
+                sourcePlayer.Seat,
+                card.Id,
+                card.CardSubType
+            );
+            context.EventBus.Publish(cardUsedEvent);
+        }
+
         // Create new context for the specific resolver
         var newContext = new ResolutionContext(
             game,

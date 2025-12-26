@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using LegendOfThreeKingdoms.Core.Abstractions;
+using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Judgement;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Rules;
@@ -42,7 +43,8 @@ public sealed record ResponseWindowContext(
     ICardMoveService CardMoveService,
     ILogSink? LogSink = null,
     SkillManager? SkillManager = null,
-    IJudgementService? JudgementService = null
+    IJudgementService? JudgementService = null,
+    IEventBus? EventBus = null
 );
 
 /// <summary>

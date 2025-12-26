@@ -154,6 +154,34 @@ public sealed class BasicTurnEngine : ITurnEngine
             }
         }
 
+        // Check if Discard phase should be skipped (e.g., due to Keji)
+        if (game.CurrentPhase == Phase.Discard)
+        {
+            var currentPlayer = game.Players.FirstOrDefault(p => p.Seat == game.CurrentPlayerSeat);
+            if (currentPlayer is not null && currentPlayer.Flags.TryGetValue("SkipDiscardPhase", out var skipFlag) && skipFlag is true)
+            {
+                // Clear the flag
+                currentPlayer.Flags.Remove("SkipDiscardPhase");
+
+                // Publish PhaseEndEvent for Discard phase (skipped)
+                if (EventBus is not null)
+                {
+                    var phaseEndEvent = new PhaseEndEvent(game, game.CurrentPlayerSeat, Phase.Discard);
+                    EventBus.Publish(phaseEndEvent);
+                }
+
+                // Skip to End phase
+                game.CurrentPhase = Phase.End;
+
+                // Publish PhaseStartEvent for End phase
+                if (EventBus is not null)
+                {
+                    var phaseStartEvent = new PhaseStartEvent(game, game.CurrentPlayerSeat, game.CurrentPhase);
+                    EventBus.Publish(phaseStartEvent);
+                }
+            }
+        }
+
         return new TurnTransitionResult
         {
             IsSuccess = true,

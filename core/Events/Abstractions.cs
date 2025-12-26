@@ -1,6 +1,7 @@
 using System;
 using LegendOfThreeKingdoms.Core.Judgement;
 using LegendOfThreeKingdoms.Core.Model;
+using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Resolution;
 using LegendOfThreeKingdoms.Core.Zones;
 
@@ -214,6 +215,37 @@ public sealed record DelayedTrickPlacedEvent(
     int TargetPlayerSeat,
     int CardId,
     CardSubType CardSubType,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
+/// Event published when a card is used (主动使用) by a player.
+/// </summary>
+public sealed record CardUsedEvent(
+    Game Game,
+    int SourcePlayerSeat,
+    int CardId,
+    CardSubType CardSubType,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
+/// Event published when a card is played (打出) in response by a player.
+/// </summary>
+public sealed record CardPlayedEvent(
+    Game Game,
+    int ResponderSeat,
+    int CardId,
+    CardSubType CardSubType,
+    ResponseType ResponseType,
     DateTime Timestamp = default
 ) : IGameEvent
 {

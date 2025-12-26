@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using LegendOfThreeKingdoms.Core.Abstractions;
+using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Judgement;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Resolution;
@@ -258,6 +259,19 @@ public sealed class BasicResponseWindow : IResponseWindow
 
         // Log successful response
         LogResponseCardPlayed(context.LogSink, responder, selectedCard, responseType);
+
+        // Publish CardPlayedEvent for skills that need to track card playing (e.g., Keji)
+        if (context.EventBus is not null)
+        {
+            var cardPlayedEvent = new CardPlayedEvent(
+                game,
+                responder.Seat,
+                selectedCard.Id,
+                selectedCard.CardSubType,
+                responseType
+            );
+            context.EventBus.Publish(cardPlayedEvent);
+        }
 
         // Response successful - return immediately (first response wins)
         return new ResponseWindowResult(

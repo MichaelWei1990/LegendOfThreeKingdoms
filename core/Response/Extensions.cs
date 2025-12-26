@@ -49,7 +49,8 @@ public static class ResponseExtensions
             CardMoveService: context.CardMoveService,
             LogSink: context.LogSink,
             SkillManager: context.SkillManager,
-            JudgementService: context.JudgementService
+            JudgementService: context.JudgementService,
+            EventBus: context.EventBus
         );
 
         return new ResponseWindowResolver(windowContext, getPlayerChoice);
@@ -90,7 +91,8 @@ public static class ResponseExtensions
             CardMoveService: context.CardMoveService,
             LogSink: context.LogSink,
             SkillManager: context.SkillManager,
-            JudgementService: context.JudgementService
+            JudgementService: context.JudgementService,
+            EventBus: context.EventBus
         );
 
         return new ResponseWindowResolver(windowContext, getPlayerChoice);
@@ -179,7 +181,8 @@ public static class ResponseExtensions
             CardMoveService: context.CardMoveService,
             LogSink: context.LogSink,
             SkillManager: context.SkillManager,
-            JudgementService: context.JudgementService
+            JudgementService: context.JudgementService,
+            EventBus: context.EventBus
         );
         
         return new ResponseWindowResolver(windowContext, getPlayerChoice);
