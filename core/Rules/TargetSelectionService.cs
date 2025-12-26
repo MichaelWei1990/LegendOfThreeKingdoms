@@ -79,8 +79,13 @@ public sealed class TargetSelectionService
     /// </summary>
     private RuleQueryResult<Player> GetSingleOtherTargetWithRange(Game game, Player source, Card card)
     {
+        // Check if source has Qicai skill and card is a trick card - if so, ignore distance restriction
+        var ignoreDistance = ShouldIgnoreDistanceForTrickCard(game, source, card);
+
         var legalTargets = game.Players
-            .Where(p => p.IsAlive && p.Seat != source.Seat && _rangeRules.IsWithinAttackRange(game, source, p))
+            .Where(p => p.IsAlive 
+                && p.Seat != source.Seat 
+                && (ignoreDistance || _rangeRules.IsWithinAttackRange(game, source, p)))
             .ToArray();
 
         // Apply target filtering skills (e.g., Empty City for Slash)
@@ -99,10 +104,13 @@ public sealed class TargetSelectionService
     /// </summary>
     private RuleQueryResult<Player> GetSingleOtherTargetWithDistance1(Game game, Player source, Card card)
     {
+        // Check if source has Qicai skill and card is a trick card - if so, ignore distance restriction
+        var ignoreDistance = ShouldIgnoreDistanceForTrickCard(game, source, card);
+
         var legalTargets = game.Players
             .Where(p => p.IsAlive 
                 && p.Seat != source.Seat 
-                && _rangeRules.GetSeatDistance(game, source, p) <= 1)
+                && (ignoreDistance || _rangeRules.GetSeatDistance(game, source, p) <= 1))
             .ToArray();
 
         // Apply target filtering skills (e.g., Modesty)
@@ -208,5 +216,26 @@ public sealed class TargetSelectionService
         }
 
         return filteredTargets;
+    }
+
+    /// <summary>
+    /// Checks if distance restriction should be ignored for a trick card due to Qicai skill.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="source">The player using the card.</param>
+    /// <param name="card">The card being used.</param>
+    /// <returns>True if distance should be ignored (source has Qicai and card is a trick), false otherwise.</returns>
+    private bool ShouldIgnoreDistanceForTrickCard(Game game, Player source, Card card)
+    {
+        // Only applies to trick cards
+        if (card.CardType != CardType.Trick)
+            return false;
+
+        // Check if source has Qicai skill
+        if (_skillManager is null)
+            return false;
+
+        var skills = _skillManager.GetActiveSkills(game, source);
+        return skills.Any(skill => skill.Id == "qicai");
     }
 }
