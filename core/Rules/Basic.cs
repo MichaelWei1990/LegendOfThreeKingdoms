@@ -289,6 +289,7 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
             case CardSubType.WuzhongShengyou:
             case CardSubType.TaoyuanJieyi:
             case CardSubType.ShunshouQianyang:
+            case CardSubType.GuoheChaiqiao:
             case CardSubType.Lebusishu:
             case CardSubType.Shandian:
                 {
@@ -330,6 +331,21 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
                 .Where(p => p.IsAlive 
                     && p.Seat != source.Seat 
                     && _rangeRules.GetSeatDistance(game, source, p) <= 1)
+                .ToArray();
+
+            if (legalTargets.Length == 0)
+            {
+                return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
+            }
+
+            return RuleQueryResult<Player>.FromItems(legalTargets);
+        }
+
+        if (context.Card.CardSubType == CardSubType.GuoheChaiqiao)
+        {
+            // GuoheChaiqiao has no distance restriction
+            var legalTargets = game.Players
+                .Where(p => p.IsAlive && p.Seat != source.Seat)
                 .ToArray();
 
             if (legalTargets.Length == 0)

@@ -60,6 +60,11 @@ public enum CardSubType
     /// </summary>
     ShunshouQianyang,
 
+    /// <summary>
+    /// 过河拆桥 (Guohe Chaiqiao / Dismantle).
+    /// </summary>
+    GuoheChaiqiao,
+
     // Specific delayed tricks
     /// <summary>
     /// 乐不思蜀 (Le Bu Si Shu).
