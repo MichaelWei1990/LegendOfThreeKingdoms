@@ -83,6 +83,9 @@ public sealed class TargetSelectionService
             .Where(p => p.IsAlive && p.Seat != source.Seat && _rangeRules.IsWithinAttackRange(game, source, p))
             .ToArray();
 
+        // Apply target filtering skills (e.g., Empty City for Slash)
+        legalTargets = ApplyTargetFilteringSkills(game, card, legalTargets).ToArray();
+
         if (legalTargets.Length == 0)
         {
             return RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions);
