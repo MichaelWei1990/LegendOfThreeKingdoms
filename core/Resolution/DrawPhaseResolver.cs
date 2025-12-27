@@ -66,8 +66,30 @@ public sealed class DrawPhaseResolver : IResolver
             }
         }
 
+        // Check for skills that can modify the draw count (e.g., LuoYi)
+        int drawCountModification = 0;
+        if (context.SkillManager is not null && context.GetPlayerChoice is not null)
+        {
+            var modifyingSkill = FindDrawPhaseModifyingSkill(context.SkillManager, game, sourcePlayer);
+            if (modifyingSkill is not null)
+            {
+                // Ask player if they want to modify draw phase
+                var shouldModify = modifyingSkill.ShouldModifyDrawPhase(
+                    game,
+                    sourcePlayer,
+                    context.GetPlayerChoice);
+
+                if (shouldModify)
+                {
+                    drawCountModification = modifyingSkill.GetDrawCountModification(game, sourcePlayer);
+                    // Activate the modification effect (e.g., set up turn-based buff)
+                    modifyingSkill.OnDrawPhaseModified(game, sourcePlayer, context.EventBus);
+                }
+            }
+        }
+
         // Normal draw phase: calculate draw count with rule modifiers
-        var drawCount = CalculateDrawCount(context, sourcePlayer);
+        var drawCount = CalculateDrawCount(context, sourcePlayer) + drawCountModification;
 
         // Draw cards
         try
@@ -97,6 +119,24 @@ public sealed class DrawPhaseResolver : IResolver
                 replacementSkill.CanReplaceDrawPhase(game, player))
             {
                 return replacementSkill;
+            }
+        }
+
+        return null;
+    }
+
+    private static Skills.IDrawPhaseModifyingSkill? FindDrawPhaseModifyingSkill(
+        Skills.SkillManager skillManager,
+        Game game,
+        Player player)
+    {
+        var skills = skillManager.GetAllSkills(player);
+        foreach (var skill in skills)
+        {
+            if (skill is Skills.IDrawPhaseModifyingSkill modifyingSkill &&
+                modifyingSkill.CanModifyDrawPhase(game, player))
+            {
+                return modifyingSkill;
             }
         }
 

@@ -143,6 +143,14 @@ public sealed record BeforeDamageEvent(
     /// If set to true, the damage will not be applied (amount becomes 0).
     /// </summary>
     public bool IsPrevented { get; set; }
+
+    /// <summary>
+    /// Damage amount modification to apply.
+    /// This value will be added to the original damage amount.
+    /// Can be positive (increase damage) or negative (decrease damage).
+    /// Multiple skills can modify damage, and their modifications are cumulative.
+    /// </summary>
+    public int DamageModification { get; set; }
 }
 
 /// <summary>

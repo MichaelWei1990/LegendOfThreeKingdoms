@@ -555,11 +555,13 @@ public sealed class DamageResolver : IResolver
 
         // Publish BeforeDamageEvent to allow skills to prevent or modify damage
         bool isPrevented = false;
+        int damageModification = 0;
         if (context.EventBus is not null)
         {
             var beforeDamageEvent = new BeforeDamageEvent(game, damage);
             context.EventBus.Publish(beforeDamageEvent);
             isPrevented = beforeDamageEvent.IsPrevented;
+            damageModification = beforeDamageEvent.DamageModification;
         }
 
         // Publish DamageCreatedEvent before applying damage
@@ -571,8 +573,9 @@ public sealed class DamageResolver : IResolver
 
         // Apply damage: reduce health (cannot go below 0)
         // If damage was prevented, amount becomes 0
+        // Otherwise, apply damage modification (can be positive or negative)
         var previousHealth = target.CurrentHealth;
-        var actualDamageAmount = isPrevented ? 0 : damage.Amount;
+        var actualDamageAmount = isPrevented ? 0 : Math.Max(0, damage.Amount + damageModification);
         target.CurrentHealth = Math.Max(0, target.CurrentHealth - actualDamageAmount);
 
         // Publish DamageAppliedEvent after applying damage

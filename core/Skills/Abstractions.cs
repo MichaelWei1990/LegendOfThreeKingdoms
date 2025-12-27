@@ -380,6 +380,23 @@ public interface IBeforeDamageSkill : ISkill
 }
 
 /// <summary>
+/// Interface for skills that can modify damage.
+/// Used by skills that need to modify damage values, such as LuoYi (裸衣) that increases damage.
+/// </summary>
+public interface IDamageModifyingSkill : ISkill
+{
+    /// <summary>
+    /// Modifies the damage amount.
+    /// This method is called when damage is being calculated.
+    /// </summary>
+    /// <param name="damage">The damage descriptor to modify.</param>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <returns>The damage modification amount (positive to increase, negative to decrease). Returns 0 if no modification.</returns>
+    int ModifyDamage(DamageDescriptor damage, Game game, Player owner);
+}
+
+/// <summary>
 /// Interface for skills that respond to after slash dodged events.
 /// Used by trigger skills that need to react when a Slash is successfully dodged,
 /// such as Stone Axe (贯石斧) that can force damage even after a successful Dodge.
@@ -471,4 +488,53 @@ public interface IDrawPhaseReplacementSkill : ISkill
         Events.IEventBus? eventBus,
         Resolution.IResolutionStack stack,
         Resolution.ResolutionContext context);
+}
+
+/// <summary>
+/// Interface for skills that can modify the draw count during draw phase.
+/// Unlike IDrawPhaseReplacementSkill which replaces the entire draw phase,
+/// this interface allows skills to modify the draw count (e.g., reduce by 1)
+/// while still performing the normal draw action.
+/// Used by skills like LuoYi (裸衣) that reduce draw count in exchange for other benefits.
+/// </summary>
+public interface IDrawPhaseModifyingSkill : ISkill
+{
+    /// <summary>
+    /// Checks whether this skill can modify the draw phase for the owner.
+    /// This is called at the start of the draw phase to determine if the skill
+    /// should be offered as an option to modify drawing.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <returns>True if the skill can modify the draw phase, false otherwise.</returns>
+    bool CanModifyDrawPhase(Game game, Player owner);
+
+    /// <summary>
+    /// Asks the player whether they want to use this skill to modify the draw phase.
+    /// This method should present a choice to the player and return their decision.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for a given choice request.</param>
+    /// <returns>True if the player chooses to modify the draw phase, false otherwise.</returns>
+    bool ShouldModifyDrawPhase(Game game, Player owner, Func<Rules.ChoiceRequest, Rules.ChoiceResult> getPlayerChoice);
+
+    /// <summary>
+    /// Gets the draw count modification to apply.
+    /// This method is called after the player chooses to modify the draw phase.
+    /// The returned value will be added to the base draw count (can be negative).
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <returns>The draw count modification (e.g., -1 to reduce by 1, +1 to increase by 1).</returns>
+    int GetDrawCountModification(Game game, Player owner);
+
+    /// <summary>
+    /// Called when the draw phase modification is activated.
+    /// This method can be used to set up turn-based effects (e.g., damage boost until end of turn).
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <param name="eventBus">The event bus for publishing events or subscribing to events.</param>
+    void OnDrawPhaseModified(Game game, Player owner, Events.IEventBus? eventBus);
 }
