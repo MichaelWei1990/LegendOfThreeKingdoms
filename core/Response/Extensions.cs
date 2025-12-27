@@ -37,7 +37,7 @@ public static class ResponseExtensions
         // Create response window context
         // Note: We need both IRuleService and IResponseRuleService
         // For now, we create a ResponseRuleService instance, but this should be injected in the future
-        var responseRuleService = new ResponseRuleService();
+        var responseRuleService = new ResponseRuleService(context.SkillManager);
         var windowContext = new ResponseWindowContext(
             Game: context.Game,
             ResponseType: ResponseType.JinkAgainstSlash,
@@ -80,7 +80,7 @@ public static class ResponseExtensions
         // Create response window context
         // Note: We need both IRuleService and IResponseRuleService
         // For now, we create a ResponseRuleService instance, but this should be injected in the future
-        var responseRuleService = new ResponseRuleService();
+        var responseRuleService = new ResponseRuleService(context.SkillManager);
         var windowContext = new ResponseWindowContext(
             Game: context.Game,
             ResponseType: responseType,
@@ -170,7 +170,7 @@ public static class ResponseExtensions
         // Create response window context
         // Note: We need both IRuleService and IResponseRuleService
         // For now, we create a ResponseRuleService instance, but this should be injected in the future
-        var responseRuleService = new ResponseRuleService();
+        var responseRuleService = new ResponseRuleService(context.SkillManager);
         var windowContext = new ResponseWindowContext(
             Game: game,
             ResponseType: ResponseType.PeachForDying,

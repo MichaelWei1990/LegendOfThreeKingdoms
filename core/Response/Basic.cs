@@ -322,17 +322,62 @@ public sealed class BasicResponseWindow : IResponseWindow
             }
         }
 
-        // If multi-card conversion didn't work, use single card
+        // If multi-card conversion didn't work, try single-card conversion
         if (!isMultiCardConversion)
         {
             var selectedCard = selectedCards[0];
-            if (!legalCards.Any(c => c.Id == selectedCard.Id))
+            
+            // Check if card is in legal cards list
+            bool isLegalCard = legalCards.Any(c => c.Id == selectedCard.Id);
+            
+            // If not legal, try single-card conversion
+            bool isSingleCardConversion = false;
+            if (!isLegalCard && context.SkillManager is not null)
+            {
+                // Determine expected card type from response type
+                CardSubType? expectedCardSubType = responseType switch
+                {
+                    ResponseType.JinkAgainstSlash => CardSubType.Dodge,
+                    ResponseType.JinkAgainstWanjianqifa => CardSubType.Dodge,
+                    ResponseType.SlashAgainstDuel => CardSubType.Slash,
+                    ResponseType.SlashAgainstNanmanRushin => CardSubType.Slash,
+                    _ => null
+                };
+
+                if (expectedCardSubType.HasValue)
+                {
+                    var conversionSkills = context.SkillManager.GetActiveSkills(game, responder)
+                        .OfType<Skills.ICardConversionSkill>()
+                        .ToList();
+
+                    foreach (var skill in conversionSkills)
+                    {
+                        var virtualCard = skill.CreateVirtualCard(selectedCard, game, responder);
+                        if (virtualCard is not null && virtualCard.CardSubType == expectedCardSubType.Value)
+                        {
+                            // Conversion successful
+                            actualResponseCard = virtualCard;
+                            cardsToMove = new[] { selectedCard };
+                            isSingleCardConversion = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // If neither legal nor converted, invalid
+            if (!isLegalCard && !isSingleCardConversion)
             {
                 LogResponseInvalid(context.LogSink, responder, selectedCard.Id, responseType);
                 return null;
             }
-            actualResponseCard = selectedCard;
-            cardsToMove = new[] { selectedCard };
+
+            // If legal but not converted, use original card
+            if (isLegalCard && !isSingleCardConversion)
+            {
+                actualResponseCard = selectedCard;
+                cardsToMove = new[] { selectedCard };
+            }
         }
 
         // Move response card(s) from hand to discard pile

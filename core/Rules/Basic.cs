@@ -318,6 +318,13 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
 /// </summary>
 public sealed class ResponseRuleService : IResponseRuleService
 {
+    private readonly SkillManager? _skillManager;
+
+    public ResponseRuleService(SkillManager? skillManager = null)
+    {
+        _skillManager = skillManager;
+    }
+
     public RuleResult CanRespondWithCard(ResponseContext context)
     {
         if (context is null) throw new ArgumentNullException(nameof(context));
@@ -341,25 +348,32 @@ public sealed class ResponseRuleService : IResponseRuleService
         var responder = context.Responder;
         var handCards = responder.HandZone.Cards;
 
-        IReadOnlyList<Card> result = context.ResponseType switch
+        // Get expected card subtype for this response type
+        var expectedCardSubType = GetExpectedCardSubTypeForResponse(context.ResponseType);
+        if (!expectedCardSubType.HasValue)
         {
-            ResponseType.JinkAgainstSlash => handCards
-                .Where(c => c.CardSubType == CardSubType.Dodge)
-                .ToArray(),
-            ResponseType.JinkAgainstWanjianqifa => handCards
-                .Where(c => c.CardSubType == CardSubType.Dodge)
-                .ToArray(),
-            ResponseType.PeachForDying => handCards
-                .Where(c => c.CardSubType == CardSubType.Peach)
-                .ToArray(),
-            ResponseType.SlashAgainstNanmanRushin => handCards
-                .Where(c => c.CardSubType == CardSubType.Slash)
-                .ToArray(),
-            ResponseType.SlashAgainstDuel => handCards
-                .Where(c => c.CardSubType == CardSubType.Slash)
-                .ToArray(),
-            _ => Array.Empty<Card>()
-        };
+            return RuleQueryResult<Card>.Empty(RuleErrorCode.NoLegalOptions);
+        }
+
+        // Get direct legal cards (cards that already match the expected type)
+        var directCards = handCards
+            .Where(c => c.CardSubType == expectedCardSubType.Value)
+            .ToList();
+
+        // Get convertible cards (cards that can be converted to the expected type via conversion skills)
+        var convertibleCards = _skillManager is not null
+            ? GetConvertibleCards(context.Game, responder, expectedCardSubType.Value)
+            : new List<Card>();
+
+        // Merge direct and convertible cards, avoiding duplicates
+        var result = new List<Card>(directCards);
+        foreach (var card in convertibleCards)
+        {
+            if (!result.Any(c => c.Id == card.Id))
+            {
+                result.Add(card);
+            }
+        }
 
         if (result.Count == 0)
         {
@@ -367,6 +381,69 @@ public sealed class ResponseRuleService : IResponseRuleService
         }
 
         return RuleQueryResult<Card>.FromItems(result);
+    }
+
+    /// <summary>
+    /// Gets the expected card subtype for a given response type.
+    /// This maps response types to the card types that can be used to respond.
+    /// </summary>
+    /// <param name="responseType">The response type.</param>
+    /// <returns>The expected card subtype, or null if the response type doesn't require a specific card type.</returns>
+    private static CardSubType? GetExpectedCardSubTypeForResponse(ResponseType responseType)
+    {
+        return responseType switch
+        {
+            ResponseType.JinkAgainstSlash => CardSubType.Dodge,
+            ResponseType.JinkAgainstWanjianqifa => CardSubType.Dodge,
+            ResponseType.PeachForDying => CardSubType.Peach,
+            ResponseType.SlashAgainstNanmanRushin => CardSubType.Slash,
+            ResponseType.SlashAgainstDuel => CardSubType.Slash,
+            _ => null
+        };
+    }
+
+    /// <summary>
+    /// Gets cards that can be converted to the target card subtype via conversion skills.
+    /// </summary>
+    private List<Card> GetConvertibleCards(Game game, Player player, CardSubType targetSubType)
+    {
+        var convertibleCards = new List<Card>();
+        
+        if (_skillManager is null)
+            return convertibleCards;
+
+        var conversionSkills = _skillManager.GetActiveSkills(game, player)
+            .OfType<Skills.ICardConversionSkill>()
+            .ToList();
+
+        if (conversionSkills.Count == 0)
+            return convertibleCards;
+
+        // Try to convert each hand card
+        foreach (var card in player.HandZone.Cards)
+        {
+            // Skip if card is already of the target type
+            if (card.CardSubType == targetSubType)
+                continue;
+
+            // Try each conversion skill
+            foreach (var conversionSkill in conversionSkills)
+            {
+                var virtualCard = conversionSkill.CreateVirtualCard(card, game, player);
+                if (virtualCard is not null && virtualCard.CardSubType == targetSubType)
+                {
+                    // This card can be converted to the target type
+                    if (!convertibleCards.Any(c => c.Id == card.Id))
+                    {
+                        convertibleCards.Add(card);
+                    }
+                    // Only need one successful conversion per card
+                    break;
+                }
+            }
+        }
+
+        return convertibleCards;
     }
 }
 
@@ -398,7 +475,7 @@ public sealed class RuleService : IRuleService
         _modifierProvider = modifierProvider ?? new NoOpRuleModifierProvider();
         _rangeRules = rangeRules ?? new RangeRuleService(_modifierProvider);
         _cardUsageRules = cardUsageRules ?? new CardUsageRuleService(_phaseRules, _rangeRules, _limitRules, _modifierProvider, skillManager);
-        _responseRules = responseRules ?? new ResponseRuleService();
+        _responseRules = responseRules ?? new ResponseRuleService(skillManager);
         _actionQuery = actionQuery ?? new ActionQueryService(_phaseRules, _cardUsageRules, skillManager);
     }
 

@@ -243,7 +243,7 @@ internal sealed class DuelResponseWindowResolver : IResolver
         var responderOrder = new[] { responder };
 
         // Create response window context
-        var responseRuleService = new Rules.ResponseRuleService();
+        var responseRuleService = new Rules.ResponseRuleService(context.SkillManager);
         _windowContext = new ResponseWindowContext(
             Game: context.Game,
             ResponseType: Rules.ResponseType.SlashAgainstDuel,
