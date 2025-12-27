@@ -109,6 +109,22 @@ public sealed record PhaseEndEvent(
 }
 
 /// <summary>
+/// Event published when the draw phase is replaced by a skill (e.g., Tuxi).
+/// This event is published when a player chooses to use a skill to replace normal card drawing.
+/// </summary>
+public sealed record DrawPhaseReplacedEvent(
+    Game Game,
+    int PlayerSeat,
+    string ReplacementReason,
+    IReadOnlyList<int> TargetSeats,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
 /// Event published right before damage is applied (before reducing HP / triggering dying).
 /// This event allows skills to prevent or modify damage before it is applied.
 /// Used by skills like Ice Sword (寒冰剑) that can prevent damage and replace it with other effects.

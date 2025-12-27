@@ -423,3 +423,52 @@ public interface IAfterDamageSkill : ISkill
     /// <param name="evt">The after damage event.</param>
     void OnAfterDamage(AfterDamageEvent evt);
 }
+
+/// <summary>
+/// Interface for skills that can replace the draw phase behavior.
+/// Used by active skills like Tuxi (突袭) that allow the player to choose
+/// to replace normal card drawing with an alternative action.
+/// </summary>
+public interface IDrawPhaseReplacementSkill : ISkill
+{
+    /// <summary>
+    /// Checks whether this skill can replace the draw phase for the owner.
+    /// This is called at the start of the draw phase to determine if the skill
+    /// should be offered as an option to replace normal drawing.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <returns>True if the skill can replace the draw phase, false otherwise.</returns>
+    bool CanReplaceDrawPhase(Game game, Player owner);
+
+    /// <summary>
+    /// Asks the player whether they want to use this skill to replace the draw phase.
+    /// This method should present a choice to the player and return their decision.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for a given choice request.</param>
+    /// <returns>True if the player chooses to replace the draw phase, false otherwise.</returns>
+    bool ShouldReplaceDrawPhase(Game game, Player owner, Func<Rules.ChoiceRequest, Rules.ChoiceResult> getPlayerChoice);
+
+    /// <summary>
+    /// Executes the replacement logic for the draw phase.
+    /// This method is called when the player chooses to replace normal drawing.
+    /// It should handle the full flow including player choices and card movements.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for a given choice request.</param>
+    /// <param name="cardMoveService">The card move service for moving cards.</param>
+    /// <param name="eventBus">The event bus for publishing events.</param>
+    /// <param name="stack">The resolution stack for pushing sub-resolvers if needed.</param>
+    /// <param name="context">The resolution context.</param>
+    void ExecuteDrawPhaseReplacement(
+        Game game,
+        Player owner,
+        Func<Rules.ChoiceRequest, Rules.ChoiceResult> getPlayerChoice,
+        Zones.ICardMoveService cardMoveService,
+        Events.IEventBus? eventBus,
+        Resolution.IResolutionStack stack,
+        Resolution.ResolutionContext context);
+}

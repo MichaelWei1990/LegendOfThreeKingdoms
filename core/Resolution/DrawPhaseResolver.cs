@@ -2,12 +2,14 @@ using System;
 using System.Linq;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Rules;
+using LegendOfThreeKingdoms.Core.Skills;
 
 namespace LegendOfThreeKingdoms.Core.Resolution;
 
 /// <summary>
 /// Resolver for draw phase: draws cards for the current player.
 /// Supports rule modifiers to modify the draw count (e.g., for skills like Yingzi).
+/// Also checks for skills that can replace the draw phase (e.g., Tuxi).
 /// </summary>
 public sealed class DrawPhaseResolver : IResolver
 {
@@ -22,7 +24,49 @@ public sealed class DrawPhaseResolver : IResolver
         var game = context.Game;
         var sourcePlayer = context.SourcePlayer;
 
-        // Calculate draw count with rule modifiers
+        // Check for skills that can replace the draw phase
+        if (context.SkillManager is not null && context.GetPlayerChoice is not null)
+        {
+            var replacementSkill = FindDrawPhaseReplacementSkill(context.SkillManager, game, sourcePlayer);
+            if (replacementSkill is not null)
+            {
+                // Ask player if they want to replace draw phase
+                var shouldReplace = replacementSkill.ShouldReplaceDrawPhase(
+                    game,
+                    sourcePlayer,
+                    context.GetPlayerChoice);
+
+                if (shouldReplace)
+                {
+                    // Execute replacement logic
+                    var wasEmptyBefore = context.Stack.IsEmpty;
+                    replacementSkill.ExecuteDrawPhaseReplacement(
+                        game,
+                        sourcePlayer,
+                        context.GetPlayerChoice,
+                        context.CardMoveService,
+                        context.EventBus,
+                        context.Stack,
+                        context);
+
+                    // If stack is still empty (or was empty and is still empty), no replacement was executed
+                    // This happens when player confirms but selects 0 targets, or when no valid targets exist
+                    // In this case, fall back to normal draw
+                    if (context.Stack.IsEmpty && wasEmptyBefore)
+                    {
+                        // No replacement was actually executed, continue with normal draw
+                        // (This happens when player confirms but selects 0 targets)
+                    }
+                    else
+                    {
+                        // Replacement was executed (resolver was pushed), return success
+                        return ResolutionResult.SuccessResult;
+                    }
+                }
+            }
+        }
+
+        // Normal draw phase: calculate draw count with rule modifiers
         var drawCount = CalculateDrawCount(context, sourcePlayer);
 
         // Draw cards
@@ -39,6 +83,24 @@ public sealed class DrawPhaseResolver : IResolver
         }
 
         return ResolutionResult.SuccessResult;
+    }
+
+    private static Skills.IDrawPhaseReplacementSkill? FindDrawPhaseReplacementSkill(
+        Skills.SkillManager skillManager,
+        Game game,
+        Player player)
+    {
+        var skills = skillManager.GetAllSkills(player);
+        foreach (var skill in skills)
+        {
+            if (skill is Skills.IDrawPhaseReplacementSkill replacementSkill &&
+                replacementSkill.CanReplaceDrawPhase(game, player))
+            {
+                return replacementSkill;
+            }
+        }
+
+        return null;
     }
 
     private static int CalculateDrawCount(ResolutionContext context, Player player)
