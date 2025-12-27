@@ -1,5 +1,12 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using LegendOfThreeKingdoms.Core.Events;
+using LegendOfThreeKingdoms.Core.Judgement;
+using LegendOfThreeKingdoms.Core.Logging;
+using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Rules;
+using LegendOfThreeKingdoms.Core.Skills;
 using LegendOfThreeKingdoms.Core.Zones;
 
 namespace LegendOfThreeKingdoms.Core.Resolution;
@@ -39,6 +46,88 @@ public static class ResolutionExtensions
         }
     }
     /// <summary>
+    /// Prepares a ResolutionContext with card conversion logic applied.
+    /// This method resolves card conversions before creating the context, allowing resolvers
+    /// to focus on processing cards without knowing about conversion logic.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="sourcePlayer">The player using the card.</param>
+    /// <param name="action">The action descriptor.</param>
+    /// <param name="choice">The player's choice.</param>
+    /// <param name="stack">The resolution stack.</param>
+    /// <param name="cardMoveService">The card move service.</param>
+    /// <param name="ruleService">The rule service.</param>
+    /// <param name="skillManager">The skill manager for checking conversion skills.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for response windows.</param>
+    /// <param name="eventBus">The event bus.</param>
+    /// <param name="logCollector">The log collector.</param>
+    /// <param name="equipmentSkillRegistry">The equipment skill registry.</param>
+    /// <param name="judgementService">The judgement service.</param>
+    /// <returns>A ResolutionContext with conversion information in IntermediateResults.</returns>
+    public static ResolutionContext CreateResolutionContextWithCardConversion(
+        Game game,
+        Player sourcePlayer,
+        ActionDescriptor action,
+        ChoiceResult choice,
+        IResolutionStack stack,
+        ICardMoveService cardMoveService,
+        IRuleService ruleService,
+        SkillManager? skillManager = null,
+        Func<ChoiceRequest, ChoiceResult>? getPlayerChoice = null,
+        IEventBus? eventBus = null,
+        ILogCollector? logCollector = null,
+        EquipmentSkillRegistry? equipmentSkillRegistry = null,
+        IJudgementService? judgementService = null)
+    {
+        // Extract the selected card
+        var selectedCardIds = choice.SelectedCardIds;
+        if (selectedCardIds is null || selectedCardIds.Count == 0)
+        {
+            throw new ArgumentException("Choice must contain at least one selected card ID.", nameof(choice));
+        }
+
+        var cardId = selectedCardIds[0];
+        var selectedCard = sourcePlayer.HandZone.Cards.FirstOrDefault(c => c.Id == cardId);
+        if (selectedCard is null)
+        {
+            throw new InvalidOperationException($"Card with ID {cardId} not found in player's hand.");
+        }
+
+        // Resolve card conversion
+        var (actualCard, originalCard, conversionSkill) = CardConversionHelper.ResolveCardForAction(
+            action,
+            selectedCard,
+            game,
+            sourcePlayer,
+            skillManager);
+
+        // Prepare IntermediateResults with conversion information
+        var intermediateResults = CardConversionHelper.PrepareIntermediateResults(
+            actualCard,
+            originalCard,
+            conversionSkill);
+
+        // Create and return the context
+        return new ResolutionContext(
+            game,
+            sourcePlayer,
+            action,
+            choice,
+            stack,
+            cardMoveService,
+            ruleService,
+            PendingDamage: null,
+            LogSink: null,
+            GetPlayerChoice: getPlayerChoice,
+            IntermediateResults: intermediateResults,
+            EventBus: eventBus,
+            LogCollector: logCollector,
+            SkillManager: skillManager,
+            EquipmentSkillRegistry: equipmentSkillRegistry,
+            JudgementService: judgementService);
+    }
+
+    /// <summary>
     /// Registers the UseSlash action handler that uses the resolution pipeline.
     /// </summary>
     /// <param name="mapper">The action resolution mapper to register with.</param>
@@ -60,8 +149,8 @@ public static class ResolutionExtensions
             // Create resolution stack
             var stack = new BasicResolutionStack();
 
-            // Create resolution context
-            var resolutionContext = new ResolutionContext(
+            // Create resolution context with card conversion logic applied
+            var resolutionContext = CreateResolutionContextWithCardConversion(
                 context.Game,
                 context.CurrentPlayer,
                 action,
@@ -69,9 +158,12 @@ public static class ResolutionExtensions
                 stack,
                 cardMoveService,
                 ruleService,
-                GetPlayerChoice: getPlayerChoice,
-                EventBus: null
-            );
+                skillManager: null, // TODO: Get SkillManager from context if available
+                getPlayerChoice: getPlayerChoice,
+                eventBus: null,
+                logCollector: null,
+                equipmentSkillRegistry: null,
+                judgementService: null);
 
             // Create and push UseCardResolver
             var useCardResolver = new UseCardResolver();

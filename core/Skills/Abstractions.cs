@@ -296,3 +296,20 @@ public interface IResponseEnhancementSkill : ISkill
         Judgement.IJudgementService judgementService,
         Zones.ICardMoveService cardMoveService);
 }
+
+/// <summary>
+/// Interface for skills that can convert cards to virtual cards.
+/// Used by skills like Qixi (奇袭) that allow using one card as another card.
+/// </summary>
+public interface ICardConversionSkill : ISkill
+{
+    /// <summary>
+    /// Creates a virtual card from the original card for conversion purposes.
+    /// The virtual card represents the card that the original card is being converted to.
+    /// </summary>
+    /// <param name="originalCard">The original card being converted.</param>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <returns>The virtual card, or null if conversion is not applicable for this card.</returns>
+    Card? CreateVirtualCard(Card originalCard, Game game, Player owner);
+}

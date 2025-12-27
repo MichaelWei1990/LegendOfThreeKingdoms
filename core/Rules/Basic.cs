@@ -399,7 +399,7 @@ public sealed class RuleService : IRuleService
         _rangeRules = rangeRules ?? new RangeRuleService(_modifierProvider);
         _cardUsageRules = cardUsageRules ?? new CardUsageRuleService(_phaseRules, _rangeRules, _limitRules, _modifierProvider, skillManager);
         _responseRules = responseRules ?? new ResponseRuleService();
-        _actionQuery = actionQuery ?? new ActionQueryService(_phaseRules, _cardUsageRules);
+        _actionQuery = actionQuery ?? new ActionQueryService(_phaseRules, _cardUsageRules, skillManager);
     }
 
     public RuleResult CanUseCard(CardUsageContext context)
@@ -507,13 +507,19 @@ public sealed class ActionQueryService : IActionQueryService
 {
     private readonly IPhaseRuleService _phaseRules;
     private readonly ICardUsageRuleService _cardUsageRules;
+    private readonly Skills.SkillManager? _skillManager;
+    
+    // Cache for TargetConstraints instances to avoid repeated allocations
+    private static readonly Dictionary<CardSubType, TargetConstraints> _targetConstraintsCache = new();
 
     public ActionQueryService(
         IPhaseRuleService phaseRules,
-        ICardUsageRuleService cardUsageRules)
+        ICardUsageRuleService cardUsageRules,
+        Skills.SkillManager? skillManager = null)
     {
         _phaseRules = phaseRules ?? throw new ArgumentNullException(nameof(phaseRules));
         _cardUsageRules = cardUsageRules ?? throw new ArgumentNullException(nameof(cardUsageRules));
+        _skillManager = skillManager;
     }
 
     public RuleQueryResult<ActionDescriptor> GetAvailableActions(RuleContext context)
@@ -528,63 +534,52 @@ public sealed class ActionQueryService : IActionQueryService
         // For phase 2, only consider basic Play-phase actions.
         if (_phaseRules.IsCardUsagePhase(game, player))
         {
-            // UseSlash: if there is any usable Slash in hand.
-            var slashCandidates = player.HandZone.Cards
-                .Where(c => c.CardSubType == CardSubType.Slash)
-                .Where(c =>
-                {
-                    var usage = new CardUsageContext(
-                        game,
-                        player,
-                        c,
-                        game.Players,
-                        IsExtraAction: false,
-                        UsageCountThisTurn: 0);
-                    return _cardUsageRules.CanUseCard(usage).IsAllowed;
-                })
-                .ToArray();
-
-            if (slashCandidates.Length > 0)
+            // Collect all usable cards (direct + converted) grouped by card subtype
+            var cardCandidatesByType = CollectCardCandidates(game, player);
+            
+            // Generate actions for each card type that has candidates
+            // Use Dictionary for efficient lookup and update
+            var actionsByActionId = new Dictionary<string, ActionDescriptor>();
+            
+            foreach (var kvp in cardCandidatesByType)
             {
-                actions.Add(new ActionDescriptor(
-                    ActionId: "UseSlash",
-                    DisplayKey: "action.useSlash",
-                    RequiresTargets: true,
-                    TargetConstraints: new TargetConstraints(
-                        MinTargets: 1,
-                        MaxTargets: 1,
-                        FilterType: TargetFilterType.Enemies),
-                    CardCandidates: slashCandidates));
-            }
-
-            // UsePeach: if the player is wounded and has Peach in hand.
-            var peachCandidates = player.HandZone.Cards
-                .Where(c => c.CardSubType == CardSubType.Peach)
-                .Where(c =>
+                var cardSubType = kvp.Key;
+                var candidates = kvp.Value;
+                
+                if (candidates.Count == 0)
+                    continue;
+                
+                // Get action configuration for this card type
+                var actionId = GetActionIdForCardSubType(cardSubType);
+                if (actionId is null)
+                    continue; // Skip if no action mapping exists
+                
+                var targetConstraints = GetTargetConstraintsForCardSubType(cardSubType);
+                if (targetConstraints is null)
+                    continue; // Skip if no target constraints defined
+                
+                // Create or update action
+                if (actionsByActionId.TryGetValue(actionId, out var existingAction))
                 {
-                    var usage = new CardUsageContext(
-                        game,
-                        player,
-                        c,
-                        game.Players,
-                        IsExtraAction: false,
-                        UsageCountThisTurn: 0);
-                    return _cardUsageRules.CanUseCard(usage).IsAllowed;
-                })
-                .ToArray();
-
-            if (peachCandidates.Length > 0)
-            {
-                actions.Add(new ActionDescriptor(
-                    ActionId: "UsePeach",
-                    DisplayKey: "action.usePeach",
-                    RequiresTargets: false,
-                    TargetConstraints: new TargetConstraints(
-                        MinTargets: 0,
-                        MaxTargets: 0,
-                        FilterType: TargetFilterType.SelfOrFriends),
-                    CardCandidates: peachCandidates));
+                    // Merge candidates if action already exists
+                    var mergedCandidates = new List<Card>(existingAction.CardCandidates ?? Array.Empty<Card>());
+                    mergedCandidates.AddRange(candidates);
+                    actionsByActionId[actionId] = existingAction with { CardCandidates = mergedCandidates };
+                }
+                else
+                {
+                    // Create new action
+                    actionsByActionId[actionId] = new ActionDescriptor(
+                        ActionId: actionId,
+                        DisplayKey: $"action.use{cardSubType}",
+                        RequiresTargets: targetConstraints.MinTargets > 0,
+                        TargetConstraints: targetConstraints,
+                        CardCandidates: candidates);
+                }
             }
+            
+            // Convert dictionary to list
+            actions.AddRange(actionsByActionId.Values);
 
             // EndPlayPhase: always available during Play phase.
             actions.Add(new ActionDescriptor(
@@ -601,6 +596,198 @@ public sealed class ActionQueryService : IActionQueryService
         return actions.Count == 0
             ? RuleQueryResult<ActionDescriptor>.Empty(RuleErrorCode.NoLegalOptions)
             : RuleQueryResult<ActionDescriptor>.FromItems(actions);
+    }
+
+    /// <summary>
+    /// Collects all usable card candidates (both direct cards and converted cards) grouped by card subtype.
+    /// </summary>
+    private Dictionary<CardSubType, List<Card>> CollectCardCandidates(Game game, Player player)
+    {
+        var candidatesByType = new Dictionary<CardSubType, List<Card>>();
+        
+        // Step 1: Collect direct usable cards
+        foreach (var card in player.HandZone.Cards)
+        {
+            var usage = new CardUsageContext(
+                game,
+                player,
+                card,
+                game.Players,
+                IsExtraAction: false,
+                UsageCountThisTurn: 0);
+            
+            if (_cardUsageRules.CanUseCard(usage).IsAllowed)
+            {
+                if (!candidatesByType.TryGetValue(card.CardSubType, out var candidates))
+                {
+                    candidates = new List<Card>();
+                    candidatesByType[card.CardSubType] = candidates;
+                }
+                // Avoid duplicates
+                if (!candidates.Any(c => c.Id == card.Id))
+                {
+                    candidates.Add(card);
+                }
+            }
+        }
+        
+        // Step 2: Discover converted cards via conversion skills
+        // Note: We check ALL cards for conversion, even if they're already usable as their original type.
+        // This allows cards to be used both as their original type and as converted types.
+        if (_skillManager is not null)
+        {
+            var conversionTargets = DiscoverConversionTargets(game, player);
+            
+            // Merge converted cards into candidates
+            foreach (var kvp in conversionTargets)
+            {
+                var targetSubType = kvp.Key;
+                var convertedCards = kvp.Value;
+                
+                if (!candidatesByType.TryGetValue(targetSubType, out var candidates))
+                {
+                    candidates = new List<Card>();
+                    candidatesByType[targetSubType] = candidates;
+                }
+                
+                // Add converted cards, avoiding duplicates
+                foreach (var card in convertedCards)
+                {
+                    if (!candidates.Any(c => c.Id == card.Id))
+                    {
+                        candidates.Add(card);
+                    }
+                }
+            }
+        }
+        
+        return candidatesByType;
+    }
+    
+    /// <summary>
+    /// Discovers all card types that can be converted to via conversion skills.
+    /// Returns a dictionary mapping target card subtypes to lists of source cards that can be converted.
+    /// </summary>
+    private Dictionary<CardSubType, List<Card>> DiscoverConversionTargets(
+        Game game, 
+        Player player)
+    {
+        var conversionTargets = new Dictionary<CardSubType, List<Card>>();
+        
+        if (_skillManager is null)
+            return conversionTargets;
+        
+        var conversionSkills = _skillManager.GetActiveSkills(game, player)
+            .OfType<Skills.ICardConversionSkill>()
+            .ToList();
+        
+        if (conversionSkills.Count == 0)
+            return conversionTargets;
+        
+        // Try to convert each card in hand
+        foreach (var card in player.HandZone.Cards)
+        {
+            // Try each conversion skill
+            foreach (var conversionSkill in conversionSkills)
+            {
+                var virtualCard = conversionSkill.CreateVirtualCard(card, game, player);
+                if (virtualCard is null)
+                    continue;
+                
+                var targetSubType = virtualCard.CardSubType;
+                
+                // Skip if the card is already of the target type
+                if (card.CardSubType == targetSubType)
+                    continue;
+                
+                // Check if the virtual card can be used
+                var usage = new CardUsageContext(
+                    game,
+                    player,
+                    virtualCard,
+                    game.Players,
+                    IsExtraAction: false,
+                    UsageCountThisTurn: 0);
+                
+                if (!_cardUsageRules.CanUseCard(usage).IsAllowed)
+                    continue;
+                
+                // Add to candidates for this target card type
+                if (!conversionTargets.TryGetValue(targetSubType, out var candidates))
+                {
+                    candidates = new List<Card>();
+                    conversionTargets[targetSubType] = candidates;
+                }
+                
+                // Avoid duplicates
+                if (!candidates.Any(c => c.Id == card.Id))
+                {
+                    candidates.Add(card);
+                }
+                
+                // Only need one successful conversion per card
+                break;
+            }
+        }
+        
+        return conversionTargets;
+    }
+
+    /// <summary>
+    /// Gets the action ID for a given card subtype.
+    /// Returns null if the card subtype does not have a corresponding action.
+    /// </summary>
+    private static string? GetActionIdForCardSubType(CardSubType cardSubType)
+    {
+        return cardSubType switch
+        {
+            CardSubType.Slash => "UseSlash",
+            CardSubType.Peach => "UsePeach",
+            CardSubType.GuoheChaiqiao => "UseGuoheChaiqiao",
+            // Add more mappings as needed
+            _ => null
+        };
+    }
+
+    /// <summary>
+    /// Gets the target constraints for a given card subtype.
+    /// Returns null if the card subtype does not require targets or is not supported.
+    /// Uses a cache to avoid repeated allocations of identical TargetConstraints instances.
+    /// </summary>
+    private static TargetConstraints? GetTargetConstraintsForCardSubType(CardSubType cardSubType)
+    {
+        // Check cache first
+        if (_targetConstraintsCache.TryGetValue(cardSubType, out var cached))
+        {
+            return cached;
+        }
+        
+        // Create new instance based on card subtype
+        TargetConstraints? constraints = cardSubType switch
+        {
+            CardSubType.Slash => new TargetConstraints(
+                MinTargets: 1,
+                MaxTargets: 1,
+                FilterType: TargetFilterType.Enemies),
+            CardSubType.Peach => new TargetConstraints(
+                MinTargets: 0,
+                MaxTargets: 0,
+                FilterType: TargetFilterType.SelfOrFriends),
+            CardSubType.GuoheChaiqiao => new TargetConstraints(
+                MinTargets: 1,
+                MaxTargets: 1,
+                FilterType: TargetFilterType.Any),
+            // Add more mappings as needed
+            _ => null
+        };
+        
+        // Cache the instance if it's not null
+        if (constraints is not null)
+        {
+            _targetConstraintsCache[cardSubType] = constraints;
+        }
+        
+        return constraints;
     }
 }
 

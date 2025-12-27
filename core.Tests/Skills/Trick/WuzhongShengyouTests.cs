@@ -204,11 +204,13 @@ public sealed class WuzhongShengyouTests
         var game = CreateGameWithCardsInDrawPile(playerCount: 2, cardCount: 10);
         game.CurrentPhase = Phase.Play;
         var source = game.Players[0];
-        var initialHandCount = source.HandZone.Cards.Count;
-        var initialDrawPileCount = game.DrawPile.Cards.Count;
 
         var wuzhongShengyou = CreateWuzhongShengyouCard();
         ((Zone)source.HandZone).MutableCards.Add(wuzhongShengyou);
+        
+        // Capture initial counts AFTER adding the card
+        var initialHandCount = source.HandZone.Cards.Count;
+        var initialDrawPileCount = game.DrawPile.Cards.Count;
 
         var stack = new BasicResolutionStack();
         var cardMoveService = new BasicCardMoveService();
