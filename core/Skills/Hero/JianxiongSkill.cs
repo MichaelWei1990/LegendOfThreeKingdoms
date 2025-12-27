@@ -10,7 +10,7 @@ namespace LegendOfThreeKingdoms.Core.Skills.Hero;
 /// <summary>
 /// Jianxiong (奸雄) skill: Trigger skill that obtains the card that caused damage after taking damage.
 /// </summary>
-public sealed class JianxiongSkill : BaseSkill
+public sealed class JianxiongSkill : BaseSkill, IDamageResolvedSkill
 {
     private Game? _game;
     private Player? _owner;
@@ -69,7 +69,8 @@ public sealed class JianxiongSkill : BaseSkill
         _cardMoveService = null;
     }
 
-    private void OnDamageResolved(DamageResolvedEvent evt)
+    /// <inheritdoc />
+    public void OnDamageResolved(DamageResolvedEvent evt)
     {
         if (_game is null || _owner is null || _cardMoveService is null)
             return;

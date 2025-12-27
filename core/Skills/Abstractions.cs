@@ -328,3 +328,17 @@ public interface IActionProvidingSkill : ISkill
     /// <returns>The action descriptor if conditions are met, null otherwise.</returns>
     Rules.ActionDescriptor? GenerateAction(Game game, Player owner);
 }
+
+/// <summary>
+/// Interface for skills that respond to damage resolved events.
+/// Used by trigger skills that need to react when damage is resolved.
+/// </summary>
+public interface IDamageResolvedSkill : ISkill
+{
+    /// <summary>
+    /// Handles the damage resolved event.
+    /// This method is called when a DamageResolvedEvent is published.
+    /// </summary>
+    /// <param name="evt">The damage resolved event.</param>
+    void OnDamageResolved(DamageResolvedEvent evt);
+}
