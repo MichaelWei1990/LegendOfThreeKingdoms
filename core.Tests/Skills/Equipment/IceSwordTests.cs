@@ -879,5 +879,106 @@ public sealed class IceSwordTests
     }
 
     #endregion
+
+    #region Attack Distance Tests
+
+    /// <summary>
+    /// Tests that IceSwordSkill sets attack distance to 2 when active.
+    /// Input: 2-player game, attacker and defender, active ice sword skill.
+    /// Expected: ModifyAttackDistance returns 2 (weapon's fixed range).
+    /// </summary>
+    [TestMethod]
+    public void IceSwordSkillModifyAttackDistanceSetsDistanceToTwo()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var attacker = game.Players[0];
+        var defender = game.Players[1];
+        var skill = new IceSwordSkill();
+
+        // Act
+        var modified = skill.ModifyAttackDistance(1, game, attacker, defender);
+
+        // Assert
+        Assert.IsNotNull(modified);
+        Assert.AreEqual(2, modified.Value);
+    }
+
+    /// <summary>
+    /// Tests that IceSwordSkill does not modify distance when the owner (attacker) is not active.
+    /// Input: 2-player game, attacker is dead (IsAlive = false), ice sword skill.
+    /// Expected: ModifyAttackDistance returns null (no modification) when owner is not active.
+    /// </summary>
+    [TestMethod]
+    public void IceSwordSkillModifyAttackDistanceWhenOwnerIsNotActiveReturnsNull()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var attacker = game.Players[0];
+        var defender = game.Players[1];
+        attacker.IsAlive = false; // Owner is not active
+        var skill = new IceSwordSkill();
+
+        // Act
+        var modified = skill.ModifyAttackDistance(1, game, attacker, defender);
+
+        // Assert
+        Assert.IsNull(modified);
+    }
+
+    /// <summary>
+    /// Tests that RangeRuleService correctly applies ice sword skill to set attack distance to 2.
+    /// Input: 4-player game, attacker and defender with seat distance = 2, attacker has ice sword equipped and skill active.
+    /// Expected: Base seat distance = 2, base attack distance = 1, but with ice sword attack distance = 2,
+    /// so IsWithinAttackRange returns true (because 2 <= 2, so within range).
+    /// </summary>
+    [TestMethod]
+    public void RangeRuleServiceWithIceSwordSetsAttackRangeToTwo()
+    {
+        // Arrange
+        var game = CreateDefaultGame(4);
+        var attacker = game.Players[0];
+        var defender = game.Players[2]; // Player 2 is at distance 2 from player 0 in 4-player game
+        
+        // Equip ice sword to attacker
+        var iceSword = CreateIceSwordCard();
+        if (attacker.EquipmentZone is Zone equipmentZone)
+        {
+            equipmentZone.MutableCards.Add(iceSword);
+        }
+
+        // Setup skill manager and equipment skill registry
+        var eventBus = new BasicEventBus();
+        var skillRegistry = new SkillRegistry();
+        var equipmentSkillRegistry = new EquipmentSkillRegistry();
+        equipmentSkillRegistry.RegisterEquipmentSkill("ice_sword", new IceSwordSkillFactory());
+        
+        var skillManager = new SkillManager(skillRegistry, eventBus);
+        skillManager.LoadSkillsForPlayer(game, attacker);
+        
+        var iceSwordSkill = equipmentSkillRegistry.GetSkillForEquipment("ice_sword");
+        if (iceSwordSkill is not null)
+        {
+            skillManager.AddEquipmentSkill(game, attacker, iceSwordSkill);
+        }
+
+        var modifierProvider = new SkillRuleModifierProvider(skillManager);
+        var rangeRuleService = new RangeRuleService(modifierProvider);
+
+        // Act
+        var seatDistance = rangeRuleService.GetSeatDistance(game, attacker, defender);
+        var attackDistance = rangeRuleService.GetAttackDistance(game, attacker, defender);
+        var isWithinRange = rangeRuleService.IsWithinAttackRange(game, attacker, defender);
+
+        // Assert
+        // Base seat distance should be 2 (non-adjacent players in 4-player game)
+        Assert.AreEqual(2, seatDistance);
+        // Base attack distance should be 1, but with ice sword it becomes 2
+        Assert.AreEqual(2, attackDistance);
+        // With ice sword, attack distance is set to 2, so 2 <= 2 is true
+        Assert.IsTrue(isWithinRange);
+    }
+
+    #endregion
 }
 

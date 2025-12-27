@@ -450,4 +450,105 @@ public sealed class SerpentSpearTests
     }
 
     #endregion
+
+    #region Attack Distance Tests
+
+    /// <summary>
+    /// Tests that SerpentSpearSkill sets attack distance to 3 when active.
+    /// Input: 2-player game, attacker and defender, active serpent spear skill.
+    /// Expected: ModifyAttackDistance returns 3 (weapon's fixed range).
+    /// </summary>
+    [TestMethod]
+    public void SerpentSpearSkillModifyAttackDistanceSetsDistanceToThree()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var attacker = game.Players[0];
+        var defender = game.Players[1];
+        var skill = new SerpentSpearSkill();
+
+        // Act
+        var modified = skill.ModifyAttackDistance(1, game, attacker, defender);
+
+        // Assert
+        Assert.IsNotNull(modified);
+        Assert.AreEqual(3, modified.Value);
+    }
+
+    /// <summary>
+    /// Tests that SerpentSpearSkill does not modify distance when the owner (attacker) is not active.
+    /// Input: 2-player game, attacker is dead (IsAlive = false), serpent spear skill.
+    /// Expected: ModifyAttackDistance returns null (no modification) when owner is not active.
+    /// </summary>
+    [TestMethod]
+    public void SerpentSpearSkillModifyAttackDistanceWhenOwnerIsNotActiveReturnsNull()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var attacker = game.Players[0];
+        var defender = game.Players[1];
+        attacker.IsAlive = false; // Owner is not active
+        var skill = new SerpentSpearSkill();
+
+        // Act
+        var modified = skill.ModifyAttackDistance(1, game, attacker, defender);
+
+        // Assert
+        Assert.IsNull(modified);
+    }
+
+    /// <summary>
+    /// Tests that RangeRuleService correctly applies serpent spear skill to set attack distance to 3.
+    /// Input: 4-player game, attacker and defender with seat distance = 3, attacker has serpent spear equipped and skill active.
+    /// Expected: Base seat distance = 3, base attack distance = 1, but with serpent spear attack distance = 3,
+    /// so IsWithinAttackRange returns true (because 3 <= 3, so within range).
+    /// </summary>
+    [TestMethod]
+    public void RangeRuleServiceWithSerpentSpearSetsAttackRangeToThree()
+    {
+        // Arrange
+        var game = CreateDefaultGame(5);
+        var attacker = game.Players[0];
+        var defender = game.Players[3]; // Player 3 is at distance 2 from player 0 in 5-player game (clockwise: 3, counter-clockwise: 2, min: 2)
+        
+        // Equip serpent spear to attacker
+        var serpentSpear = CreateSerpentSpearCard();
+        if (attacker.EquipmentZone is Zone equipmentZone)
+        {
+            equipmentZone.MutableCards.Add(serpentSpear);
+        }
+
+        // Setup skill manager and equipment skill registry
+        var eventBus = new BasicEventBus();
+        var skillRegistry = new SkillRegistry();
+        var equipmentSkillRegistry = new EquipmentSkillRegistry();
+        equipmentSkillRegistry.RegisterEquipmentSkill("serpent_spear", new SerpentSpearSkillFactory());
+        
+        var skillManager = new SkillManager(skillRegistry, eventBus);
+        skillManager.LoadSkillsForPlayer(game, attacker);
+        
+        var serpentSpearSkill = equipmentSkillRegistry.GetSkillForEquipment("serpent_spear");
+        if (serpentSpearSkill is not null)
+        {
+            skillManager.AddEquipmentSkill(game, attacker, serpentSpearSkill);
+        }
+
+        var modifierProvider = new SkillRuleModifierProvider(skillManager);
+        var rangeRuleService = new RangeRuleService(modifierProvider);
+
+        // Act
+        var seatDistance = rangeRuleService.GetSeatDistance(game, attacker, defender);
+        var attackDistance = rangeRuleService.GetAttackDistance(game, attacker, defender);
+        var isWithinRange = rangeRuleService.IsWithinAttackRange(game, attacker, defender);
+
+        // Assert
+        // Base seat distance should be 2 (non-adjacent players in 5-player game)
+        Assert.AreEqual(2, seatDistance);
+        // Base attack distance should be 1, but with serpent spear it becomes 3
+        Assert.AreEqual(3, attackDistance);
+        // With serpent spear, attack distance is set to 3, so 2 <= 3 is true
+        Assert.IsTrue(isWithinRange);
+    }
+
+    #endregion
 }

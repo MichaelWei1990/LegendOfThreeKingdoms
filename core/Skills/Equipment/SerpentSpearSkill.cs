@@ -16,8 +16,9 @@ namespace LegendOfThreeKingdoms.Core.Skills.Equipment;
 /// - Both black → black
 /// - Both red → red
 /// - One red, one black → colorless
+/// Attack Range: 3
 /// </summary>
-public sealed class SerpentSpearSkill : BaseSkill, IMultiCardConversionSkill
+public sealed class SerpentSpearSkill : BaseSkill, IMultiCardConversionSkill, IAttackDistanceModifyingSkill
 {
     private Game? _game;
     private Player? _owner;
@@ -34,6 +35,11 @@ public sealed class SerpentSpearSkill : BaseSkill, IMultiCardConversionSkill
 
     /// <inheritdoc />
     public override SkillCapability Capabilities => SkillCapability.ModifiesRules;
+
+    /// <summary>
+    /// The attack range provided by Serpent Spear.
+    /// </summary>
+    private const int AttackRange = 3;
 
     /// <inheritdoc />
     public int RequiredCardCount => 2;
@@ -143,6 +149,18 @@ public sealed class SerpentSpearSkill : BaseSkill, IMultiCardConversionSkill
 
         // One red, one black (or one is neither) → colorless
         return CardColor.None;
+    }
+
+    /// <inheritdoc />
+    public int? ModifyAttackDistance(int current, Game game, Player from, Player to)
+    {
+        // Serpent Spear provides attack range of 3
+        // If current distance is less than 3, set it to 3
+        if (!IsActive(game, from))
+            return null;
+
+        // Set attack distance to 3 (weapon's fixed range)
+        return AttackRange;
     }
 }
 

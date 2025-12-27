@@ -995,5 +995,106 @@ public sealed class TwinSwordsTests
     }
 
     #endregion
+
+    #region Attack Distance Tests
+
+    /// <summary>
+    /// Tests that TwinSwordsSkill sets attack distance to 2 when active.
+    /// Input: 2-player game, attacker and defender, active twin swords skill.
+    /// Expected: ModifyAttackDistance returns 2 (weapon's fixed range).
+    /// </summary>
+    [TestMethod]
+    public void TwinSwordsSkillModifyAttackDistanceSetsDistanceToTwo()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var attacker = game.Players[0];
+        var defender = game.Players[1];
+        var skill = new TwinSwordsSkill();
+
+        // Act
+        var modified = skill.ModifyAttackDistance(1, game, attacker, defender);
+
+        // Assert
+        Assert.IsNotNull(modified);
+        Assert.AreEqual(2, modified.Value);
+    }
+
+    /// <summary>
+    /// Tests that TwinSwordsSkill does not modify distance when the owner (attacker) is not active.
+    /// Input: 2-player game, attacker is dead (IsAlive = false), twin swords skill.
+    /// Expected: ModifyAttackDistance returns null (no modification) when owner is not active.
+    /// </summary>
+    [TestMethod]
+    public void TwinSwordsSkillModifyAttackDistanceWhenOwnerIsNotActiveReturnsNull()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var attacker = game.Players[0];
+        var defender = game.Players[1];
+        attacker.IsAlive = false; // Owner is not active
+        var skill = new TwinSwordsSkill();
+
+        // Act
+        var modified = skill.ModifyAttackDistance(1, game, attacker, defender);
+
+        // Assert
+        Assert.IsNull(modified);
+    }
+
+    /// <summary>
+    /// Tests that RangeRuleService correctly applies twin swords skill to set attack distance to 2.
+    /// Input: 4-player game, attacker and defender with seat distance = 2, attacker has twin swords equipped and skill active.
+    /// Expected: Base seat distance = 2, base attack distance = 1, but with twin swords attack distance = 2,
+    /// so IsWithinAttackRange returns true (because 2 <= 2, so within range).
+    /// </summary>
+    [TestMethod]
+    public void RangeRuleServiceWithTwinSwordsSetsAttackRangeToTwo()
+    {
+        // Arrange
+        var game = CreateDefaultGame(4);
+        var attacker = game.Players[0];
+        var defender = game.Players[2]; // Player 2 is at distance 2 from player 0 in 4-player game
+        
+        // Equip twin swords to attacker
+        var twinSwords = CreateTwinSwordsCard();
+        if (attacker.EquipmentZone is Zone equipmentZone)
+        {
+            equipmentZone.MutableCards.Add(twinSwords);
+        }
+
+        // Setup skill manager and equipment skill registry
+        var eventBus = new BasicEventBus();
+        var skillRegistry = new SkillRegistry();
+        var equipmentSkillRegistry = new EquipmentSkillRegistry();
+        equipmentSkillRegistry.RegisterEquipmentSkill("twin_swords", new TwinSwordsSkillFactory());
+        
+        var skillManager = new SkillManager(skillRegistry, eventBus);
+        skillManager.LoadSkillsForPlayer(game, attacker);
+        
+        var twinSwordsSkill = equipmentSkillRegistry.GetSkillForEquipment("twin_swords");
+        if (twinSwordsSkill is not null)
+        {
+            skillManager.AddEquipmentSkill(game, attacker, twinSwordsSkill);
+        }
+
+        var modifierProvider = new SkillRuleModifierProvider(skillManager);
+        var rangeRuleService = new RangeRuleService(modifierProvider);
+
+        // Act
+        var seatDistance = rangeRuleService.GetSeatDistance(game, attacker, defender);
+        var attackDistance = rangeRuleService.GetAttackDistance(game, attacker, defender);
+        var isWithinRange = rangeRuleService.IsWithinAttackRange(game, attacker, defender);
+
+        // Assert
+        // Base seat distance should be 2 (non-adjacent players in 4-player game)
+        Assert.AreEqual(2, seatDistance);
+        // Base attack distance should be 1, but with twin swords it becomes 2
+        Assert.AreEqual(2, attackDistance);
+        // With twin swords, attack distance is set to 2, so 2 <= 2 is true
+        Assert.IsTrue(isWithinRange);
+    }
+
+    #endregion
 }
 

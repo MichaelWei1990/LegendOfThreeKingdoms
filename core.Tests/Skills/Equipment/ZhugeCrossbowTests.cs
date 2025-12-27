@@ -419,4 +419,105 @@ public sealed class ZhugeCrossbowTests
     }
 
     #endregion
+
+    #region Attack Distance Tests
+
+    /// <summary>
+    /// Tests that ZhugeCrossbowSkill sets attack distance to 1 when active.
+    /// Input: 2-player game, attacker and defender, active zhuge crossbow skill.
+    /// Expected: ModifyAttackDistance returns 1 (weapon's fixed range, base distance).
+    /// </summary>
+    [TestMethod]
+    public void ZhugeCrossbowSkillModifyAttackDistanceSetsDistanceToOne()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var attacker = game.Players[0];
+        var defender = game.Players[1];
+        var skill = new ZhugeCrossbowSkill();
+
+        // Act
+        var modified = skill.ModifyAttackDistance(1, game, attacker, defender);
+
+        // Assert
+        Assert.IsNotNull(modified);
+        Assert.AreEqual(1, modified.Value);
+    }
+
+    /// <summary>
+    /// Tests that ZhugeCrossbowSkill does not modify distance when the owner (attacker) is not active.
+    /// Input: 2-player game, attacker is dead (IsAlive = false), zhuge crossbow skill.
+    /// Expected: ModifyAttackDistance returns null (no modification) when owner is not active.
+    /// </summary>
+    [TestMethod]
+    public void ZhugeCrossbowSkillModifyAttackDistanceWhenOwnerIsNotActiveReturnsNull()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var attacker = game.Players[0];
+        var defender = game.Players[1];
+        attacker.IsAlive = false; // Owner is not active
+        var skill = new ZhugeCrossbowSkill();
+
+        // Act
+        var modified = skill.ModifyAttackDistance(1, game, attacker, defender);
+
+        // Assert
+        Assert.IsNull(modified);
+    }
+
+    /// <summary>
+    /// Tests that RangeRuleService correctly applies zhuge crossbow skill to set attack distance to 1.
+    /// Input: 2-player game, attacker and defender with seat distance = 1, attacker has zhuge crossbow equipped and skill active.
+    /// Expected: Base seat distance = 1, base attack distance = 1, with zhuge crossbow attack distance = 1,
+    /// so IsWithinAttackRange returns true (because 1 <= 1, so within range).
+    /// </summary>
+    [TestMethod]
+    public void RangeRuleServiceWithZhugeCrossbowSetsAttackRangeToOne()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var attacker = game.Players[0];
+        var defender = game.Players[1]; // Player 1 is at distance 1 from player 0 in 2-player game
+        
+        // Equip zhuge crossbow to attacker
+        var zhugeCrossbow = CreateZhugeCrossbowCard();
+        if (attacker.EquipmentZone is Zone equipmentZone)
+        {
+            equipmentZone.MutableCards.Add(zhugeCrossbow);
+        }
+
+        // Setup skill manager and equipment skill registry
+        var eventBus = new BasicEventBus();
+        var skillRegistry = new SkillRegistry();
+        var equipmentSkillRegistry = new EquipmentSkillRegistry();
+        equipmentSkillRegistry.RegisterEquipmentSkill("zhuge_crossbow", new ZhugeCrossbowSkillFactory());
+        
+        var skillManager = new SkillManager(skillRegistry, eventBus);
+        skillManager.LoadSkillsForPlayer(game, attacker);
+        
+        var zhugeCrossbowSkill = equipmentSkillRegistry.GetSkillForEquipment("zhuge_crossbow");
+        if (zhugeCrossbowSkill is not null)
+        {
+            skillManager.AddEquipmentSkill(game, attacker, zhugeCrossbowSkill);
+        }
+
+        var modifierProvider = new SkillRuleModifierProvider(skillManager);
+        var rangeRuleService = new RangeRuleService(modifierProvider);
+
+        // Act
+        var seatDistance = rangeRuleService.GetSeatDistance(game, attacker, defender);
+        var attackDistance = rangeRuleService.GetAttackDistance(game, attacker, defender);
+        var isWithinRange = rangeRuleService.IsWithinAttackRange(game, attacker, defender);
+
+        // Assert
+        // Base seat distance should be 1 (adjacent players in 2-player game)
+        Assert.AreEqual(1, seatDistance);
+        // Base attack distance should be 1, and with zhuge crossbow it remains 1
+        Assert.AreEqual(1, attackDistance);
+        // With zhuge crossbow, attack distance is set to 1, so 1 <= 1 is true
+        Assert.IsTrue(isWithinRange);
+    }
+
+    #endregion
 }

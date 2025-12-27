@@ -14,8 +14,9 @@ namespace LegendOfThreeKingdoms.Core.Skills.Equipment;
 /// When you use a Slash on an opposite gender target, you can make them choose:
 /// 1) Discard 1 hand card, or
 /// 2) Let you draw 1 card.
+/// Attack Range: 2
 /// </summary>
-public sealed class TwinSwordsSkill : BaseSkill
+public sealed class TwinSwordsSkill : BaseSkill, IAttackDistanceModifyingSkill
 {
     private Game? _game;
     private Player? _owner;
@@ -33,7 +34,12 @@ public sealed class TwinSwordsSkill : BaseSkill
     public override SkillType Type => SkillType.Trigger;
 
     /// <inheritdoc />
-    public override SkillCapability Capabilities => SkillCapability.None;
+    public override SkillCapability Capabilities => SkillCapability.ModifiesRules;
+
+    /// <summary>
+    /// The attack range provided by Twin Swords.
+    /// </summary>
+    private const int AttackRange = 2;
 
     /// <summary>
     /// Sets the card move service for discarding cards and drawing cards.
@@ -293,6 +299,18 @@ public sealed class TwinSwordsSkill : BaseSkill
         {
             // If drawing fails, silently ignore
         }
+    }
+
+    /// <inheritdoc />
+    public int? ModifyAttackDistance(int current, Game game, Player from, Player to)
+    {
+        // Twin Swords provides attack range of 2
+        // If current distance is less than 2, set it to 2
+        if (!IsActive(game, from))
+            return null;
+
+        // Set attack distance to 2 (weapon's fixed range)
+        return AttackRange;
     }
 }
 

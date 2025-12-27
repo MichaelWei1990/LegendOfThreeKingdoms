@@ -13,8 +13,9 @@ namespace LegendOfThreeKingdoms.Core.Skills.Equipment;
 /// Ice Sword (寒冰剑) skill: Trigger skill that allows preventing Slash damage and discarding target's cards instead.
 /// When you use a Slash that would deal damage to a target, you can prevent the damage
 /// and instead discard 2 cards from the target (hand + equipment zones).
+/// Attack Range: 2
 /// </summary>
-public sealed class IceSwordSkill : BaseSkill, IBeforeDamageSkill
+public sealed class IceSwordSkill : BaseSkill, IBeforeDamageSkill, IAttackDistanceModifyingSkill
 {
     private Game? _game;
     private Player? _owner;
@@ -32,7 +33,12 @@ public sealed class IceSwordSkill : BaseSkill, IBeforeDamageSkill
     public override SkillType Type => SkillType.Trigger;
 
     /// <inheritdoc />
-    public override SkillCapability Capabilities => SkillCapability.None;
+    public override SkillCapability Capabilities => SkillCapability.ModifiesRules;
+
+    /// <summary>
+    /// The attack range provided by Ice Sword.
+    /// </summary>
+    private const int AttackRange = 2;
 
     /// <summary>
     /// Sets the card move service for discarding cards.
@@ -290,6 +296,18 @@ public sealed class IceSwordSkill : BaseSkill, IBeforeDamageSkill
 
         // Prevent the damage
         evt.IsPrevented = true;
+    }
+
+    /// <inheritdoc />
+    public int? ModifyAttackDistance(int current, Game game, Player from, Player to)
+    {
+        // Ice Sword provides attack range of 2
+        // If current distance is less than 2, set it to 2
+        if (!IsActive(game, from))
+            return null;
+
+        // Set attack distance to 2 (weapon's fixed range)
+        return AttackRange;
     }
 }
 

@@ -13,8 +13,9 @@ namespace LegendOfThreeKingdoms.Core.Skills.Equipment;
 /// Stone Axe (贯石斧) skill: Trigger skill that allows forcing damage after a Slash is dodged.
 /// When you use a Slash and the target dodges it with Dodge (闪), you can discard 2 cards
 /// to force the Slash to deal 1 damage anyway.
+/// Attack Range: 3
 /// </summary>
-public sealed class StoneAxeSkill : BaseSkill, IAfterSlashDodgedSkill
+public sealed class StoneAxeSkill : BaseSkill, IAfterSlashDodgedSkill, IAttackDistanceModifyingSkill
 {
     private Game? _game;
     private Player? _owner;
@@ -32,7 +33,12 @@ public sealed class StoneAxeSkill : BaseSkill, IAfterSlashDodgedSkill
     public override SkillType Type => SkillType.Trigger;
 
     /// <inheritdoc />
-    public override SkillCapability Capabilities => SkillCapability.None;
+    public override SkillCapability Capabilities => SkillCapability.ModifiesRules;
+
+    /// <summary>
+    /// The attack range provided by Stone Axe.
+    /// </summary>
+    private const int AttackRange = 3;
 
     /// <summary>
     /// Sets the card move service for discarding cards.
@@ -302,6 +308,18 @@ public sealed class StoneAxeSkill : BaseSkill, IAfterSlashDodgedSkill
             var result = stack.Pop();
             // Ignore failures for now (resolver should handle errors internally)
         }
+    }
+
+    /// <inheritdoc />
+    public int? ModifyAttackDistance(int current, Game game, Player from, Player to)
+    {
+        // Stone Axe provides attack range of 3
+        // If current distance is less than 3, set it to 3
+        if (!IsActive(game, from))
+            return null;
+
+        // Set attack distance to 3 (weapon's fixed range)
+        return AttackRange;
     }
 }
 
