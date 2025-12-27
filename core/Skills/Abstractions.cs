@@ -538,3 +538,38 @@ public interface IDrawPhaseModifyingSkill : ISkill
     /// <param name="eventBus">The event bus for publishing events or subscribing to events.</param>
     void OnDrawPhaseModified(Game game, Player owner, Events.IEventBus? eventBus);
 }
+
+/// <summary>
+/// Interface for skills that can provide response assistance.
+/// Used by skills like Hujia (护驾) that allow other players to assist the owner
+/// by playing response cards on their behalf.
+/// </summary>
+public interface IResponseAssistanceSkill : ISkill
+{
+    /// <summary>
+    /// Checks whether this skill can provide assistance for the given response type.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <param name="responseType">The type of response needed.</param>
+    /// <param name="sourceEvent">The source event that triggered the response requirement.</param>
+    /// <returns>True if the skill can provide assistance, false otherwise.</returns>
+    bool CanProvideAssistance(Game game, Player owner, Rules.ResponseType responseType, object? sourceEvent);
+
+    /// <summary>
+    /// Gets the list of players who can assist the owner.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <returns>List of players who can assist, ordered by seat.</returns>
+    IReadOnlyList<Player> GetAssistants(Game game, Player owner);
+
+    /// <summary>
+    /// Asks the owner whether they want to activate this assistance skill.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for a given choice request.</param>
+    /// <returns>True if the owner chooses to activate the skill, false otherwise.</returns>
+    bool ShouldActivate(Game game, Player owner, Func<Rules.ChoiceRequest, Rules.ChoiceResult> getPlayerChoice);
+}

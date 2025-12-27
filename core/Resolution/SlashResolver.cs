@@ -433,7 +433,14 @@ public sealed class SlashResolver : IResolver
         // Push SlashResponseHandlerResolver onto stack first (will execute after response window due to LIFO)
         context.Stack.Push(new SlashResponseHandlerResolver(setupResult.Damage), setupResult.HandlerContext);
 
-        // Create response window for Jink
+        // Check if target has Hujia skill and wants to use it
+        if (TryUseHujia(context, setupResult, target, slashCard, sourcePlayer))
+        {
+            // Hujia was activated, resolver has been pushed
+            return;
+        }
+
+        // Hujia not used or not available - create normal response window for Jink
         // Include SlashCard in sourceEvent for equipment skills that need to check armor validity
         var responseWindow = setupResult.ResponseContext.CreateJinkResponseWindow(
             targetPlayer: target,
@@ -442,6 +449,70 @@ public sealed class SlashResolver : IResolver
 
         // Push response window onto stack last (will execute first due to LIFO)
         context.Stack.Push(responseWindow, setupResult.ResponseContext);
+    }
+
+    /// <summary>
+    /// Checks if target has Hujia skill and wants to use it.
+    /// If yes, pushes HujiaResolver onto the stack.
+    /// </summary>
+    /// <returns>True if Hujia was activated, false otherwise.</returns>
+    private static bool TryUseHujia(
+        ResolutionContext context,
+        SlashSetupResult setupResult,
+        Player target,
+        Card slashCard,
+        Player sourcePlayer)
+    {
+        // Check if SkillManager is available
+        if (context.SkillManager is null || context.GetPlayerChoice is null)
+            return false;
+
+        // Check if target has Hujia skill
+        var targetSkills = context.SkillManager.GetActiveSkills(context.Game, target);
+        var hujiaSkill = targetSkills.OfType<Skills.IResponseAssistanceSkill>()
+            .FirstOrDefault(s => s.Id == "hujia");
+
+        if (hujiaSkill is null)
+            return false;
+
+        // Check if Hujia can provide assistance for this response type
+        var sourceEvent = new { Type = "Slash", SourceSeat = sourcePlayer.Seat, TargetSeat = target.Seat, SlashCard = slashCard };
+        if (!hujiaSkill.CanProvideAssistance(context.Game, target, ResponseType.JinkAgainstSlash, sourceEvent))
+            return false;
+
+        // Ask target if they want to use Hujia
+        if (!hujiaSkill.ShouldActivate(context.Game, target, context.GetPlayerChoice))
+            return false;
+
+        // Target wants to use Hujia - push HujiaResolver
+        var hujiaContext = new ResolutionContext(
+            context.Game,
+            target, // Beneficiary is the target (Cao Cao)
+            Action: null,
+            Choice: null,
+            context.Stack,
+            context.CardMoveService,
+            context.RuleService,
+            context.PendingDamage,
+            context.LogSink,
+            context.GetPlayerChoice,
+            context.IntermediateResults,
+            context.EventBus,
+            context.LogCollector,
+            context.SkillManager,
+            context.EquipmentSkillRegistry,
+            context.JudgementService);
+
+        var hujiaResolver = new HujiaResolver(
+            beneficiary: target,
+            responseType: ResponseType.JinkAgainstSlash,
+            sourceEvent: sourceEvent,
+            hujiaSkill: hujiaSkill);
+
+        // Push HujiaResolver onto stack (will execute first due to LIFO)
+        context.Stack.Push(hujiaResolver, hujiaContext);
+
+        return true;
     }
 
     /// <summary>
