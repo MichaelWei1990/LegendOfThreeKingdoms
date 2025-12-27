@@ -3,6 +3,7 @@ using System.Linq;
 using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Model.Zones;
+using LegendOfThreeKingdoms.Core.Skills;
 using LegendOfThreeKingdoms.Core.Zones;
 
 namespace LegendOfThreeKingdoms.Core.Skills.Hero;
@@ -94,7 +95,7 @@ public sealed class JianxiongSkill : BaseSkill, IAfterDamageSkill
         {
             try
             {
-                MoveCardToHand(_game, _owner, causingCard, _cardMoveService);
+                _game.MoveCardToHand(_owner, causingCard, _cardMoveService);
             }
             catch (Exception)
             {
@@ -140,63 +141,6 @@ public sealed class JianxiongSkill : BaseSkill, IAfterDamageSkill
         return false;
     }
 
-    /// <summary>
-    /// Moves a card to the owner's hand zone.
-    /// </summary>
-    private static void MoveCardToHand(Game game, Player owner, Card card, ICardMoveService cardMoveService)
-    {
-        // Find the source zone containing the card
-        IZone? sourceZone = null;
-
-        // Check discard pile first (most common case)
-        if (game.DiscardPile.Cards.Contains(card))
-        {
-            sourceZone = game.DiscardPile;
-        }
-        else
-        {
-            // Search all zones for the card
-            // This handles cases where the card might be in a resolution/in-play zone
-            foreach (var player in game.Players)
-            {
-                if (player.HandZone.Cards.Contains(card))
-                {
-                    sourceZone = player.HandZone;
-                    break;
-                }
-                if (player.EquipmentZone.Cards.Contains(card))
-                {
-                    sourceZone = player.EquipmentZone;
-                    break;
-                }
-                if (player.JudgementZone.Cards.Contains(card))
-                {
-                    sourceZone = player.JudgementZone;
-                    break;
-                }
-            }
-        }
-
-        // If source zone not found, cannot move
-        if (sourceZone is null)
-            return;
-
-        // Ensure target hand zone is valid
-        if (owner.HandZone is not Zone targetHandZone)
-            return;
-
-        // Move the card to owner's hand
-        var moveDescriptor = new CardMoveDescriptor(
-            SourceZone: sourceZone,
-            TargetZone: targetHandZone,
-            Cards: new[] { card },
-            Reason: CardMoveReason.Draw, // Using Draw reason for obtaining cards
-            Ordering: CardMoveOrdering.ToTop,
-            Game: game
-        );
-
-        cardMoveService.MoveMany(moveDescriptor);
-    }
 }
 
 /// <summary>

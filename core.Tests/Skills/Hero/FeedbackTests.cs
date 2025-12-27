@@ -254,12 +254,12 @@ public sealed class FeedbackTests
     }
 
     /// <summary>
-    /// Tests that Feedback skill obtains random hand card when source has only hand cards.
+    /// Tests that Feedback skill obtains hand card selected by player when source has only hand cards.
     /// Input: Game, player with Feedback skill takes damage, source has hand cards.
-    /// Expected: Feedback skill obtains a random hand card.
+    /// Expected: Feedback skill obtains the hand card selected by player (by index/card ID).
     /// </summary>
     [TestMethod]
-    public void FeedbackSkillObtainsRandomHandCard()
+    public void FeedbackSkillObtainsSelectedHandCard()
     {
         // Arrange
         var game = CreateDefaultGame(2);
@@ -281,10 +281,49 @@ public sealed class FeedbackTests
 
         var cardMoveService = new BasicCardMoveService(eventBus);
 
-        // Set services on skill
+        // Set services on skill with getPlayerChoice to simulate player selection
+        int callCount = 0;
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            callCount++;
+            if (request.ChoiceType == ChoiceType.Confirm)
+            {
+                // First call: confirm to activate Feedback
+                return new ChoiceResult(
+                    RequestId: request.RequestId,
+                    PlayerSeat: request.PlayerSeat,
+                    SelectedTargetSeats: null,
+                    SelectedCardIds: null,
+                    SelectedOptionId: null,
+                    Confirmed: true // Confirm to activate Feedback
+                );
+            }
+            else if (request.ChoiceType == ChoiceType.SelectCards)
+            {
+                // Second call: select a hand card by index (card ID)
+                return new ChoiceResult(
+                    RequestId: request.RequestId,
+                    PlayerSeat: request.PlayerSeat,
+                    SelectedTargetSeats: null,
+                    SelectedCardIds: new[] { handCard1.Id }, // Select first hand card by ID
+                    SelectedOptionId: null,
+                    Confirmed: null
+                );
+            }
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null,
+                SelectedOptionId: null,
+                Confirmed: null
+            );
+        };
+
         if (feedbackSkill is FeedbackSkill feedback)
         {
             feedback.SetCardMoveService(cardMoveService);
+            feedback.SetGetPlayerChoice(getPlayerChoice);
         }
 
         var initialTargetHandCount = target.HandZone.Cards.Count;
@@ -306,14 +345,16 @@ public sealed class FeedbackTests
         );
         eventBus.Publish(afterDamageEvent);
 
-        // Assert: One hand card should be moved to target's hand
+        // Assert: The selected hand card should be moved to target's hand
         Assert.AreEqual(initialTargetHandCount + 1, target.HandZone.Cards.Count, 
             "Target should have one more card");
         Assert.AreEqual(initialSourceHandCount - 1, source.HandZone.Cards.Count, 
             "Source should have one less hand card");
-        // One of the hand cards should be in target's hand
-        var obtainedCard = target.HandZone.Cards.FirstOrDefault(c => c.Id == handCard1.Id || c.Id == handCard2.Id);
-        Assert.IsNotNull(obtainedCard, "One of the source's hand cards should be in target's hand");
+        // The selected hand card (handCard1) should be in target's hand
+        Assert.IsTrue(target.HandZone.Cards.Any(c => c.Id == handCard1.Id), 
+            "The selected hand card should be in target's hand");
+        Assert.IsFalse(target.HandZone.Cards.Any(c => c.Id == handCard2.Id), 
+            "The non-selected hand card should not be in target's hand");
     }
 
     /// <summary>

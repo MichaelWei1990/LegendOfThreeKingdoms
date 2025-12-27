@@ -1,0 +1,5 @@
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"Basic.cs:671","message":"DiscoverConversionTargets entry","data":{"playerSeat":0,"handCardCount":1,"skillManagerIsNull":false},"timestamp":1766795185680}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"Basic.cs:682","message":"Conversion skills found","data":{"conversionSkillCount":1,"skillIds":["guose"]},"timestamp":1766795185714}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"Basic.cs:710","message":"CardUsageContext created","data":{"cardId":1,"cardSubType":"Lebusishu","cardType":"Trick","playerSeat":0,"gamePlayerCount":2},"timestamp":1766795185722}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"Basic.cs:671","message":"DiscoverConversionTargets entry","data":{"playerSeat":0,"handCardCount":1,"skillManagerIsNull":false},"timestamp":1766795258210}
+{"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"Basic.cs:682","message":"Conversion skills found","data":{"conversionSkillCount":1,"skillIds":["guose"]},"timestamp":1766795258253}

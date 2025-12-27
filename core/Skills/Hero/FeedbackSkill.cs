@@ -5,6 +5,7 @@ using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Resolution;
 using LegendOfThreeKingdoms.Core.Rules;
+using LegendOfThreeKingdoms.Core.Skills;
 using LegendOfThreeKingdoms.Core.Zones;
 
 namespace LegendOfThreeKingdoms.Core.Skills.Hero;
@@ -193,7 +194,8 @@ public sealed class FeedbackSkill : BaseSkill, IAfterDamageSkill
     /// <summary>
     /// Obtains a card from damage source.
     /// If equipment cards are available, asks player to choose one (if getPlayerChoice is available).
-    /// If only hand cards are available, randomly selects one.
+    /// If only hand cards are available, asks player to choose one by index (player selects by specifying card ID,
+    /// which corresponds to a position/index in the hand card collection, even though cards are not visible).
     /// </summary>
     private void ObtainCardFromSource(Game game, Player owner, Player damageSource, List<Card> availableCards)
     {
@@ -237,7 +239,7 @@ public sealed class FeedbackSkill : BaseSkill, IAfterDamageSkill
                 }
                 catch
                 {
-                    // If getting choice fails, fall back to random selection
+                    // If getting choice fails, fall back to selecting from hand cards
                 }
             }
             else
@@ -247,13 +249,10 @@ public sealed class FeedbackSkill : BaseSkill, IAfterDamageSkill
             }
         }
 
-        // If no equipment card was selected and hand cards are available, randomly select one
+        // If no equipment card was selected and hand cards are available, ask player to choose one by index
         if (cardToObtain is null && handCards.Count > 0)
         {
-            // Randomly select one hand card (since hand cards are not visible)
-            var random = new Random();
-            var randomIndex = random.Next(handCards.Count);
-            cardToObtain = handCards[randomIndex];
+            cardToObtain = SelectHandCard(owner, handCards);
         }
 
         // If we have a card to obtain, move it to owner's hand
@@ -261,7 +260,7 @@ public sealed class FeedbackSkill : BaseSkill, IAfterDamageSkill
         {
             try
             {
-                MoveCardToHand(game, owner, cardToObtain, _cardMoveService);
+                game.MoveCardToHand(owner, cardToObtain, _cardMoveService);
             }
             catch
             {
@@ -271,55 +270,53 @@ public sealed class FeedbackSkill : BaseSkill, IAfterDamageSkill
     }
 
     /// <summary>
-    /// Moves a card to the owner's hand zone.
+    /// Selects a hand card from the available hand cards.
+    /// If getPlayerChoice is available, asks player to choose one by index (player selects by specifying card ID,
+    /// which corresponds to a position/index in the hand card collection, even though cards are not visible).
+    /// Otherwise, automatically selects the first hand card.
     /// </summary>
-    private static void MoveCardToHand(Game game, Player owner, Card card, ICardMoveService cardMoveService)
+    /// <param name="owner">The player who owns the Feedback skill.</param>
+    /// <param name="handCards">The list of hand cards available for selection.</param>
+    /// <returns>The selected hand card, or null if selection failed or no cards available.</returns>
+    private Card? SelectHandCard(Player owner, List<Card> handCards)
     {
-        // Find the source zone containing the card
-        Model.Zones.IZone? sourceZone = null;
+        if (handCards.Count == 0)
+            return null;
 
-        // Check hand zone first
-        foreach (var player in game.Players)
+        if (_getPlayerChoice is not null)
         {
-            if (player.HandZone.Cards.Contains(card))
-            {
-                sourceZone = player.HandZone;
-                break;
-            }
-        }
+            // Ask player to choose a hand card by index (even though cards are not visible)
+            // Player can select by specifying the card ID, which corresponds to a position in the hand
+            var choiceRequest = new ChoiceRequest(
+                RequestId: Guid.NewGuid().ToString(),
+                PlayerSeat: owner.Seat,
+                ChoiceType: ChoiceType.SelectCards,
+                TargetConstraints: null,
+                AllowedCards: handCards,
+                ResponseWindowId: null,
+                CanPass: false // Must select one hand card
+            );
 
-        // Check equipment zone if not found in hand
-        if (sourceZone is null)
-        {
-            foreach (var player in game.Players)
+            try
             {
-                if (player.EquipmentZone.Cards.Contains(card))
+                var choiceResult = _getPlayerChoice(choiceRequest);
+                if (choiceResult?.SelectedCardIds is not null && choiceResult.SelectedCardIds.Count > 0)
                 {
-                    sourceZone = player.EquipmentZone;
-                    break;
+                    return handCards.FirstOrDefault(c => choiceResult.SelectedCardIds.Contains(c.Id));
                 }
             }
+            catch
+            {
+                // If getting choice fails, cannot obtain card
+            }
+
+            return null;
         }
-
-        // If source zone not found, cannot move
-        if (sourceZone is null)
-            return;
-
-        // Ensure target hand zone is valid
-        if (owner.HandZone is not Model.Zones.Zone targetHandZone)
-            return;
-
-        // Move the card to owner's hand
-        var moveDescriptor = new CardMoveDescriptor(
-            SourceZone: sourceZone,
-            TargetZone: targetHandZone,
-            Cards: new[] { card },
-            Reason: CardMoveReason.Draw, // Using Draw reason for obtaining cards
-            Ordering: CardMoveOrdering.ToTop,
-            Game: game
-        );
-
-        cardMoveService.MoveMany(moveDescriptor);
+        else
+        {
+            // If no getPlayerChoice, automatically select first hand card
+            return handCards[0];
+        }
     }
 }
 
