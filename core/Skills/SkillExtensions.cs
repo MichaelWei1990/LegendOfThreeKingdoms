@@ -84,3 +84,4 @@ public static class SkillExtensions
         cardMoveService.MoveMany(moveDescriptor);
     }
 }
+
