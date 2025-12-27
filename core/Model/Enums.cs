@@ -177,3 +177,26 @@ public enum SkillCapability
     /// </summary>
     InitiatesChoices = 1 << 3
 }
+
+/// <summary>
+/// Gender of a player character.
+/// Used by skills like Twin Swords (雌雄双股剑) that interact differently with opposite gender.
+/// </summary>
+public enum Gender
+{
+    /// <summary>
+    /// Male gender.
+    /// </summary>
+    Male,
+    
+    /// <summary>
+    /// Female gender.
+    /// </summary>
+    Female,
+    
+    /// <summary>
+    /// Neutral/Unknown gender.
+    /// For skills that require opposite gender, Neutral is considered non-opposite.
+    /// </summary>
+    Neutral
+}

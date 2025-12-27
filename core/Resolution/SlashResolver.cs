@@ -131,6 +131,19 @@ public sealed class SlashResolver : IResolver
         if (!effectValidationResult.Success)
             return effectValidationResult.Result!;
 
+        // Step 4.5: Publish AfterCardTargetsDeclaredEvent (after targets are finalized, before response window)
+        // This allows skills like Twin Swords (雌雄双股剑) to interact with targets before they respond
+        if (context.EventBus is not null)
+        {
+            var afterTargetsDeclaredEvent = new AfterCardTargetsDeclaredEvent(
+                Game: context.Game,
+                SourcePlayerSeat: context.SourcePlayer.Seat,
+                Card: slashCard,
+                TargetSeats: new[] { target.Seat }
+            );
+            context.EventBus.Publish(afterTargetsDeclaredEvent);
+        }
+
         // Step 5: Setup Slash resolution (damage, modifiers, etc.)
         var setupResult = SetupSlashResolution(context, slashCard, target);
 

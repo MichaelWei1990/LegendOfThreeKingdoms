@@ -31,6 +31,12 @@ public sealed class Player
     public string? HeroId { get; init; }
 
     /// <summary>
+    /// Gender of the player character.
+    /// Used by skills like Twin Swords (雌雄双股剑) that interact differently with opposite gender.
+    /// </summary>
+    public Gender Gender { get; init; } = Gender.Neutral;
+
+    /// <summary>
     /// Maximum health for this player.
     /// </summary>
     public int MaxHealth { get; init; }

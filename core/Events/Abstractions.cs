@@ -312,6 +312,24 @@ public sealed record CardPlayedEvent(
 }
 
 /// <summary>
+/// Event published after card targets are finalized (locked), before targets start responding.
+/// This event is published when a card is used and its targets have been determined,
+/// but before response windows are opened. Used by skills like Twin Swords (雌雄双股剑)
+/// that need to interact with targets before they respond.
+/// </summary>
+public sealed record AfterCardTargetsDeclaredEvent(
+    Game Game,
+    int SourcePlayerSeat,
+    Card Card,
+    IReadOnlyList<int> TargetSeats,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
 /// Event published when a Slash is dodged by a Dodge (闪) response.
 /// This event is published after the Dodge successfully cancels the Slash,
 /// before the damage would have been applied. Used by skills like Stone Axe (贯石斧)
