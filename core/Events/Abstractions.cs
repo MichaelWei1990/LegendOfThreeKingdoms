@@ -289,3 +289,22 @@ public sealed record CardPlayedEvent(
     /// <inheritdoc />
     public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
 }
+
+/// <summary>
+/// Event published when a Slash is dodged by a Dodge (闪) response.
+/// This event is published after the Dodge successfully cancels the Slash,
+/// before the damage would have been applied. Used by skills like Stone Axe (贯石斧)
+/// that can force damage even after a successful Dodge.
+/// </summary>
+public sealed record AfterSlashDodgedEvent(
+    Game Game,
+    int AttackerSeat,
+    int TargetSeat,
+    Card SlashCard,
+    DamageDescriptor OriginalDamage,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}

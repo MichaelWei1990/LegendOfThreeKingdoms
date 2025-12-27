@@ -78,7 +78,18 @@ public sealed class SlashResponseHandlerResolver : IResolver
         else if (responseResult.State == ResponseWindowState.ResponseSuccess)
         {
             // Response successful - slash dodged, no damage
-            // Just return success
+            // Publish AfterSlashDodgedEvent for skills like Stone Axe (贯石斧)
+            if (context.EventBus is not null && _pendingDamage.CausingCard is not null)
+            {
+                var afterSlashDodgedEvent = new AfterSlashDodgedEvent(
+                    Game: context.Game,
+                    AttackerSeat: _pendingDamage.SourceSeat,
+                    TargetSeat: _pendingDamage.TargetSeat,
+                    SlashCard: _pendingDamage.CausingCard,
+                    OriginalDamage: _pendingDamage
+                );
+                context.EventBus.Publish(afterSlashDodgedEvent);
+            }
         }
 
         return ResolutionResult.SuccessResult;
