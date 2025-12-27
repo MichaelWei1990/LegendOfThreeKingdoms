@@ -342,3 +342,18 @@ public interface IDamageResolvedSkill : ISkill
     /// <param name="evt">The damage resolved event.</param>
     void OnDamageResolved(DamageResolvedEvent evt);
 }
+
+/// <summary>
+/// Interface for skills that respond to after damage events.
+/// Used by trigger skills that need to react after damage and dying are fully resolved,
+/// such as Feedback (反馈).
+/// </summary>
+public interface IAfterDamageSkill : ISkill
+{
+    /// <summary>
+    /// Handles the after damage event.
+    /// This method is called when an AfterDamageEvent is published.
+    /// </summary>
+    /// <param name="evt">The after damage event.</param>
+    void OnAfterDamage(AfterDamageEvent evt);
+}

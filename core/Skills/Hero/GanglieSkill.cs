@@ -14,7 +14,7 @@ namespace LegendOfThreeKingdoms.Core.Skills.Hero;
 /// Ganglie (刚烈) skill: Trigger skill that performs judgement after taking damage.
 /// If judgement is not Heart, the damage source must choose: discard 2 hand cards or take 1 damage.
 /// </summary>
-public sealed class GanglieSkill : BaseSkill, IDamageResolvedSkill
+public sealed class GanglieSkill : BaseSkill, IAfterDamageSkill
 {
     private Game? _game;
     private Player? _owner;
@@ -76,7 +76,7 @@ public sealed class GanglieSkill : BaseSkill, IDamageResolvedSkill
         _owner = owner;
         _eventBus = eventBus;
 
-        eventBus.Subscribe<DamageResolvedEvent>(OnDamageResolved);
+        eventBus.Subscribe<AfterDamageEvent>(OnAfterDamage);
     }
 
     /// <inheritdoc />
@@ -85,7 +85,7 @@ public sealed class GanglieSkill : BaseSkill, IDamageResolvedSkill
         if (eventBus is null)
             return;
 
-        eventBus.Unsubscribe<DamageResolvedEvent>(OnDamageResolved);
+        eventBus.Unsubscribe<AfterDamageEvent>(OnAfterDamage);
 
         _game = null;
         _owner = null;
@@ -96,7 +96,7 @@ public sealed class GanglieSkill : BaseSkill, IDamageResolvedSkill
     }
 
     /// <inheritdoc />
-    public void OnDamageResolved(DamageResolvedEvent evt)
+    public void OnAfterDamage(AfterDamageEvent evt)
     {
         if (_game is null || _owner is null || _judgementService is null || _cardMoveService is null)
             return;

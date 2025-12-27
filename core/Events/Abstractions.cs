@@ -154,6 +154,26 @@ public sealed record DamageResolvedEvent(
 }
 
 /// <summary>
+/// Event published after damage is fully resolved, including dying process if applicable.
+/// This event is published after:
+/// - DamageResolver completes (if no dying)
+/// - DyingRescueHandlerResolver completes successfully (if dying was triggered and player was saved)
+/// This event is used by skills that need to react after damage and dying are fully resolved,
+/// such as Feedback (反馈).
+/// </summary>
+public sealed record AfterDamageEvent(
+    Game Game,
+    DamageDescriptor Damage,
+    int PreviousHealth,
+    int CurrentHealth,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
 /// Event published when a player enters the dying state.
 /// </summary>
 public sealed record DyingStartEvent(

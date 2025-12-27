@@ -122,7 +122,7 @@ public sealed class GanglieTests
         var initialJudgementZoneCount = target.JudgementZone.Cards.Count;
         var initialDrawPileCount = game.DrawPile.Cards.Count;
 
-        // Act: Publish DamageResolvedEvent
+        // Act: Publish AfterDamageEvent
         var damage = new DamageDescriptor(
             SourceSeat: source.Seat,
             TargetSeat: target.Seat,
@@ -130,13 +130,13 @@ public sealed class GanglieTests
             Type: DamageType.Normal,
             Reason: "Test"
         );
-        var damageEvent = new DamageResolvedEvent(
+        var afterDamageEvent = new AfterDamageEvent(
             game,
             damage,
             PreviousHealth: target.CurrentHealth,
             CurrentHealth: target.CurrentHealth - 1
         );
-        eventBus.Publish(damageEvent);
+        eventBus.Publish(afterDamageEvent);
 
         // Assert: Judgement should have been performed
         // Note: The judgement card should be moved to judgement zone, then to discard pile
@@ -182,7 +182,7 @@ public sealed class GanglieTests
         var initialSourceHealth = source.CurrentHealth;
         var initialSourceHandCount = source.HandZone.Cards.Count;
 
-        // Act: Publish DamageResolvedEvent
+        // Act: Publish AfterDamageEvent
         var damage = new DamageDescriptor(
             SourceSeat: source.Seat,
             TargetSeat: target.Seat,
@@ -190,13 +190,13 @@ public sealed class GanglieTests
             Type: DamageType.Normal,
             Reason: "Test"
         );
-        var damageEvent = new DamageResolvedEvent(
+        var afterDamageEvent = new AfterDamageEvent(
             game,
             damage,
             PreviousHealth: target.CurrentHealth,
             CurrentHealth: target.CurrentHealth - 1
         );
-        eventBus.Publish(damageEvent);
+        eventBus.Publish(afterDamageEvent);
 
         // Assert: Source should not be affected (no choice triggered)
         Assert.AreEqual(initialSourceHealth, source.CurrentHealth, 

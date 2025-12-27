@@ -517,6 +517,17 @@ public sealed class DamageResolver : IResolver
             {
                 target.IsAlive = false;
             }
+            
+            // If target is still alive after damage (no dying triggered), publish AfterDamageEvent
+            if (target.IsAlive && context.EventBus is not null)
+            {
+                var afterDamageEvent = new AfterDamageEvent(
+                    game,
+                    damage,
+                    previousHealth,
+                    target.CurrentHealth);
+                context.EventBus.Publish(afterDamageEvent);
+            }
         }
 
         return ResolutionResult.SuccessResult;
@@ -725,6 +736,19 @@ public sealed class DyingRescueHandlerResolver : IResolver
                 );
                 
                 context.Stack.Push(new DyingResolver(), dyingContext);
+            }
+            else
+            {
+                // Player was saved and is no longer dying - publish AfterDamageEvent
+                if (dyingPlayer.IsAlive && context.PendingDamage is not null && context.EventBus is not null)
+                {
+                    var afterDamageEvent = new AfterDamageEvent(
+                        game,
+                        context.PendingDamage,
+                        previousHealth,
+                        dyingPlayer.CurrentHealth);
+                    context.EventBus.Publish(afterDamageEvent);
+                }
             }
         }
         else if (responseResult.State == ResponseWindowState.NoResponse)

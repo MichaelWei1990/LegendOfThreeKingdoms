@@ -143,7 +143,7 @@ public sealed class JianxiongTests
             CausingCard: slashCard
         );
 
-        // Act - Apply damage (this will publish DamageResolvedEvent)
+        // Act - Apply damage (this will publish AfterDamageEvent)
         var stack = new BasicResolutionStack();
         var ruleService = new RuleService();
         var context = new ResolutionContext(
@@ -349,15 +349,15 @@ public sealed class JianxiongTests
             CausingCard: slashCard
         );
 
-        // Act - Manually publish DamageResolvedEvent to test skill behavior when owner is dead
+        // Act - Manually publish AfterDamageEvent to test skill behavior when owner is dead
         // (We can't actually apply damage to a dead player via DamageResolver)
-        var damageResolvedEvent = new DamageResolvedEvent(
+        var afterDamageEvent = new AfterDamageEvent(
             game,
             damage,
             PreviousHealth: 1,
             CurrentHealth: 0
         );
-        eventBus.Publish(damageResolvedEvent);
+        eventBus.Publish(afterDamageEvent);
 
         // Assert
         Assert.AreEqual(initialHandCount, target.HandZone.Cards.Count, "Target player should NOT have obtained the card (skill not active).");
