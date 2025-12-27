@@ -251,6 +251,23 @@ public sealed record JudgementStartedEvent(
 }
 
 /// <summary>
+/// Event published when a judgement card is revealed (after being drawn and placed in JudgementZone).
+/// This event is published before the judgement result is calculated, allowing skills to modify the judgement card.
+/// </summary>
+public sealed record JudgementCardRevealedEvent(
+    Game Game,
+    Guid JudgementId,
+    int JudgeOwnerSeat,
+    Card JudgementCard,
+    JudgementReason Reason,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
 /// Event published when a judgement completes.
 /// </summary>
 public sealed record JudgementCompletedEvent(

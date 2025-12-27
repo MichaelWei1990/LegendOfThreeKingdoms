@@ -190,3 +190,96 @@ public sealed record JudgementModificationResult(
     int ModifierSeat,
     string ModifierSource
 );
+
+/// <summary>
+/// Context for a judgement that can be modified.
+/// Contains information about the judgement and tracks modifications.
+/// </summary>
+public sealed class JudgementContext
+{
+    /// <summary>
+    /// The game instance.
+    /// </summary>
+    public Game Game { get; init; }
+
+    /// <summary>
+    /// The player who owns this judgement.
+    /// </summary>
+    public Player JudgeTarget { get; init; }
+
+    /// <summary>
+    /// The original judgement card (first card drawn).
+    /// </summary>
+    public Card OriginalJudgementCard { get; init; }
+
+    /// <summary>
+    /// The current effective judgement card (may be modified).
+    /// </summary>
+    public Card CurrentJudgementCard { get; set; }
+
+    /// <summary>
+    /// The judgement request.
+    /// </summary>
+    public JudgementRequest Request { get; init; }
+
+    /// <summary>
+    /// List of modifications applied to this judgement.
+    /// </summary>
+    public List<JudgementModificationRecord> Modifications { get; init; } = new();
+
+    /// <summary>
+    /// Timestamp when the judgement started.
+    /// </summary>
+    public DateTime Timestamp { get; init; }
+
+    /// <summary>
+    /// Creates a new JudgementContext.
+    /// </summary>
+    public JudgementContext(
+        Game game,
+        Player judgeTarget,
+        Card originalJudgementCard,
+        JudgementRequest request)
+    {
+        Game = game ?? throw new ArgumentNullException(nameof(game));
+        JudgeTarget = judgeTarget ?? throw new ArgumentNullException(nameof(judgeTarget));
+        OriginalJudgementCard = originalJudgementCard ?? throw new ArgumentNullException(nameof(originalJudgementCard));
+        Request = request ?? throw new ArgumentNullException(nameof(request));
+        CurrentJudgementCard = originalJudgementCard;
+        Timestamp = DateTime.UtcNow;
+    }
+}
+
+/// <summary>
+/// Decision made by a player to modify a judgement.
+/// </summary>
+public sealed record JudgementModifyDecision(
+    int ModifierSeat,
+    string ModifierSource,
+    Card ReplacementCard
+);
+
+/// <summary>
+/// Interface for skills that can modify judgement cards.
+/// Provides a way for skills to participate in the judgement modification window.
+/// </summary>
+public interface IJudgementModifier
+{
+    /// <summary>
+    /// Checks whether this modifier can modify the given judgement.
+    /// </summary>
+    /// <param name="ctx">The judgement context.</param>
+    /// <param name="self">The player who owns this modifier.</param>
+    /// <returns>True if this modifier can modify the judgement, false otherwise.</returns>
+    bool CanModify(JudgementContext ctx, Player self);
+
+    /// <summary>
+    /// Gets the decision to modify the judgement.
+    /// This method should ask the player to choose a card to replace the judgement card.
+    /// </summary>
+    /// <param name="ctx">The judgement context.</param>
+    /// <param name="self">The player who owns this modifier.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for a given choice request.</param>
+    /// <returns>The modification decision, or null if the player chooses not to modify.</returns>
+    JudgementModifyDecision? GetDecision(JudgementContext ctx, Player self, Func<ChoiceRequest, ChoiceResult>? getPlayerChoice);
+}

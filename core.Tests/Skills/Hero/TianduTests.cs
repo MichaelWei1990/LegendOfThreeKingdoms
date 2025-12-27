@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using LegendOfThreeKingdoms.Core;
 using LegendOfThreeKingdoms.Core.Events;
@@ -574,6 +575,128 @@ public sealed class TianduTests
         Assert.IsFalse(player.JudgementZone.Cards.Contains(judgementCard), "Judgement card should not be in JudgementZone.");
         Assert.IsTrue(player.HandZone.Cards.Contains(judgementCard), "Judgement card should be in HandZone.");
         Assert.IsFalse(game.DiscardPile.Cards.Contains(judgementCard), "Judgement card should not be in discard pile.");
+    }
+
+    /// <summary>
+    /// Tests that TianduSkill obtains the modified judgement card when Guicai skill modifies it.
+    /// Input: Game with cards, player1 with tiandu skill, player2 with guicai skill, player1 performs judgement, player2 modifies it.
+    /// Expected: After judgement completes, player1 obtains the modified card (not the original card) in HandZone.
+    /// </summary>
+    [TestMethod]
+    public void TianduSkillObtainsModifiedJudgementCardWhenGuicaiModifiesIt()
+    {
+        // Arrange
+        var game = CreateGameWithCardsInDrawPile(2, 5);
+        var tianduPlayer = game.Players[0]; // Player with Tiandu skill
+        var guicaiPlayer = game.Players[1]; // Player with Guicai skill
+        tianduPlayer.IsAlive = true;
+        guicaiPlayer.IsAlive = true;
+
+        // Add hand card for Guicai player to use for modification
+        var replacementCard = CreateTestCard(100, Suit.Heart, 5);
+        if (guicaiPlayer.HandZone is Zone handZone)
+        {
+            handZone.MutableCards.Add(replacementCard);
+        }
+
+        var cardMoveService = new BasicCardMoveService();
+        var eventBus = new BasicEventBus();
+        var skillManager = new SkillManager(new SkillRegistry(), eventBus);
+        
+        // Attach Tiandu skill to player1
+        var tianduSkill = new TianduSkill(cardMoveService);
+        skillManager.AddEquipmentSkill(game, tianduPlayer, tianduSkill);
+        
+        // Attach Guicai skill to player2
+        skillManager.AddEquipmentSkill(game, guicaiPlayer, new GuicaiSkill());
+
+        var rule = new RedJudgementRule();
+        var source = CreateTestEffectSource();
+        var request = new JudgementRequest(
+            Guid.NewGuid(),
+            tianduPlayer.Seat, // Tiandu player is the judge
+            JudgementReason.Skill,
+            source,
+            rule,
+            null,
+            true); // Allow modification
+
+        var judgementService = new BasicJudgementService(eventBus);
+        var stack = new BasicResolutionStack();
+
+        // Setup getPlayerChoice to confirm and select card for Guicai player
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = request =>
+        {
+            if (request.ChoiceType == ChoiceType.Confirm && request.PlayerSeat == guicaiPlayer.Seat)
+            {
+                return new ChoiceResult(request.RequestId, request.PlayerSeat, null, null, null, true);
+            }
+            if (request.ChoiceType == ChoiceType.SelectCards && request.PlayerSeat == guicaiPlayer.Seat)
+            {
+                return new ChoiceResult(request.RequestId, request.PlayerSeat, null, new[] { replacementCard.Id }, null, null);
+            }
+            return new ChoiceResult(request.RequestId, request.PlayerSeat, null, null, null, null);
+        };
+
+        var intermediateResults = new Dictionary<string, object>
+        {
+            ["JudgementRequest"] = request
+        };
+
+        var context = new ResolutionContext(
+            game,
+            tianduPlayer,
+            null,
+            null,
+            stack,
+            cardMoveService,
+            new RuleService(),
+            null,
+            null,
+            getPlayerChoice,
+            intermediateResults,
+            eventBus,
+            null,
+            skillManager,
+            null,
+            judgementService);
+
+        // Act - Push and execute JudgementResolver (triggers modification window and Tiandu skill)
+        stack.Push(new JudgementResolver(), context);
+        while (!stack.IsEmpty)
+        {
+            var resolutionResult = stack.Pop();
+            Assert.IsTrue(resolutionResult.Success, "Resolution should succeed.");
+        }
+
+        // Assert - Get result from intermediate results
+        if (intermediateResults.TryGetValue("JudgementResult", out var resultObj) && resultObj is JudgementResult judgementResult)
+        {
+            // Original card should be in discard pile (replaced by Guicai)
+            var originalCard = judgementResult.OriginalCard;
+            Assert.IsTrue(game.DiscardPile.Cards.Any(c => c.Id == originalCard.Id), "Original card should be in discard pile.");
+
+            // Final card should be the replacement card (modified by Guicai)
+            var finalCard = judgementResult.FinalCard;
+            Assert.AreEqual(replacementCard.Id, finalCard.Id, "Final card should be the replacement card from Guicai.");
+
+            // Tiandu player should obtain the modified card (not the original card)
+            Assert.IsTrue(tianduPlayer.HandZone.Cards.Any(c => c.Id == replacementCard.Id), "Tiandu player should obtain the modified card in HandZone.");
+            Assert.IsFalse(tianduPlayer.HandZone.Cards.Any(c => c.Id == originalCard.Id), "Tiandu player should not have the original card in HandZone.");
+
+            // Replacement card should not be in JudgementZone (moved by Tiandu)
+            Assert.IsFalse(tianduPlayer.JudgementZone.Cards.Any(c => c.Id == replacementCard.Id), "Modified card should not be in JudgementZone (moved by Tiandu).");
+
+            // Modification should be recorded
+            Assert.IsTrue(judgementResult.ModifiersApplied.Count > 0, "Modification should be recorded.");
+            var modification = judgementResult.ModifiersApplied[0];
+            Assert.AreEqual(guicaiPlayer.Seat, modification.ModifierSeat);
+            Assert.AreEqual("鬼才", modification.ModifierSource);
+        }
+        else
+        {
+            Assert.Fail("JudgementResult should be in intermediate results.");
+        }
     }
 
     #endregion
