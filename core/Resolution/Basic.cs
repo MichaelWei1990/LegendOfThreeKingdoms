@@ -420,6 +420,15 @@ public sealed class DamageResolver : IResolver
                 details: new { TargetSeat = damage.TargetSeat });
         }
 
+        // Publish BeforeDamageEvent to allow skills to prevent or modify damage
+        bool isPrevented = false;
+        if (context.EventBus is not null)
+        {
+            var beforeDamageEvent = new BeforeDamageEvent(game, damage);
+            context.EventBus.Publish(beforeDamageEvent);
+            isPrevented = beforeDamageEvent.IsPrevented;
+        }
+
         // Publish DamageCreatedEvent before applying damage
         if (context.EventBus is not null)
         {
@@ -428,8 +437,10 @@ public sealed class DamageResolver : IResolver
         }
 
         // Apply damage: reduce health (cannot go below 0)
+        // If damage was prevented, amount becomes 0
         var previousHealth = target.CurrentHealth;
-        target.CurrentHealth = Math.Max(0, target.CurrentHealth - damage.Amount);
+        var actualDamageAmount = isPrevented ? 0 : damage.Amount;
+        target.CurrentHealth = Math.Max(0, target.CurrentHealth - actualDamageAmount);
 
         // Publish DamageAppliedEvent after applying damage
         if (context.EventBus is not null)

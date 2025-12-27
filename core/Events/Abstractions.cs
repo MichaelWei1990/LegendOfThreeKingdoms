@@ -109,6 +109,27 @@ public sealed record PhaseEndEvent(
 }
 
 /// <summary>
+/// Event published right before damage is applied (before reducing HP / triggering dying).
+/// This event allows skills to prevent or modify damage before it is applied.
+/// Used by skills like Ice Sword (寒冰剑) that can prevent damage and replace it with other effects.
+/// </summary>
+public sealed record BeforeDamageEvent(
+    Game Game,
+    DamageDescriptor Damage,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+
+    /// <summary>
+    /// Whether this damage has been prevented by a skill.
+    /// If set to true, the damage will not be applied (amount becomes 0).
+    /// </summary>
+    public bool IsPrevented { get; set; }
+}
+
+/// <summary>
 /// Event published when damage is created (before it is applied).
 /// </summary>
 public sealed record DamageCreatedEvent(

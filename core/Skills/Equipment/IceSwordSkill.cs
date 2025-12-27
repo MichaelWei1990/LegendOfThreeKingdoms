@@ -10,11 +10,11 @@ using LegendOfThreeKingdoms.Core.Zones;
 namespace LegendOfThreeKingdoms.Core.Skills.Equipment;
 
 /// <summary>
-/// Stone Axe (贯石斧) skill: Trigger skill that allows forcing damage after a Slash is dodged.
-/// When you use a Slash and the target dodges it with Dodge (闪), you can discard 2 cards
-/// to force the Slash to deal 1 damage anyway.
+/// Ice Sword (寒冰剑) skill: Trigger skill that allows preventing Slash damage and discarding target's cards instead.
+/// When you use a Slash that would deal damage to a target, you can prevent the damage
+/// and instead discard 2 cards from the target (hand + equipment zones).
 /// </summary>
-public sealed class StoneAxeSkill : BaseSkill, IAfterSlashDodgedSkill
+public sealed class IceSwordSkill : BaseSkill, IBeforeDamageSkill
 {
     private Game? _game;
     private Player? _owner;
@@ -23,10 +23,10 @@ public sealed class StoneAxeSkill : BaseSkill, IAfterSlashDodgedSkill
     private Func<ChoiceRequest, ChoiceResult>? _getPlayerChoice;
 
     /// <inheritdoc />
-    public override string Id => "stone_axe";
+    public override string Id => "ice_sword";
 
     /// <inheritdoc />
-    public override string Name => "贯石";
+    public override string Name => "寒冰";
 
     /// <inheritdoc />
     public override SkillType Type => SkillType.Trigger;
@@ -66,7 +66,7 @@ public sealed class StoneAxeSkill : BaseSkill, IAfterSlashDodgedSkill
         _owner = owner;
         _eventBus = eventBus;
 
-        eventBus.Subscribe<AfterSlashDodgedEvent>(OnAfterSlashDodged);
+        eventBus.Subscribe<BeforeDamageEvent>(OnBeforeDamage);
     }
 
     /// <inheritdoc />
@@ -75,7 +75,7 @@ public sealed class StoneAxeSkill : BaseSkill, IAfterSlashDodgedSkill
         if (eventBus is null)
             return;
 
-        eventBus.Unsubscribe<AfterSlashDodgedEvent>(OnAfterSlashDodged);
+        eventBus.Unsubscribe<BeforeDamageEvent>(OnBeforeDamage);
 
         _game = null;
         _owner = null;
@@ -85,40 +85,48 @@ public sealed class StoneAxeSkill : BaseSkill, IAfterSlashDodgedSkill
     }
 
     /// <summary>
-    /// Handles the AfterSlashDodgedEvent.
+    /// Handles the BeforeDamageEvent.
     /// </summary>
     /// <inheritdoc />
-    public void OnAfterSlashDodged(AfterSlashDodgedEvent evt)
+    public void OnBeforeDamage(BeforeDamageEvent evt)
     {
         if (_game is null || _owner is null || _cardMoveService is null)
             return;
 
-        // Only process if the owner is the attacker
-        if (evt.AttackerSeat != _owner.Seat)
+        // Only process if the owner is the damage source
+        if (evt.Damage.SourceSeat != _owner.Seat)
             return;
 
         // Check if skill is active
         if (!IsActive(_game, _owner))
             return;
 
+        // Check if damage has already been prevented (avoid duplicate prevention)
+        if (evt.IsPrevented)
+            return;
+
+        // Check if damage is from Slash
+        if (!IsSlashDamage(evt.Damage))
+            return;
+
         // Check if target is still alive
-        var target = _game.Players.FirstOrDefault(p => p.Seat == evt.TargetSeat);
+        var target = _game.Players.FirstOrDefault(p => p.Seat == evt.Damage.TargetSeat);
         if (target is null || !target.IsAlive)
             return;
 
-        // Get available cards for discarding (hand + equipment, excluding judgement zone)
-        var availableCards = GetAvailableCardsForDiscard(_owner);
-        if (availableCards.Count < 2)
+        // Get available cards for discarding from target (hand + equipment, excluding judgement zone)
+        var availableCards = GetAvailableCardsForDiscard(target);
+        if (availableCards.Count == 0)
         {
-            // Not enough cards to discard, cannot activate
+            // No cards to discard, cannot activate
             return;
         }
 
-        // Ask player if they want to activate Stone Axe
+        // Ask player if they want to activate Ice Sword
         if (_getPlayerChoice is null)
         {
-            // Auto-trigger: automatically activate if enough cards
-            ActivateStoneAxe(_game, _owner, target, evt.SlashCard, evt.OriginalDamage, availableCards);
+            // Auto-trigger: automatically activate if cards available
+            ActivateIceSword(evt, target, availableCards);
             return;
         }
 
@@ -138,7 +146,7 @@ public sealed class StoneAxeSkill : BaseSkill, IAfterSlashDodgedSkill
             var confirmResult = _getPlayerChoice(confirmRequest);
             if (confirmResult?.Confirmed == true)
             {
-                ActivateStoneAxe(_game, _owner, target, evt.SlashCard, evt.OriginalDamage, availableCards);
+                ActivateIceSword(evt, target, availableCards);
             }
         }
         catch
@@ -148,65 +156,90 @@ public sealed class StoneAxeSkill : BaseSkill, IAfterSlashDodgedSkill
     }
 
     /// <summary>
-    /// Gets available cards that can be discarded (hand + equipment zones).
+    /// Checks if the damage is from a Slash card.
     /// </summary>
-    private static List<Card> GetAvailableCardsForDiscard(Player player)
+    private static bool IsSlashDamage(DamageDescriptor damage)
+    {
+        // Check by CausingCard
+        if (damage.CausingCard is not null)
+        {
+            return damage.CausingCard.CardSubType == CardSubType.Slash;
+        }
+
+        // Check by Reason
+        if (damage.Reason == "Slash")
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Gets available cards that can be discarded from target (hand + equipment zones).
+    /// </summary>
+    private static List<Card> GetAvailableCardsForDiscard(Player target)
     {
         var availableCards = new List<Card>();
 
         // Add hand cards
-        if (player.HandZone.Cards is not null)
+        if (target.HandZone.Cards is not null)
         {
-            availableCards.AddRange(player.HandZone.Cards);
+            availableCards.AddRange(target.HandZone.Cards);
         }
 
         // Add equipment cards
-        if (player.EquipmentZone.Cards is not null)
+        if (target.EquipmentZone.Cards is not null)
         {
-            availableCards.AddRange(player.EquipmentZone.Cards);
+            availableCards.AddRange(target.EquipmentZone.Cards);
         }
 
-        // Exclude judgement zone cards (not discardable for Stone Axe)
+        // Exclude judgement zone cards (not discardable for Ice Sword)
 
         return availableCards;
     }
 
     /// <summary>
-    /// Activates Stone Axe: discards 2 cards and forces 1 damage.
+    /// Activates Ice Sword: prevents damage and discards target's cards.
     /// </summary>
-    private void ActivateStoneAxe(
-        Game game,
-        Player owner,
+    private void ActivateIceSword(
+        BeforeDamageEvent evt,
         Player target,
-        Card slashCard,
-        DamageDescriptor originalDamage,
         List<Card> availableCards)
     {
-        if (_cardMoveService is null)
+        if (_cardMoveService is null || _game is null)
+            return;
+
+        // Determine how many cards to discard (up to 2, or all available if less than 2)
+        var cardsToDiscardCount = Math.Min(2, availableCards.Count);
+        if (cardsToDiscardCount == 0)
             return;
 
         List<Card>? cardsToDiscard = null;
 
-        // Ask player to select 2 cards to discard (if getPlayerChoice is available)
-        if (_getPlayerChoice is not null)
+        // Ask player to select cards to discard (if getPlayerChoice is available)
+        if (_getPlayerChoice is not null && cardsToDiscardCount > 0)
         {
             var selectRequest = new ChoiceRequest(
                 RequestId: Guid.NewGuid().ToString(),
-                PlayerSeat: owner.Seat,
+                PlayerSeat: _owner!.Seat,
                 ChoiceType: ChoiceType.SelectCards,
                 TargetConstraints: null,
                 AllowedCards: availableCards,
                 ResponseWindowId: null,
-                CanPass: false // Must select 2 cards
+                CanPass: false // Must select cards
             );
 
             try
             {
                 var selectResult = _getPlayerChoice(selectRequest);
-                if (selectResult?.SelectedCardIds is not null && selectResult.SelectedCardIds.Count == 2)
+                if (selectResult?.SelectedCardIds is not null && selectResult.SelectedCardIds.Count > 0)
                 {
+                    // Select up to cardsToDiscardCount cards
+                    var selectedIds = selectResult.SelectedCardIds.Take(cardsToDiscardCount).ToList();
                     cardsToDiscard = availableCards
-                        .Where(c => selectResult.SelectedCardIds.Contains(c.Id))
+                        .Where(c => selectedIds.Contains(c.Id))
+                        .Take(cardsToDiscardCount)
                         .ToList();
                 }
             }
@@ -216,104 +249,59 @@ public sealed class StoneAxeSkill : BaseSkill, IAfterSlashDodgedSkill
             }
         }
 
-        // If no cards selected or getPlayerChoice not available, auto-select first 2 cards
-        if (cardsToDiscard is null || cardsToDiscard.Count != 2)
+        // If no cards selected or getPlayerChoice not available, auto-select first N cards
+        if (cardsToDiscard is null || cardsToDiscard.Count == 0)
         {
-            cardsToDiscard = availableCards.Take(2).ToList();
-            if (cardsToDiscard.Count != 2)
-                return; // Not enough cards
+            cardsToDiscard = availableCards.Take(cardsToDiscardCount).ToList();
         }
 
         // Discard the selected cards
         try
         {
             // Separate cards by zone
-            var handCards = cardsToDiscard.Where(c => owner.HandZone.Cards.Contains(c)).ToList();
-            var equipmentCards = cardsToDiscard.Where(c => owner.EquipmentZone.Cards.Contains(c)).ToList();
+            var handCards = cardsToDiscard.Where(c => target.HandZone.Cards.Contains(c)).ToList();
+            var equipmentCards = cardsToDiscard.Where(c => target.EquipmentZone.Cards.Contains(c)).ToList();
 
             // Discard hand cards
             if (handCards.Count > 0)
             {
-                _cardMoveService.DiscardFromHand(game, owner, handCards);
+                _cardMoveService.DiscardFromHand(_game, target, handCards);
             }
 
             // Discard equipment cards
             foreach (var card in equipmentCards)
             {
                 var moveDescriptor = new CardMoveDescriptor(
-                    SourceZone: owner.EquipmentZone,
-                    TargetZone: game.DiscardPile,
+                    SourceZone: target.EquipmentZone,
+                    TargetZone: _game.DiscardPile,
                     Cards: new[] { card },
                     Reason: CardMoveReason.Discard,
                     Ordering: CardMoveOrdering.ToTop,
-                    Game: game
+                    Game: _game
                 );
                 _cardMoveService.MoveSingle(moveDescriptor);
             }
         }
         catch
         {
-            // If discarding fails, cannot proceed
+            // If discarding fails, cannot prevent damage
             return;
         }
 
-        // Force damage: create damage descriptor and push to resolution stack
-        var forcedDamage = new DamageDescriptor(
-            SourceSeat: owner.Seat,
-            TargetSeat: target.Seat,
-            Amount: 1,
-            Type: DamageType.Normal,
-            Reason: "StoneAxe",
-            CausingCard: slashCard, // The original Slash card
-            IsPreventable: false, // Force damage, cannot be prevented
-            TransferredToSeat: null,
-            TriggersDying: true
-        );
-
-        // Create resolution stack and context for damage
-        var stack = new BasicResolutionStack();
-        var ruleService = new RuleService();
-
-        var damageContext = new ResolutionContext(
-            game,
-            owner,
-            null,
-            null,
-            stack,
-            _cardMoveService,
-            ruleService,
-            PendingDamage: forcedDamage,
-            LogSink: null,
-            GetPlayerChoice: _getPlayerChoice,
-            IntermediateResults: null,
-            EventBus: _eventBus,
-            LogCollector: null,
-            SkillManager: null,
-            EquipmentSkillRegistry: null,
-            JudgementService: null
-        );
-
-        // Push DamageResolver to apply the forced damage
-        stack.Push(new DamageResolver(), damageContext);
-
-        // Execute all resolvers in the stack
-        while (!stack.IsEmpty)
-        {
-            var result = stack.Pop();
-            // Ignore failures for now (resolver should handle errors internally)
-        }
+        // Prevent the damage
+        evt.IsPrevented = true;
     }
 }
 
 /// <summary>
-/// Factory for creating StoneAxeSkill instances.
+/// Factory for creating IceSwordSkill instances.
 /// </summary>
-public sealed class StoneAxeSkillFactory : IEquipmentSkillFactory
+public sealed class IceSwordSkillFactory : IEquipmentSkillFactory
 {
     /// <inheritdoc />
     public ISkill CreateSkill()
     {
-        return new StoneAxeSkill();
+        return new IceSwordSkill();
     }
 }
 

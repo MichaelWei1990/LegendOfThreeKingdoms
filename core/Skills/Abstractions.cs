@@ -330,6 +330,38 @@ public interface IActionProvidingSkill : ISkill
 }
 
 /// <summary>
+/// Interface for skills that respond to before damage events.
+/// Used by trigger skills that need to react before damage is applied,
+/// such as Ice Sword (寒冰剑) that can prevent damage.
+/// </summary>
+public interface IBeforeDamageSkill : ISkill
+{
+    /// <summary>
+    /// Handles the before damage event.
+    /// This method is called when a BeforeDamageEvent is published.
+    /// Skills can modify the event (e.g., set IsPrevented to true) to prevent or modify damage.
+    /// </summary>
+    /// <param name="evt">The before damage event.</param>
+    void OnBeforeDamage(BeforeDamageEvent evt);
+}
+
+/// <summary>
+/// Interface for skills that respond to after slash dodged events.
+/// Used by trigger skills that need to react when a Slash is successfully dodged,
+/// such as Stone Axe (贯石斧) that can force damage even after a successful Dodge.
+/// </summary>
+public interface IAfterSlashDodgedSkill : ISkill
+{
+    /// <summary>
+    /// Handles the after slash dodged event.
+    /// This method is called when an AfterSlashDodgedEvent is published.
+    /// Skills can use this to take actions after a Slash has been successfully dodged.
+    /// </summary>
+    /// <param name="evt">The after slash dodged event.</param>
+    void OnAfterSlashDodged(AfterSlashDodgedEvent evt);
+}
+
+/// <summary>
 /// Interface for skills that respond to damage resolved events.
 /// Used by trigger skills that need to react when damage is resolved.
 /// </summary>
