@@ -248,6 +248,7 @@ public sealed class BasicResponseWindow : IResponseWindow
 
     /// <summary>
     /// Processes a player's response: validates the card, moves it, and logs the result.
+    /// Supports both single-card and multi-card conversion (e.g., Serpent Spear).
     /// </summary>
     /// <returns>ResponseWindowResult if successful, null if validation or card move failed.</returns>
     private static ResponseWindowResult? ProcessPlayerResponse(
@@ -259,24 +260,89 @@ public sealed class BasicResponseWindow : IResponseWindow
         ChoiceResult choice,
         ICardMoveService cardMoveService)
     {
-        // Validate the selected card
-        var selectedCardId = choice.SelectedCardIds![0];
-        var selectedCard = legalCards.FirstOrDefault(c => c.Id == selectedCardId);
-
-        if (selectedCard is null)
+        var selectedCardIds = choice.SelectedCardIds;
+        if (selectedCardIds is null || selectedCardIds.Count == 0)
         {
-            LogResponseInvalid(context.LogSink, responder, selectedCardId, responseType);
+            LogResponseInvalid(context.LogSink, responder, 0, responseType);
             return null;
         }
 
-        // Move response card from hand to discard pile
-        if (!TryMoveResponseCard(game, responder, selectedCard, cardMoveService, context.LogSink, selectedCardId))
+        // Check if multiple cards are selected (for multi-card conversion skills like Serpent Spear)
+        var handCards = responder.HandZone.Cards?.ToList() ?? new List<Card>();
+        var selectedCards = selectedCardIds
+            .Select(id => handCards.FirstOrDefault(c => c.Id == id))
+            .Where(c => c is not null)
+            .Cast<Card>()
+            .ToList();
+
+        if (selectedCards.Count != selectedCardIds.Count)
+        {
+            LogResponseInvalid(context.LogSink, responder, selectedCardIds[0], responseType);
+            return null;
+        }
+
+        Card actualResponseCard = selectedCards[0]; // Default to first card
+        IReadOnlyList<Card> cardsToMove = new[] { selectedCards[0] }; // Default to first card
+
+        // Try multi-card conversion if multiple cards are selected
+        bool isMultiCardConversion = false;
+        if (selectedCards.Count > 1 && context.SkillManager is not null)
+        {
+            // Determine expected card type from response type
+            CardSubType? expectedCardSubType = responseType switch
+            {
+                ResponseType.JinkAgainstSlash => CardSubType.Dodge,
+                ResponseType.SlashAgainstDuel => CardSubType.Slash,
+                _ => null
+            };
+
+            if (expectedCardSubType.HasValue)
+            {
+                var multiConversionSkills = context.SkillManager.GetActiveSkills(game, responder)
+                    .OfType<Skills.IMultiCardConversionSkill>()
+                    .ToList();
+
+                foreach (var skill in multiConversionSkills)
+                {
+                    if (selectedCards.Count != skill.RequiredCardCount)
+                        continue;
+
+                    if (skill.TargetCardSubType != expectedCardSubType.Value)
+                        continue;
+
+                    var virtualCard = skill.CreateVirtualCardFromMultiple(selectedCards, game, responder);
+                    if (virtualCard is not null && virtualCard.CardSubType == expectedCardSubType.Value)
+                    {
+                        actualResponseCard = virtualCard;
+                        cardsToMove = selectedCards;
+                        isMultiCardConversion = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // If multi-card conversion didn't work, use single card
+        if (!isMultiCardConversion)
+        {
+            var selectedCard = selectedCards[0];
+            if (!legalCards.Any(c => c.Id == selectedCard.Id))
+            {
+                LogResponseInvalid(context.LogSink, responder, selectedCard.Id, responseType);
+                return null;
+            }
+            actualResponseCard = selectedCard;
+            cardsToMove = new[] { selectedCard };
+        }
+
+        // Move response card(s) from hand to discard pile
+        if (!TryMoveResponseCards(game, responder, cardsToMove, cardMoveService, context.LogSink))
         {
             return null;
         }
 
         // Log successful response
-        LogResponseCardPlayed(context.LogSink, responder, selectedCard, responseType);
+        LogResponseCardPlayed(context.LogSink, responder, actualResponseCard, responseType);
 
         // Publish CardPlayedEvent for skills that need to track card playing (e.g., Keji)
         if (context.EventBus is not null)
@@ -284,8 +350,8 @@ public sealed class BasicResponseWindow : IResponseWindow
             var cardPlayedEvent = new CardPlayedEvent(
                 game,
                 responder.Seat,
-                selectedCard.Id,
-                selectedCard.CardSubType,
+                actualResponseCard.Id,
+                actualResponseCard.CardSubType,
                 responseType
             );
             context.EventBus.Publish(cardPlayedEvent);
@@ -295,26 +361,25 @@ public sealed class BasicResponseWindow : IResponseWindow
         return new ResponseWindowResult(
             State: ResponseWindowState.ResponseSuccess,
             Responder: responder,
-            ResponseCard: selectedCard,
+            ResponseCard: actualResponseCard,
             Choice: choice);
     }
 
     /// <summary>
-    /// Attempts to move the response card from hand to discard pile.
+    /// Attempts to move the response card(s) from hand to discard pile.
+    /// Supports both single-card and multi-card responses.
     /// </summary>
     /// <returns>True if successful, false otherwise.</returns>
-    private static bool TryMoveResponseCard(
+    private static bool TryMoveResponseCards(
         Game game,
         Player responder,
-        Card selectedCard,
+        IReadOnlyList<Card> cardsToMove,
         ICardMoveService cardMoveService,
-        ILogSink? logSink,
-        int selectedCardId)
+        ILogSink? logSink)
     {
         try
         {
-            var cardsToMove = new[] { selectedCard };
-            cardMoveService.DiscardFromHand(game, responder, cardsToMove);
+            cardMoveService.DiscardFromHand(game, responder, cardsToMove.ToList());
             return true;
         }
         catch (Exception ex)
@@ -326,11 +391,11 @@ public sealed class BasicResponseWindow : IResponseWindow
                 {
                     EventType = "ResponseCardMoveFailed",
                     Level = "Error",
-                    Message = $"Failed to move response card: {ex.Message}",
+                    Message = $"Failed to move response card(s): {ex.Message}",
                     Data = new
                     {
                         ResponderSeat = responder.Seat,
-                        SelectedCardId = selectedCardId,
+                        SelectedCardIds = cardsToMove.Select(c => c.Id).ToList(),
                         Exception = ex.Message
                     }
                 };

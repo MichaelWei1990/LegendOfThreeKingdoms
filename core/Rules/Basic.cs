@@ -549,42 +549,21 @@ public sealed class ActionQueryService : IActionQueryService
                 if (candidates.Count == 0)
                     continue;
                 
-                // Get action configuration for this card type
-                var actionId = GetActionIdForCardSubType(cardSubType);
-                if (actionId is null)
-                    continue; // Skip if no action mapping exists
-                
-                var targetConstraints = GetTargetConstraintsForCardSubType(cardSubType);
-                if (targetConstraints is null)
-                    continue; // Skip if no target constraints defined
-                
-                // Create or update action
-                if (actionsByActionId.TryGetValue(actionId, out var existingAction))
-                {
-                    // Merge candidates if action already exists
-                    var mergedCandidates = new List<Card>(existingAction.CardCandidates ?? Array.Empty<Card>());
-                    mergedCandidates.AddRange(candidates);
-                    actionsByActionId[actionId] = existingAction with { CardCandidates = mergedCandidates };
-                }
-                else
-                {
-                    // Create new action
-                    actionsByActionId[actionId] = new ActionDescriptor(
-                        ActionId: actionId,
-                        DisplayKey: $"action.use{cardSubType}",
-                        RequiresTargets: targetConstraints.MinTargets > 0,
-                        TargetConstraints: targetConstraints,
-                        CardCandidates: candidates);
-                }
+                // Create or update action for this card type
+                CreateOrUpdateActionForCardType(
+                    actionsByActionId,
+                    cardSubType,
+                    candidates,
+                    mergeCandidates: true);
             }
-            
+
             // Convert dictionary to list
             actions.AddRange(actionsByActionId.Values);
 
-            // Generate actions for active skills
+            // Generate actions for active skills (including multi-card conversion skills)
             if (_skillManager is not null)
             {
-                var skillActions = GenerateSkillActions(game, player);
+                var skillActions = GenerateSkillActions(game, player, actionsByActionId);
                 actions.AddRange(skillActions);
             }
 
@@ -605,6 +584,60 @@ public sealed class ActionQueryService : IActionQueryService
             : RuleQueryResult<ActionDescriptor>.FromItems(actions);
     }
 
+    /// <summary>
+    /// Generates actions for active skills, including IActionProvidingSkill and multi-card conversion skills.
+    /// Multi-card conversion skills are merged into the existing actions dictionary.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="player">The player to generate actions for.</param>
+    /// <param name="actionsByActionId">Dictionary to merge multi-card conversion actions into. Can be null if not needed.</param>
+    /// <returns>List of action descriptors from IActionProvidingSkill skills.</returns>
+    private List<ActionDescriptor> GenerateSkillActions(
+        Game game, 
+        Player player, 
+        Dictionary<string, ActionDescriptor>? actionsByActionId = null)
+    {
+        var actions = new List<ActionDescriptor>();
+
+        if (_skillManager is null)
+            return actions;
+
+        var activeSkills = _skillManager.GetActiveSkills(game, player)
+            .Where(s => s.Type == SkillType.Active && s.IsActive(game, player))
+            .ToList();
+
+        foreach (var skill in activeSkills)
+        {
+            // Handle IActionProvidingSkill - these generate complete actions
+            if (skill is Skills.IActionProvidingSkill actionProvidingSkill)
+            {
+                var skillAction = actionProvidingSkill.GenerateAction(game, player);
+                if (skillAction is not null)
+                {
+                    actions.Add(skillAction);
+                }
+            }
+            // Handle IMultiCardConversionSkill - these modify existing card-based actions
+            else if (skill is Skills.IMultiCardConversionSkill multiConversionSkill && actionsByActionId is not null)
+            {
+                // Check if player has enough hand cards for this skill
+                var handCards = player.HandZone.Cards?.ToList() ?? new List<Card>();
+                if (handCards.Count < multiConversionSkill.RequiredCardCount)
+                    continue;
+
+                // Create or update action for this conversion skill
+                CreateOrUpdateActionForCardType(
+                    actionsByActionId,
+                    multiConversionSkill.TargetCardSubType,
+                    handCards,
+                    mergeCandidates: true,
+                    deduplicateCandidates: true);
+            }
+        }
+
+        return actions;
+    }
+    
     /// <summary>
     /// Collects all usable card candidates (both direct cards and converted cards) grouped by card subtype.
     /// </summary>
@@ -670,7 +703,7 @@ public sealed class ActionQueryService : IActionQueryService
         
         return candidatesByType;
     }
-    
+
     /// <summary>
     /// Discovers all card types that can be converted to via conversion skills.
     /// Returns a dictionary mapping target card subtypes to lists of source cards that can be converted.
@@ -752,35 +785,6 @@ public sealed class ActionQueryService : IActionQueryService
         return conversionTargets;
     }
 
-    /// <summary>
-    /// Generates actions for active skills that can be used in the current phase.
-    /// </summary>
-    private List<ActionDescriptor> GenerateSkillActions(Game game, Player player)
-    {
-        var actions = new List<ActionDescriptor>();
-
-        if (_skillManager is null)
-            return actions;
-
-        var activeSkills = _skillManager.GetActiveSkills(game, player)
-            .Where(s => s.Type == SkillType.Active && s.IsActive(game, player))
-            .ToList();
-
-        foreach (var skill in activeSkills)
-        {
-            // Check if skill can provide actions
-            if (skill is Skills.IActionProvidingSkill actionProvidingSkill)
-            {
-                var skillAction = actionProvidingSkill.GenerateAction(game, player);
-                if (skillAction is not null)
-                {
-                    actions.Add(skillAction);
-                }
-            }
-        }
-
-        return actions;
-    }
 
     /// <summary>
     /// Gets the action ID for a given card subtype.
@@ -797,6 +801,80 @@ public sealed class ActionQueryService : IActionQueryService
             // Add more mappings as needed
             _ => null
         };
+    }
+
+    /// <summary>
+    /// Creates or updates an action descriptor for a given card type in the actions dictionary.
+    /// This method abstracts the common logic of creating/updating actions for both direct cards
+    /// and multi-card conversion skills.
+    /// </summary>
+    /// <param name="actionsByActionId">Dictionary to store actions by action ID.</param>
+    /// <param name="cardSubType">The card subtype to create/update action for.</param>
+    /// <param name="candidates">The card candidates to include in the action.</param>
+    /// <param name="mergeCandidates">Whether to merge candidates if action already exists. If false, replaces existing candidates.</param>
+    /// <param name="deduplicateCandidates">Whether to deduplicate candidates when merging. Only used if mergeCandidates is true.</param>
+    private void CreateOrUpdateActionForCardType(
+        Dictionary<string, ActionDescriptor> actionsByActionId,
+        CardSubType cardSubType,
+        IReadOnlyList<Card> candidates,
+        bool mergeCandidates = true,
+        bool deduplicateCandidates = false)
+    {
+        if (candidates.Count == 0)
+            return;
+
+        // Get action configuration for this card type
+        var actionId = GetActionIdForCardSubType(cardSubType);
+        if (actionId is null)
+            return; // Skip if no action mapping exists
+
+        var targetConstraints = GetTargetConstraintsForCardSubType(cardSubType);
+        if (targetConstraints is null)
+            return; // Skip if no target constraints defined
+
+        // Check if action already exists
+        if (actionsByActionId.TryGetValue(actionId, out var existingAction))
+        {
+            if (mergeCandidates)
+            {
+                // Merge candidates if action already exists
+                var mergedCandidates = new List<Card>(existingAction.CardCandidates ?? Array.Empty<Card>());
+                
+                if (deduplicateCandidates)
+                {
+                    // Add candidates with deduplication
+                    foreach (var card in candidates)
+                    {
+                        if (!mergedCandidates.Any(c => c.Id == card.Id))
+                        {
+                            mergedCandidates.Add(card);
+                        }
+                    }
+                }
+                else
+                {
+                    // Add all candidates without deduplication
+                    mergedCandidates.AddRange(candidates);
+                }
+                
+                actionsByActionId[actionId] = existingAction with { CardCandidates = mergedCandidates };
+            }
+            else
+            {
+                // Replace existing candidates
+                actionsByActionId[actionId] = existingAction with { CardCandidates = candidates };
+            }
+        }
+        else
+        {
+            // Create new action
+            actionsByActionId[actionId] = new ActionDescriptor(
+                ActionId: actionId,
+                DisplayKey: $"action.use{cardSubType}",
+                RequiresTargets: targetConstraints.MinTargets > 0,
+                TargetConstraints: targetConstraints,
+                CardCandidates: candidates);
+        }
     }
 
     /// <summary>

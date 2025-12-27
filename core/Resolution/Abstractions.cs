@@ -163,6 +163,7 @@ public sealed record DamageDescriptor(
     DamageType Type,          // 伤害类型
     string? Reason = null,    // 伤害原因（可选，如 "Slash"）
     Card? CausingCard = null, // 造成伤害的牌（可选，用于技能如奸雄）
+    IReadOnlyList<Card>? CausingCards = null, // 造成伤害的原始卡牌列表（用于多张牌转换，如丈八蛇矛）
     
     // 预留扩展字段（暂不使用）
     bool IsPreventable = true,        // 是否可被免伤（预留）

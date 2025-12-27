@@ -84,7 +84,29 @@ public sealed class JianxiongSkill : BaseSkill, IAfterDamageSkill
         if (!IsActive(_game, _owner))
             return;
 
-        // Check if there is a causing card
+        // Priority: Check for multi-card conversion (e.g., Serpent Spear)
+        // If CausingCards is available, obtain all original cards
+        if (evt.Damage.CausingCards is not null && evt.Damage.CausingCards.Count > 0)
+        {
+            foreach (var card in evt.Damage.CausingCards)
+            {
+                if (IsCardObtainable(_game, card))
+                {
+                    try
+                    {
+                        _game.MoveCardToHand(_owner, card, _cardMoveService);
+                    }
+                    catch (Exception)
+                    {
+                        // If moving fails (e.g., card no longer in expected zone), silently ignore
+                        // This matches the behavior of other trigger skills
+                    }
+                }
+            }
+            return; // Multi-card conversion handled, no need to check single card
+        }
+
+        // Fallback: Check for single causing card
         var causingCard = evt.Damage.CausingCard;
         if (causingCard is null)
             return;

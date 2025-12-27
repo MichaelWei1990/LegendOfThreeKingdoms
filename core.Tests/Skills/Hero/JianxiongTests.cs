@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using LegendOfThreeKingdoms.Core;
 using LegendOfThreeKingdoms.Core.Events;
@@ -7,6 +8,7 @@ using LegendOfThreeKingdoms.Core.Model.Zones;
 using LegendOfThreeKingdoms.Core.Resolution;
 using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Skills;
+using LegendOfThreeKingdoms.Core.Skills.Equipment;
 using LegendOfThreeKingdoms.Core.Skills.Hero;
 using LegendOfThreeKingdoms.Core.Zones;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -521,6 +523,124 @@ public sealed class JianxiongTests
         Assert.IsTrue(target.HandZone.Cards.Contains(slashCard1), "Target player should have obtained the first card.");
         Assert.IsTrue(target.HandZone.Cards.Contains(slashCard2), "Target player should have obtained the second card.");
         Assert.AreEqual(initialHandCount + 2, target.HandZone.Cards.Count, "Target player should have 2 more cards in hand.");
+    }
+
+    /// <summary>
+    /// Tests that JianxiongSkill obtains both original cards when damage is caused by Serpent Spear (multi-card conversion).
+    /// Input: Game with 2 players, source has Serpent Spear, target has Jianxiong skill.
+    /// Source uses two hand cards as Slash via Serpent Spear, deals damage to target.
+    /// Expected: Target player obtains both original hand cards that were used for conversion.
+    /// </summary>
+    [TestMethod]
+    public void JianxiongSkillObtainsOriginalCardsFromSerpentSpearConversion()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var source = game.Players[0];
+        var target = game.Players[1];
+        var initialTargetHandCount = target.HandZone.Cards.Count;
+
+        // Create two hand cards for source player to use as Slash via Serpent Spear
+        var card1 = new Card
+        {
+            Id = 100,
+            DefinitionId = "card1",
+            Name = "手牌1",
+            CardType = CardType.Basic,
+            CardSubType = CardSubType.Peach,
+            Suit = Suit.Heart,
+            Rank = 5
+        };
+        var card2 = new Card
+        {
+            Id = 101,
+            DefinitionId = "card2",
+            Name = "手牌2",
+            CardType = CardType.Basic,
+            CardSubType = CardSubType.Peach,
+            Suit = Suit.Spade,
+            Rank = 6
+        };
+        ((Zone)source.HandZone).MutableCards.Add(card1);
+        ((Zone)source.HandZone).MutableCards.Add(card2);
+
+        // Setup skill manager and register skills
+        var eventBus = new BasicEventBus();
+        var skillRegistry = new SkillRegistry();
+        
+        // Register Jianxiong skill (for hero skill)
+        var jianxiongFactory = new JianxiongSkillFactory();
+        skillRegistry.RegisterSkill("jianxiong", jianxiongFactory);
+        
+        var skillManager = new SkillManager(skillRegistry, eventBus);
+        var cardMoveService = new BasicCardMoveService(eventBus);
+
+        // Add Serpent Spear to source player
+        var serpentSpearCard = new Card
+        {
+            Id = 200,
+            DefinitionId = "serpent_spear",
+            Name = "丈八蛇矛",
+            CardType = CardType.Equip,
+            CardSubType = CardSubType.Weapon,
+            Suit = Suit.Spade,
+            Rank = 5
+        };
+        ((Zone)source.EquipmentZone).MutableCards.Add(serpentSpearCard);
+        var serpentSpearFactory = new SerpentSpearSkillFactory();
+        var serpentSpearSkill = serpentSpearFactory.CreateSkill();
+        skillManager.AddEquipmentSkill(game, source, serpentSpearSkill);
+
+        // Add Jianxiong skill to target player
+        var jianxiongSkill = skillRegistry.GetSkill("jianxiong");
+        if (jianxiongSkill is JianxiongSkill jianxiong)
+        {
+            jianxiong.SetCardMoveService(cardMoveService);
+        }
+        skillManager.AddEquipmentSkill(game, target, jianxiongSkill);
+
+        // Move the two cards to discard pile (simulating they were used and discarded)
+        ((Zone)game.DiscardPile).MutableCards.Add(card1);
+        ((Zone)game.DiscardPile).MutableCards.Add(card2);
+        ((Zone)source.HandZone).MutableCards.Remove(card1);
+        ((Zone)source.HandZone).MutableCards.Remove(card2);
+
+        // Create damage descriptor with CausingCards (the two original cards used for Serpent Spear conversion)
+        var causingCards = new List<Card> { card1, card2 };
+        var damage = new DamageDescriptor(
+            SourceSeat: source.Seat,
+            TargetSeat: target.Seat,
+            Amount: 1,
+            Type: DamageType.Normal,
+            Reason: "Slash",
+            CausingCard: null,  // Virtual Slash card (not needed for Jianxiong)
+            CausingCards: causingCards  // The two original cards used for conversion
+        );
+
+        // Act - Apply damage (this will publish AfterDamageEvent)
+        var stack = new BasicResolutionStack();
+        var ruleService = new RuleService();
+        var context = new ResolutionContext(
+            game,
+            source,
+            null,
+            null,
+            stack,
+            cardMoveService,
+            ruleService,
+            PendingDamage: damage,
+            EventBus: eventBus
+        );
+        var damageResolver = new DamageResolver();
+        var result = damageResolver.Resolve(context);
+
+        // Assert
+        Assert.IsTrue(result.Success, "Damage should be applied successfully.");
+        Assert.IsTrue(target.HandZone.Cards.Contains(card1), "Target player should have obtained the first original card.");
+        Assert.IsTrue(target.HandZone.Cards.Contains(card2), "Target player should have obtained the second original card.");
+        Assert.AreEqual(initialTargetHandCount + 2, target.HandZone.Cards.Count, "Target player should have 2 more cards in hand.");
+        Assert.IsFalse(game.DiscardPile.Cards.Contains(card1), "First card should no longer be in discard pile.");
+        Assert.IsFalse(game.DiscardPile.Cards.Contains(card2), "Second card should no longer be in discard pile.");
     }
 
     #endregion

@@ -317,16 +317,6 @@ public sealed class SlashResolver : IResolver
     {
         var sourcePlayer = context.SourcePlayer;
 
-        // Create damage descriptor (will be used if no response is made)
-        var damage = new DamageDescriptor(
-            SourceSeat: sourcePlayer.Seat,
-            TargetSeat: target.Seat,
-            Amount: 1,  // Basic Slash deals 1 damage
-            Type: DamageType.Normal,
-            Reason: "Slash",
-            CausingCard: slashCard  // The Slash card that causes the damage
-        );
-
         // Initialize IntermediateResults dictionary if not present
         // This dictionary will be shared across all resolvers in this resolution chain
         var intermediateResults = context.IntermediateResults;
@@ -334,6 +324,26 @@ public sealed class SlashResolver : IResolver
         {
             intermediateResults = new Dictionary<string, object>();
         }
+
+        // Extract original cards from conversion if available (for multi-card conversion like Serpent Spear)
+        IReadOnlyList<Card>? causingCards = null;
+        if (intermediateResults.TryGetValue("ConversionOriginalCards", out var originalCardsObj) &&
+            originalCardsObj is IReadOnlyList<Card> originalCards)
+        {
+            causingCards = originalCards;
+        }
+
+        // Create damage descriptor (will be used if no response is made)
+        // For multi-card conversion, pass the original cards so skills like Jianxiong can obtain them
+        var damage = new DamageDescriptor(
+            SourceSeat: sourcePlayer.Seat,
+            TargetSeat: target.Seat,
+            Amount: 1,  // Basic Slash deals 1 damage
+            Type: DamageType.Normal,
+            Reason: "Slash",
+            CausingCard: slashCard,  // The virtual Slash card that causes the damage
+            CausingCards: causingCards  // The original cards used for conversion (e.g., two hand cards for Serpent Spear)
+        );
 
         // Process Slash response modifiers (e.g., Tieqi) before creating response window
         // This allows skills to perform judgements and mark targets as unable to use Dodge

@@ -104,6 +104,28 @@ public enum Suit
 }
 
 /// <summary>
+/// Card color used for virtual cards and color-based effects.
+/// Used by skills like Serpent Spear (丈八蛇矛) that combine multiple cards into a virtual card.
+/// </summary>
+public enum CardColor
+{
+    /// <summary>
+    /// No color (colorless). Used when cards of different colors are combined.
+    /// </summary>
+    None,
+    
+    /// <summary>
+    /// Red color (Heart or Diamond).
+    /// </summary>
+    Red,
+    
+    /// <summary>
+    /// Black color (Spade or Club).
+    /// </summary>
+    Black
+}
+
+/// <summary>
 /// Phases of a player's turn.
 /// </summary>
 public enum Phase

@@ -123,6 +123,85 @@ internal static class CardConversionHelper
     }
 
     /// <summary>
+    /// Resolves the actual card to use based on the action and multiple selected cards.
+    /// This is used for multi-card conversion skills like Serpent Spear (丈八蛇矛).
+    /// </summary>
+    /// <param name="action">The action descriptor.</param>
+    /// <param name="selectedCards">The cards selected by the player.</param>
+    /// <param name="game">The current game state.</param>
+    /// <param name="sourcePlayer">The player using the cards.</param>
+    /// <param name="skillManager">The skill manager for checking conversion skills.</param>
+    /// <returns>
+    /// A tuple containing:
+    /// - actualCard: The card to use for resolution (may be virtual)
+    /// - originalCards: The original physical cards (null if no conversion)
+    /// - conversionSkill: The skill that performed the conversion (null if no conversion)
+    /// </returns>
+    public static (Card actualCard, IReadOnlyList<Card>? originalCards, Skills.IMultiCardConversionSkill? conversionSkill) ResolveMultiCardForAction(
+        ActionDescriptor action,
+        IReadOnlyList<Card> selectedCards,
+        Game game,
+        Player sourcePlayer,
+        SkillManager? skillManager)
+    {
+        if (action is null) throw new ArgumentNullException(nameof(action));
+        if (selectedCards is null || selectedCards.Count == 0) throw new ArgumentNullException(nameof(selectedCards));
+        if (game is null) throw new ArgumentNullException(nameof(game));
+        if (sourcePlayer is null) throw new ArgumentNullException(nameof(sourcePlayer));
+
+        // Determine the expected card type from the action ID
+        CardSubType? expectedCardSubType = GetExpectedCardSubTypeFromActionId(action.ActionId);
+
+        // Try all multi-card conversion skills
+        if (skillManager is not null)
+        {
+            var multiConversionSkills = skillManager.GetActiveSkills(game, sourcePlayer)
+                .OfType<Skills.IMultiCardConversionSkill>()
+                .ToList();
+
+            foreach (var skill in multiConversionSkills)
+            {
+                // Check if the number of selected cards matches the skill's requirement
+                if (selectedCards.Count != skill.RequiredCardCount)
+                    continue;
+
+                // Check if the skill's target type matches the expected type
+                if (expectedCardSubType.HasValue && skill.TargetCardSubType != expectedCardSubType.Value)
+                    continue;
+
+                // Try to create virtual card from the selected cards
+                var virtualCard = skill.CreateVirtualCardFromMultiple(selectedCards, game, sourcePlayer);
+                if (virtualCard is null)
+                    continue;
+
+                // Check if conversion is applicable
+                bool isConversionApplicable = false;
+
+                if (expectedCardSubType.HasValue)
+                {
+                    // Check if virtual card matches the expected type
+                    isConversionApplicable = virtualCard.CardSubType == expectedCardSubType.Value;
+                }
+                else if (action.CardCandidates is not null)
+                {
+                    // Fallback: check if virtual card matches any candidate's type
+                    isConversionApplicable = action.CardCandidates.Any(c => 
+                        c.CardSubType == virtualCard.CardSubType);
+                }
+
+                if (isConversionApplicable)
+                {
+                    // Conversion successful
+                    return (virtualCard, selectedCards, skill);
+                }
+            }
+        }
+
+        // No conversion possible
+        throw new InvalidOperationException("No multi-card conversion skill can convert the selected cards for this action.");
+    }
+
+    /// <summary>
     /// Prepares the IntermediateResults dictionary with card conversion information.
     /// </summary>
     /// <param name="actualCard">The card to use for resolution.</param>
@@ -145,6 +224,35 @@ internal static class CardConversionHelper
         if (originalCard is not null && conversionSkill is not null)
         {
             results["ConversionOriginalCard"] = originalCard;
+            results["ConversionSkill"] = conversionSkill;
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Prepares the IntermediateResults dictionary with multi-card conversion information.
+    /// </summary>
+    /// <param name="actualCard">The card to use for resolution.</param>
+    /// <param name="originalCards">The original physical cards (null if no conversion).</param>
+    /// <param name="conversionSkill">The skill that performed the conversion (null if no conversion).</param>
+    /// <param name="existingResults">Existing IntermediateResults dictionary, or null to create a new one.</param>
+    /// <returns>The IntermediateResults dictionary with conversion information added.</returns>
+    public static Dictionary<string, object> PrepareMultiCardIntermediateResults(
+        Card actualCard,
+        IReadOnlyList<Card>? originalCards,
+        Skills.IMultiCardConversionSkill? conversionSkill,
+        Dictionary<string, object>? existingResults = null)
+    {
+        var results = existingResults ?? new Dictionary<string, object>();
+
+        // Store the actual card to use
+        results["ActualCard"] = actualCard;
+
+        // Store conversion information if conversion occurred
+        if (originalCards is not null && originalCards.Count > 0 && conversionSkill is not null)
+        {
+            results["ConversionOriginalCards"] = originalCards;
             results["ConversionSkill"] = conversionSkill;
         }
 

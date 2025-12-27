@@ -315,6 +315,40 @@ public interface ICardConversionSkill : ISkill
 }
 
 /// <summary>
+/// Interface for skills that can convert multiple cards into a single virtual card.
+/// Used by skills like Serpent Spear (丈八蛇矛) that allow using two hand cards as one card.
+/// </summary>
+public interface IMultiCardConversionSkill : ISkill
+{
+    /// <summary>
+    /// Gets the number of cards required for conversion.
+    /// </summary>
+    int RequiredCardCount { get; }
+
+    /// <summary>
+    /// Gets the target card subtype that the converted cards will become.
+    /// </summary>
+    CardSubType TargetCardSubType { get; }
+
+    /// <summary>
+    /// Creates a virtual card from multiple original cards for conversion purposes.
+    /// The virtual card represents the card that the original cards are being converted to.
+    /// </summary>
+    /// <param name="originalCards">The original cards being converted (must match RequiredCardCount).</param>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <returns>The virtual card, or null if conversion is not applicable for these cards.</returns>
+    Card? CreateVirtualCardFromMultiple(IReadOnlyList<Card> originalCards, Game game, Player owner);
+
+    /// <summary>
+    /// Determines the color of the virtual card based on the original cards.
+    /// </summary>
+    /// <param name="originalCards">The original cards being converted.</param>
+    /// <returns>The color of the virtual card.</returns>
+    Model.CardColor DetermineVirtualCardColor(IReadOnlyList<Card> originalCards);
+}
+
+/// <summary>
 /// Interface for skills that can provide actions.
 /// Used by active skills that initiate choices and need to generate action descriptors.
 /// </summary>

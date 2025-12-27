@@ -9,6 +9,7 @@ using LegendOfThreeKingdoms.Core.Response;
 using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Skills;
 using LegendOfThreeKingdoms.Core.Zones;
+using static LegendOfThreeKingdoms.Core.Resolution.CardMoveStrategyExecutor;
 
 namespace LegendOfThreeKingdoms.Core.Resolution;
 
@@ -86,15 +87,87 @@ public sealed class BasicResolutionStack : IResolutionStack
 /// </summary>
 public sealed class UseCardResolver : IResolver
 {
+    private readonly CardConversionStrategyExecutor _conversionExecutor;
+    private readonly CardMoveStrategyExecutor _moveExecutor;
+    private readonly CardConversionCleanupService _cleanupService;
+
+    /// <summary>
+    /// Creates a new instance with default strategies.
+    /// </summary>
+    public UseCardResolver()
+        : this(new CardConversionStrategyExecutor(), new CardMoveStrategyExecutor(), new CardConversionCleanupService())
+    {
+    }
+
+    /// <summary>
+    /// Creates a new instance with custom strategies.
+    /// </summary>
+    public UseCardResolver(
+        CardConversionStrategyExecutor conversionExecutor,
+        CardMoveStrategyExecutor moveExecutor,
+        CardConversionCleanupService cleanupService)
+    {
+        _conversionExecutor = conversionExecutor ?? throw new ArgumentNullException(nameof(conversionExecutor));
+        _moveExecutor = moveExecutor ?? throw new ArgumentNullException(nameof(moveExecutor));
+        _cleanupService = cleanupService ?? throw new ArgumentNullException(nameof(cleanupService));
+    }
+
     /// <inheritdoc />
     public ResolutionResult Resolve(ResolutionContext context)
     {
         if (context is null) throw new ArgumentNullException(nameof(context));
 
-        var game = context.Game;
-        var sourcePlayer = context.SourcePlayer;
+        // Step 1: Validate input and extract selected cards
+        var validationResult = ValidateAndExtractInput(context, out var selectedCards);
+        if (validationResult is not null)
+            return validationResult;
+
+        // Step 2: Perform card conversion
+        var conversionResult = PerformCardConversion(context, selectedCards);
+        var actualCard = conversionResult.ActualCard;
+        var intermediateResults = conversionResult.UpdatedIntermediateResults ?? context.IntermediateResults;
+
+        // Step 3: Validate action using rule service
+        var ruleValidationResult = ValidateAction(context, actualCard);
+        if (ruleValidationResult is not null)
+            return ruleValidationResult;
+
+        // Step 4: Create specific resolver based on card type
+        var specificResolver = CreateSpecificResolver(actualCard);
+
+        // Step 5: Move cards if needed (before resolution)
+        var moveResult = MoveCardsIfNeeded(context, conversionResult, actualCard, selectedCards);
+        if (!moveResult.Success)
+            return moveResult;
+
+        // Step 6: Handle case where no specific resolver exists
+        if (specificResolver is null)
+            return ResolutionResult.SuccessResult;
+
+        // Step 7: Log card usage and publish events
+        LogAndPublishCardUsage(context, actualCard);
+
+        // Step 8: Update Action.CardCandidates for card conversion
+        var updatedAction = UpdateActionCandidates(context.Action, conversionResult, actualCard);
+
+        // Step 9: Push resolvers to stack
+        PushResolversToStack(context, specificResolver, updatedAction, intermediateResults, conversionResult, actualCard);
+
+        return ResolutionResult.SuccessResult;
+    }
+
+    /// <summary>
+    /// Validates input context and extracts selected cards from choice.
+    /// </summary>
+    private static ResolutionResult? ValidateAndExtractInput(
+        ResolutionContext context,
+        out List<Card> selectedCards)
+    {
+        selectedCards = new List<Card>();
+
         var action = context.Action;
         var choice = context.Choice;
+        var sourcePlayer = context.SourcePlayer;
 
         if (action is null)
         {
@@ -110,7 +183,6 @@ public sealed class UseCardResolver : IResolver
                 messageKey: "resolution.usecard.noChoice");
         }
 
-        // Extract card and targets from choice
         var selectedCardIds = choice.SelectedCardIds;
         if (selectedCardIds is null || selectedCardIds.Count == 0)
         {
@@ -119,87 +191,44 @@ public sealed class UseCardResolver : IResolver
                 messageKey: "resolution.usecard.noCardSelected");
         }
 
-        var cardId = selectedCardIds[0];
-        var card = sourcePlayer.HandZone.Cards.FirstOrDefault(c => c.Id == cardId);
-        if (card is null)
+        // Extract selected cards from hand (for multi-card conversion skills like Serpent Spear)
+        var handCards = sourcePlayer.HandZone.Cards?.ToList() ?? new List<Card>();
+        selectedCards = selectedCardIds
+            .Select(id => handCards.FirstOrDefault(c => c.Id == id))
+            .Where(c => c is not null)
+            .Cast<Card>()
+            .ToList();
+
+        if (selectedCards.Count != selectedCardIds.Count)
         {
             return ResolutionResult.Failure(
                 ResolutionErrorCode.CardNotFound,
                 messageKey: "resolution.usecard.cardNotFound",
-                details: new { CardId = cardId });
+                details: new { SelectedCardIds = selectedCardIds });
         }
 
-        // Get the actual card to use from IntermediateResults (set by CardConversionHelper before resolver is called)
-        // If not found, fall back to legacy conversion logic for backward compatibility
-        Card actualCard;
-        Card? originalCard = null;
-        bool isCardConversion = false;
+        return null; // Success
+    }
 
-        if (context.IntermediateResults is not null &&
-            context.IntermediateResults.TryGetValue("ActualCard", out var actualCardObj) &&
-            actualCardObj is Card resolvedCard)
-        {
-            // Conversion was already resolved by CardConversionHelper
-            actualCard = resolvedCard;
-            
-            // Check if conversion occurred
-            if (context.IntermediateResults.TryGetValue("ConversionOriginalCard", out var originalCardObj) &&
-                originalCardObj is Card original)
-            {
-                originalCard = original;
-                isCardConversion = true;
-            }
-        }
-        else
-        {
-            // Legacy path: perform conversion here for backward compatibility
-            // This allows existing code that creates ResolutionContext directly to still work
-            actualCard = card;
-            
-            // Determine the expected card type from the action
-            CardSubType? expectedCardSubType = action.ActionId switch
-            {
-                "UseGuoheChaiqiao" => CardSubType.GuoheChaiqiao,
-                // Add more action-to-card mappings here as needed
-                _ => null
-            };
+    /// <summary>
+    /// Performs card conversion using the conversion strategy executor.
+    /// </summary>
+    private CardConversionResult PerformCardConversion(
+        ResolutionContext context,
+        List<Card> selectedCards)
+    {
+        return _conversionExecutor.Execute(context, selectedCards, context.Action!);
+    }
 
-            // If action expects a specific card type and the selected card is not that type, try conversion
-            if (expectedCardSubType.HasValue && 
-                card.CardSubType != expectedCardSubType.Value &&
-                context.SkillManager is not null)
-            {
-                var skills = context.SkillManager.GetActiveSkills(game, sourcePlayer)
-                    .OfType<Skills.ICardConversionSkill>()
-                    .ToList();
-                
-                foreach (var skill in skills)
-                {
-                    var virtualCard = skill.CreateVirtualCard(card, game, sourcePlayer);
-                    if (virtualCard is not null && virtualCard.CardSubType == expectedCardSubType.Value)
-                    {
-                        originalCard = card;
-                        actualCard = virtualCard;
-                        isCardConversion = true;
-                        
-                        // Store original card and conversion skill in IntermediateResults for cleanup
-                        if (context.IntermediateResults is null)
-                        {
-                            // Note: We can't modify the context as it's a record, so we'll handle cleanup differently
-                            // The cleanup resolver will need to find the original card by ID
-                        }
-                        else
-                        {
-                            context.IntermediateResults["ConversionOriginalCard"] = originalCard;
-                            context.IntermediateResults["ConversionSkill"] = skill;
-                        }
-                        break; // Use the first matching conversion skill
-                    }
-                }
-            }
-        }
+    /// <summary>
+    /// Validates the action using the rule service.
+    /// </summary>
+    private static ResolutionResult? ValidateAction(ResolutionContext context, Card actualCard)
+    {
+        var game = context.Game;
+        var sourcePlayer = context.SourcePlayer;
+        var action = context.Action!;
 
-        // Final validation using rule service (use actualCard for validation)
         var ruleContext = new RuleContext(game, sourcePlayer);
         var validationResult = context.RuleService.ValidateActionBeforeResolve(
             ruleContext,
@@ -214,8 +243,15 @@ public sealed class UseCardResolver : IResolver
                 details: validationResult.Details);
         }
 
-        // Push specific resolver based on card type (use actualCard)
-        IResolver? specificResolver = actualCard.CardType switch
+        return null; // Success
+    }
+
+    /// <summary>
+    /// Creates a specific resolver based on the card type.
+    /// </summary>
+    private static IResolver? CreateSpecificResolver(Card actualCard)
+    {
+        return actualCard.CardType switch
         {
             CardType.Equip => new EquipResolver(),
             CardType.Trick => actualCard.CardSubType switch
@@ -240,24 +276,34 @@ public sealed class UseCardResolver : IResolver
                 _ => null
             }
         };
+    }
 
-        // For card conversion, don't move the original card yet - CardConversionCleanupResolver will handle it
-        // For equipment cards, don't move to discard pile yet - EquipResolver will handle it
-        // For delayed tricks, don't move to discard pile yet - DelayedTrickResolver will move to judgement zone
-        // For other cards, move to discard pile first
-        var isDelayedTrick = actualCard.CardType == CardType.Trick &&
-                            (actualCard.CardSubType == CardSubType.DelayedTrick ||
-                             actualCard.CardSubType == CardSubType.Lebusishu ||
-                             actualCard.CardSubType == CardSubType.Shandian);
+    /// <summary>
+    /// Moves cards if needed based on the move strategy.
+    /// </summary>
+    private ResolutionResult MoveCardsIfNeeded(
+        ResolutionContext context,
+        CardConversionResult conversionResult,
+        Card actualCard,
+        List<Card> selectedCards)
+    {
+        var game = context.Game;
+        var sourcePlayer = context.SourcePlayer;
 
-        if (!isCardConversion && actualCard.CardType != CardType.Equip && !isDelayedTrick)
+        // Determine if this is a delayed trick
+        var isDelayedTrick = IsDelayedTrick(actualCard);
+
+        // Use strategy pattern to determine card movement
+        var moveResult = _moveExecutor.Execute(conversionResult, actualCard, isDelayedTrick, selectedCards);
+
+        // Move cards before resolution if needed
+        if (moveResult.ShouldMove && moveResult.MoveBeforeResolution && moveResult.CardsToMove is not null)
         {
             try
             {
-                // Use the original card object (not actualCard) for discarding,
+                // Note: We move the original card(s), not the virtual card
                 // as DiscardFromHand uses object reference comparison
-                var cardsToMove = new[] { card };
-                context.CardMoveService.DiscardFromHand(game, sourcePlayer, cardsToMove);
+                context.CardMoveService.DiscardFromHand(game, sourcePlayer, moveResult.CardsToMove.ToList());
             }
             catch (Exception ex)
             {
@@ -268,15 +314,30 @@ public sealed class UseCardResolver : IResolver
             }
         }
 
-        if (specificResolver is null)
-        {
-            // Card type not supported yet
-            // For non-equipment cards, card was already moved to discard pile
-            // This is acceptable for now as the card was successfully "used"
-            return ResolutionResult.SuccessResult;
-        }
+        return ResolutionResult.SuccessResult;
+    }
 
-        // Log card usage event if log collector is available (use actualCard)
+    /// <summary>
+    /// Determines if a card is a delayed trick.
+    /// </summary>
+    private static bool IsDelayedTrick(Card card)
+    {
+        return card.CardType == CardType.Trick &&
+               (card.CardSubType == CardSubType.DelayedTrick ||
+                card.CardSubType == CardSubType.Lebusishu ||
+                card.CardSubType == CardSubType.Shandian);
+    }
+
+    /// <summary>
+    /// Logs card usage and publishes card used events.
+    /// </summary>
+    private static void LogAndPublishCardUsage(ResolutionContext context, Card actualCard)
+    {
+        var game = context.Game;
+        var sourcePlayer = context.SourcePlayer;
+        var choice = context.Choice!;
+
+        // Log card usage event if log collector is available
         if (context.LogCollector is not null)
         {
             var sequenceNumber = context.LogCollector.GetNextSequenceNumber();
@@ -293,7 +354,7 @@ public sealed class UseCardResolver : IResolver
             context.LogCollector.Collect(logEvent);
         }
 
-        // Publish CardUsedEvent for skills that need to track card usage (e.g., Keji) (use actualCard)
+        // Publish CardUsedEvent for skills that need to track card usage (e.g., Keji)
         if (context.EventBus is not null)
         {
             var cardUsedEvent = new CardUsedEvent(
@@ -304,66 +365,138 @@ public sealed class UseCardResolver : IResolver
             );
             context.EventBus.Publish(cardUsedEvent);
         }
+    }
 
-        // For card conversion, update Action.CardCandidates to use the virtual card
-        ActionDescriptor? updatedAction = action;
-        if (isCardConversion && originalCard is not null && action.CardCandidates is not null)
+    /// <summary>
+    /// Updates Action.CardCandidates for card conversion scenarios.
+    /// </summary>
+    private static ActionDescriptor? UpdateActionCandidates(
+        ActionDescriptor? action,
+        CardConversionResult conversionResult,
+        Card actualCard)
+    {
+        if (!conversionResult.IsConversion || action?.CardCandidates is null)
+            return action;
+
+        var updatedCandidates = action.CardCandidates.ToList();
+
+        // Update single-card conversion
+        if (conversionResult.OriginalCard is not null)
         {
-            var updatedCandidates = action.CardCandidates
-                .Select(c => c.Id == originalCard.Id ? actualCard : c)
-                .ToList();
-            updatedAction = action with { CardCandidates = updatedCandidates };
+            for (int i = 0; i < updatedCandidates.Count; i++)
+            {
+                if (updatedCandidates[i].Id == conversionResult.OriginalCard.Id)
+                {
+                    updatedCandidates[i] = actualCard;
+                    break;
+                }
+            }
         }
 
-        // Create new context for the specific resolver (use updatedAction)
-        var newContext = new ResolutionContext(
-            game,
-            sourcePlayer,
+        // Update multi-card conversion (replace all original cards with virtual card)
+        if (conversionResult.OriginalCards is not null)
+        {
+            var originalCardIds = conversionResult.OriginalCards.Select(c => c.Id).ToHashSet();
+            for (int i = 0; i < updatedCandidates.Count; i++)
+            {
+                if (originalCardIds.Contains(updatedCandidates[i].Id))
+                {
+                    updatedCandidates[i] = actualCard;
+                }
+            }
+        }
+
+        return action with { CardCandidates = updatedCandidates };
+    }
+
+    /// <summary>
+    /// Pushes resolvers to the resolution stack.
+    /// </summary>
+    private void PushResolversToStack(
+        ResolutionContext context,
+        IResolver specificResolver,
+        ActionDescriptor? updatedAction,
+        Dictionary<string, object>? intermediateResults,
+        CardConversionResult conversionResult,
+        Card actualCard)
+    {
+        var game = context.Game;
+        var sourcePlayer = context.SourcePlayer;
+        var choice = context.Choice!;
+
+        // Create new context for the specific resolver
+        var newContext = CreateResolverContext(
+            context,
             updatedAction,
             choice,
-            context.Stack,
-            context.CardMoveService,
-            context.RuleService,
-            context.PendingDamage,
-            context.LogSink,
-            context.GetPlayerChoice,
-            context.IntermediateResults,
-            context.EventBus,
-            context.LogCollector,
-            context.SkillManager,
-            context.EquipmentSkillRegistry,
-            context.JudgementService
-        );
+            intermediateResults);
 
         // Push the specific resolver onto the stack
         context.Stack.Push(specificResolver, newContext);
 
-        // For card conversion, push a resolver to move the original card to discard pile after resolution
-        if (isCardConversion && originalCard is not null)
+        // Push cleanup resolver if needed (for equipment cards or other special cases)
+        var cleanupResolver = _cleanupService.CreateCleanupResolver(conversionResult);
+        if (cleanupResolver is not null && _cleanupService.NeedsCleanup(conversionResult, actualCard.CardType))
         {
-            var conversionCleanupResolver = new CardConversionCleanupResolver(originalCard);
-            var cleanupContext = new ResolutionContext(
-                game,
-                sourcePlayer,
-                null,
-                null,
-                context.Stack,
-                context.CardMoveService,
-                context.RuleService,
-                null,
-                context.LogSink,
-                context.GetPlayerChoice,
-                context.IntermediateResults,
-                context.EventBus,
-                context.LogCollector,
-                context.SkillManager,
-                context.EquipmentSkillRegistry,
-                context.JudgementService
-            );
-            context.Stack.Push(conversionCleanupResolver, cleanupContext);
+            var cleanupContext = CreateCleanupContext(context, intermediateResults);
+            context.Stack.Push(cleanupResolver, cleanupContext);
         }
+    }
 
-        return ResolutionResult.SuccessResult;
+    /// <summary>
+    /// Creates a resolution context for the specific resolver.
+    /// </summary>
+    private static ResolutionContext CreateResolverContext(
+        ResolutionContext originalContext,
+        ActionDescriptor? action,
+        ChoiceResult choice,
+        Dictionary<string, object>? intermediateResults)
+    {
+        return new ResolutionContext(
+            originalContext.Game,
+            originalContext.SourcePlayer,
+            action,
+            choice,
+            originalContext.Stack,
+            originalContext.CardMoveService,
+            originalContext.RuleService,
+            originalContext.PendingDamage,
+            originalContext.LogSink,
+            originalContext.GetPlayerChoice,
+            intermediateResults,
+            originalContext.EventBus,
+            originalContext.LogCollector,
+            originalContext.SkillManager,
+            originalContext.EquipmentSkillRegistry,
+            originalContext.JudgementService
+        );
+    }
+
+    /// <summary>
+    /// Creates a resolution context for the cleanup resolver.
+    /// </summary>
+    private static ResolutionContext CreateCleanupContext(
+        ResolutionContext originalContext,
+        Dictionary<string, object>? intermediateResults)
+    {
+        return new ResolutionContext(
+            originalContext.Game,
+            originalContext.SourcePlayer,
+            null,
+            null,
+            originalContext.Stack,
+            originalContext.CardMoveService,
+            originalContext.RuleService,
+            null,
+            originalContext.LogSink,
+            originalContext.GetPlayerChoice,
+            intermediateResults,
+            originalContext.EventBus,
+            originalContext.LogCollector,
+            originalContext.SkillManager,
+            originalContext.EquipmentSkillRegistry,
+            originalContext.JudgementService
+        );
     }
 }
 
