@@ -182,4 +182,68 @@ public static class ResolutionExtensions
             }
         });
     }
+
+    /// <summary>
+    /// Registers the UseQingnang action handler that uses the resolution pipeline.
+    /// </summary>
+    /// <param name="mapper">The action resolution mapper to register with.</param>
+    /// <param name="cardMoveService">The card move service for card operations.</param>
+    /// <param name="ruleService">The rule service for validation.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for response windows. May be null if response windows are not supported.</param>
+    public static void RegisterUseQingnangHandler(
+        this ActionResolutionMapper mapper,
+        ICardMoveService cardMoveService,
+        IRuleService ruleService,
+        Func<ChoiceRequest, ChoiceResult>? getPlayerChoice = null)
+    {
+        if (mapper is null) throw new ArgumentNullException(nameof(mapper));
+        if (cardMoveService is null) throw new ArgumentNullException(nameof(cardMoveService));
+        if (ruleService is null) throw new ArgumentNullException(nameof(ruleService));
+
+        mapper.Register("UseQingnang", (context, action, originalRequest, playerChoice) =>
+        {
+            if (playerChoice is null)
+            {
+                throw new InvalidOperationException("UseQingnang requires a player choice");
+            }
+
+            // Create resolution stack
+            var stack = new BasicResolutionStack();
+
+            // Create resolution context for skill usage (no card conversion needed)
+            var resolutionContext = new ResolutionContext(
+                context.Game,
+                context.CurrentPlayer,
+                action,
+                playerChoice,
+                stack,
+                cardMoveService,
+                ruleService,
+                PendingDamage: null,
+                LogSink: null,
+                GetPlayerChoice: getPlayerChoice,
+                IntermediateResults: null,
+                EventBus: null,
+                LogCollector: null,
+                SkillManager: null,
+                EquipmentSkillRegistry: null,
+                JudgementService: null);
+
+            // Create and push QingnangResolver
+            var qingnangResolver = new QingnangResolver();
+            stack.Push(qingnangResolver, resolutionContext);
+
+            // Execute all resolvers in the stack
+            while (!stack.IsEmpty)
+            {
+                var result = stack.Pop();
+                if (!result.Success)
+                {
+                    // If any resolver fails, throw an exception with error details
+                    throw new InvalidOperationException(
+                        $"Resolution failed: {result.MessageKey ?? result.ErrorCode?.ToString()}");
+                }
+            }
+        });
+    }
 }

@@ -313,3 +313,18 @@ public interface ICardConversionSkill : ISkill
     /// <returns>The virtual card, or null if conversion is not applicable for this card.</returns>
     Card? CreateVirtualCard(Card originalCard, Game game, Player owner);
 }
+
+/// <summary>
+/// Interface for skills that can provide actions.
+/// Used by active skills that initiate choices and need to generate action descriptors.
+/// </summary>
+public interface IActionProvidingSkill : ISkill
+{
+    /// <summary>
+    /// Generates an action descriptor for this skill if conditions are met.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <returns>The action descriptor if conditions are met, null otherwise.</returns>
+    Rules.ActionDescriptor? GenerateAction(Game game, Player owner);
+}

@@ -581,6 +581,13 @@ public sealed class ActionQueryService : IActionQueryService
             // Convert dictionary to list
             actions.AddRange(actionsByActionId.Values);
 
+            // Generate actions for active skills
+            if (_skillManager is not null)
+            {
+                var skillActions = GenerateSkillActions(game, player);
+                actions.AddRange(skillActions);
+            }
+
             // EndPlayPhase: always available during Play phase.
             actions.Add(new ActionDescriptor(
                 ActionId: "EndPlayPhase",
@@ -743,6 +750,36 @@ public sealed class ActionQueryService : IActionQueryService
         }
         
         return conversionTargets;
+    }
+
+    /// <summary>
+    /// Generates actions for active skills that can be used in the current phase.
+    /// </summary>
+    private List<ActionDescriptor> GenerateSkillActions(Game game, Player player)
+    {
+        var actions = new List<ActionDescriptor>();
+
+        if (_skillManager is null)
+            return actions;
+
+        var activeSkills = _skillManager.GetActiveSkills(game, player)
+            .Where(s => s.Type == SkillType.Active && s.IsActive(game, player))
+            .ToList();
+
+        foreach (var skill in activeSkills)
+        {
+            // Check if skill can provide actions
+            if (skill is Skills.IActionProvidingSkill actionProvidingSkill)
+            {
+                var skillAction = actionProvidingSkill.GenerateAction(game, player);
+                if (skillAction is not null)
+                {
+                    actions.Add(skillAction);
+                }
+            }
+        }
+
+        return actions;
     }
 
     /// <summary>
