@@ -711,6 +711,18 @@ public sealed class ActionQueryService : IActionQueryService
                 
                 if (!_cardUsageRules.CanUseCard(usage).IsAllowed)
                     continue;
+
+                // For cards that require targets, check if there are legal targets
+                // This ensures we don't generate actions for cards that can't actually be used
+                var targetConstraints = GetTargetConstraintsForCardSubType(targetSubType);
+                
+                if (targetConstraints is not null && targetConstraints.MinTargets > 0)
+                {
+                    var legalTargetsResult = _cardUsageRules.GetLegalTargets(usage);
+                    
+                    if (!legalTargetsResult.HasAny)
+                        continue;
+                }
                 
                 // Add to candidates for this target card type
                 if (!conversionTargets.TryGetValue(targetSubType, out var candidates))
@@ -744,6 +756,7 @@ public sealed class ActionQueryService : IActionQueryService
             CardSubType.Slash => "UseSlash",
             CardSubType.Peach => "UsePeach",
             CardSubType.GuoheChaiqiao => "UseGuoheChaiqiao",
+            CardSubType.Lebusishu => "UseLebusishu",
             // Add more mappings as needed
             _ => null
         };
@@ -774,6 +787,10 @@ public sealed class ActionQueryService : IActionQueryService
                 MaxTargets: 0,
                 FilterType: TargetFilterType.SelfOrFriends),
             CardSubType.GuoheChaiqiao => new TargetConstraints(
+                MinTargets: 1,
+                MaxTargets: 1,
+                FilterType: TargetFilterType.Any),
+            CardSubType.Lebusishu => new TargetConstraints(
                 MinTargets: 1,
                 MaxTargets: 1,
                 FilterType: TargetFilterType.Any),
