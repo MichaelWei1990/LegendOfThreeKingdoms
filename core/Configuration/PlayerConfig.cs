@@ -1,3 +1,5 @@
+using LegendOfThreeKingdoms.Core.Model;
+
 namespace LegendOfThreeKingdoms.Core.Configuration;
 
 /// <summary>
@@ -26,6 +28,11 @@ public sealed class PlayerConfig
     /// Hero/character identifier used to load abilities from content.
     /// </summary>
     public string? HeroId { get; init; }
+
+    /// <summary>
+    /// Gender of the player character.
+    /// </summary>
+    public Gender Gender { get; init; } = Gender.Neutral;
 
     /// <summary>
     /// Maximum health at the start of the game.

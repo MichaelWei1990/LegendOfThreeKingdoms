@@ -86,6 +86,7 @@ public sealed class Game
                 CampId = p.CampId,
                 FactionId = p.FactionId,
                 HeroId = p.HeroId,
+                Gender = p.Gender,
                 MaxHealth = p.MaxHealth,
                 CurrentHealth = p.InitialHealth,
                 IsAlive = true,
