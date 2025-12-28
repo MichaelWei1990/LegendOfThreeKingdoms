@@ -411,6 +411,24 @@ public sealed record AfterCardTargetsDeclaredEvent(
 }
 
 /// <summary>
+/// Event published when a player becomes a target of a Slash.
+/// This event is published after targets are declared but before the response window,
+/// allowing skills like Liuli (流离) to redirect the Slash to another target.
+/// </summary>
+public sealed record SlashTargetedEvent(
+    Game Game,
+    int AttackerSeat,
+    int TargetSeat,
+    Card SlashCard,
+    DamageDescriptor PendingDamage,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
 /// Event published when a Slash is dodged by a Dodge (闪) response.
 /// This event is published after the Dodge successfully cancels the Slash,
 /// before the damage would have been applied. Used by skills like Stone Axe (贯石斧)

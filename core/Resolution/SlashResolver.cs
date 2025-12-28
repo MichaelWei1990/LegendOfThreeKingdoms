@@ -147,7 +147,73 @@ public sealed class SlashResolver : IResolver
         // Step 5: Setup Slash resolution (damage, modifiers, etc.)
         var setupResult = SetupSlashResolution(context, slashCard, target);
 
-        // Step 6: Setup resolution stack (response window and handler)
+        // Step 5.5: Check for target modifying skills (e.g., Liuli)
+        // This happens after damage descriptor is created but before response window
+        if (context.SkillManager is not null && context.RuleService is not null)
+        {
+            var targetModifyingSkill = FindSlashTargetModifyingSkill(
+                context.SkillManager,
+                context.Game,
+                target,
+                context.SourcePlayer,
+                slashCard,
+                context.RuleService);
+            
+            if (targetModifyingSkill is not null)
+            {
+                // Check if skill can modify target
+                if (targetModifyingSkill.CanModifyTarget(
+                    context.Game,
+                    target,
+                    context.SourcePlayer,
+                    slashCard,
+                    context.RuleService!))
+                {
+                    // Create target modification resolver
+                    var modificationResolver = targetModifyingSkill.CreateTargetModificationResolver(
+                        target,
+                        context.SourcePlayer,
+                        slashCard,
+                        setupResult.Damage);
+                    
+                    if (modificationResolver is not null)
+                    {
+                        // Push a wrapper resolver that will:
+                        // 1. Execute the target modification resolver
+                        // 2. Read the modified target from IntermediateResults
+                        // 3. Setup the response window with the correct target
+                        var wrapperContext = new ResolutionContext(
+                            context.Game,
+                            context.SourcePlayer,
+                            context.Action,
+                            context.Choice,
+                            context.Stack,
+                            context.CardMoveService,
+                            context.RuleService,
+                            context.PendingDamage,
+                            context.LogSink,
+                            context.GetPlayerChoice,
+                            setupResult.IntermediateResults,
+                            context.EventBus,
+                            context.LogCollector,
+                            context.SkillManager,
+                            context.EquipmentSkillRegistry,
+                            context.JudgementService);
+                        
+                        var wrapperResolver = new SlashTargetModificationWrapperResolver(
+                            setupResult,
+                            target,
+                            slashCard,
+                            modificationResolver);
+                        
+                        context.Stack.Push(wrapperResolver, wrapperContext);
+                        return ResolutionResult.SuccessResult;
+                    }
+                }
+            }
+        }
+
+        // No target modification - setup resolution stack normally
         SetupResolutionStack(context, setupResult, target, slashCard);
 
         return ResolutionResult.SuccessResult;
@@ -422,7 +488,7 @@ public sealed class SlashResolver : IResolver
     /// <summary>
     /// Sets up the resolution stack with response window and handler resolver.
     /// </summary>
-    private static void SetupResolutionStack(
+    internal static void SetupResolutionStack(
         ResolutionContext context,
         SlashSetupResult setupResult,
         Player target,
@@ -449,6 +515,36 @@ public sealed class SlashResolver : IResolver
 
         // Push response window onto stack last (will execute first due to LIFO)
         context.Stack.Push(responseWindow, setupResult.ResponseContext);
+    }
+
+    /// <summary>
+    /// Finds a Slash target modifying skill for the target player.
+    /// </summary>
+    private static ISlashTargetModifyingSkill? FindSlashTargetModifyingSkill(
+        SkillManager skillManager,
+        Game game,
+        Player target,
+        Player attacker,
+        Card slashCard,
+        IRuleService ruleService)
+    {
+        if (skillManager is null || !target.IsAlive)
+            return null;
+
+        var targetSkills = skillManager.GetActiveSkills(game, target);
+        foreach (var skill in targetSkills)
+        {
+            if (skill is ISlashTargetModifyingSkill modifyingSkill)
+            {
+                // Check if this skill can modify the target
+                if (modifyingSkill.CanModifyTarget(game, target, attacker, slashCard, ruleService))
+                {
+                    return modifyingSkill;
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -721,4 +817,117 @@ internal sealed class SlashSetupResult
     public ResolutionContext HandlerContext { get; init; } = null!;
     public bool Success => Damage is not null && IntermediateResults is not null && 
                           ResponseContext is not null && HandlerContext is not null;
+}
+
+/// <summary>
+/// Wrapper resolver that handles target modification for Slash.
+/// This resolver:
+/// 1. Executes the target modification resolver (e.g., Liuli)
+/// 2. Reads the modified target from IntermediateResults
+/// 3. Sets up the response window with the correct target
+/// </summary>
+internal sealed class SlashTargetModificationWrapperResolver : IResolver
+{
+    private readonly SlashSetupResult _setupResult;
+    private readonly Player _originalTarget;
+    private readonly Card _slashCard;
+    private readonly IResolver _modificationResolver;
+
+    public SlashTargetModificationWrapperResolver(
+        SlashSetupResult setupResult,
+        Player originalTarget,
+        Card slashCard,
+        IResolver modificationResolver)
+    {
+        _setupResult = setupResult ?? throw new ArgumentNullException(nameof(setupResult));
+        _originalTarget = originalTarget ?? throw new ArgumentNullException(nameof(originalTarget));
+        _slashCard = slashCard ?? throw new ArgumentNullException(nameof(slashCard));
+        _modificationResolver = modificationResolver ?? throw new ArgumentNullException(nameof(modificationResolver));
+    }
+
+    public ResolutionResult Resolve(ResolutionContext context)
+    {
+        if (context is null) throw new ArgumentNullException(nameof(context));
+
+        // Step 1: Execute the target modification resolver
+        var modificationContext = new ResolutionContext(
+            context.Game,
+            context.SourcePlayer,
+            context.Action,
+            context.Choice,
+            context.Stack,
+            context.CardMoveService,
+            context.RuleService,
+            context.PendingDamage,
+            context.LogSink,
+            context.GetPlayerChoice,
+            _setupResult.IntermediateResults,
+            context.EventBus,
+            context.LogCollector,
+            context.SkillManager,
+            context.EquipmentSkillRegistry,
+            context.JudgementService);
+
+        var modificationResult = _modificationResolver.Resolve(modificationContext);
+        if (!modificationResult.Success)
+        {
+            // Modification failed, use original target
+            SlashResolver.SetupResolutionStack(context, _setupResult, _originalTarget, _slashCard);
+            return ResolutionResult.SuccessResult;
+        }
+
+        // Step 2: Read the modified target from IntermediateResults
+        var intermediateResults = _setupResult.IntermediateResults;
+        Player? actualTarget = _originalTarget;
+        DamageDescriptor actualDamage = _setupResult.Damage;
+
+        if (intermediateResults is not null && intermediateResults.TryGetValue("LiuliNewTargetSeat", out var newTargetSeatObj))
+        {
+            if (newTargetSeatObj is int newTargetSeat)
+            {
+                var newTarget = context.Game.Players.FirstOrDefault(p => p.Seat == newTargetSeat);
+                if (newTarget is not null && newTarget.IsAlive)
+                {
+                    actualTarget = newTarget;
+
+                    // Update damage descriptor if it was modified
+                    if (intermediateResults.TryGetValue("SlashPendingDamage", out var modifiedDamageObj) &&
+                        modifiedDamageObj is DamageDescriptor modifiedDamage)
+                    {
+                        actualDamage = modifiedDamage;
+                    }
+                    else
+                    {
+                        // Create new damage descriptor with new target
+                        actualDamage = new DamageDescriptor(
+                            SourceSeat: _setupResult.Damage.SourceSeat,
+                            TargetSeat: newTargetSeat,
+                            Amount: _setupResult.Damage.Amount,
+                            Type: _setupResult.Damage.Type,
+                            Reason: _setupResult.Damage.Reason,
+                            CausingCard: _setupResult.Damage.CausingCard,
+                            CausingCards: _setupResult.Damage.CausingCards
+                        );
+                    }
+
+                    // Update setupResult with modified damage
+                    var updatedSetupResult = new SlashSetupResult
+                    {
+                        Damage = actualDamage,
+                        IntermediateResults = _setupResult.IntermediateResults,
+                        ResponseContext = _setupResult.ResponseContext,
+                        HandlerContext = _setupResult.HandlerContext
+                    };
+
+                    // Step 3: Setup resolution stack with modified target
+                    SlashResolver.SetupResolutionStack(context, updatedSetupResult, actualTarget, _slashCard);
+                    return ResolutionResult.SuccessResult;
+                }
+            }
+        }
+
+        // No target modification occurred, use original target
+        SlashResolver.SetupResolutionStack(context, _setupResult, _originalTarget, _slashCard);
+        return ResolutionResult.SuccessResult;
+    }
 }

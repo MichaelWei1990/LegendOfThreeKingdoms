@@ -597,3 +597,42 @@ public interface IResponseAssistanceSkill : ISkill
     /// <returns>True if the owner chooses to activate the skill, false otherwise.</returns>
     bool ShouldActivate(Game game, Player owner, Func<Rules.ChoiceRequest, Rules.ChoiceResult> getPlayerChoice);
 }
+
+/// <summary>
+/// Interface for skills that can modify or redirect Slash targets.
+/// Used by skills like Liuli (流离) that allow a player to redirect a Slash to another target.
+/// </summary>
+public interface ISlashTargetModifyingSkill : ISkill
+{
+    /// <summary>
+    /// Checks whether this skill can modify the Slash target.
+    /// This is called when a Slash targets the owner, before the response window.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill (the current target).</param>
+    /// <param name="attacker">The player who used the Slash.</param>
+    /// <param name="slashCard">The Slash card being used.</param>
+    /// <param name="ruleService">The rule service (contains range rule service internally).</param>
+    /// <returns>True if the skill can modify the target, false otherwise.</returns>
+    bool CanModifyTarget(
+        Game game,
+        Player owner,
+        Player attacker,
+        Model.Card slashCard,
+        Rules.IRuleService ruleService);
+
+    /// <summary>
+    /// Creates a resolver that handles the target modification.
+    /// This resolver will be pushed onto the resolution stack before the response window.
+    /// </summary>
+    /// <param name="owner">The player who owns this skill (the current target).</param>
+    /// <param name="attacker">The player who used the Slash.</param>
+    /// <param name="slashCard">The Slash card being used.</param>
+    /// <param name="pendingDamage">The pending damage descriptor (can be modified to change target).</param>
+    /// <returns>A resolver that handles the target modification, or null if the skill should not be activated.</returns>
+    Resolution.IResolver? CreateTargetModificationResolver(
+        Player owner,
+        Player attacker,
+        Model.Card slashCard,
+        Resolution.DamageDescriptor pendingDamage);
+}
