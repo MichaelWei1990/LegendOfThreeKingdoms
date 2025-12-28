@@ -52,6 +52,14 @@ public sealed class JieYinSkill : BaseSkill, IPhaseLimitedActionProvidingSkill
         return $"jieyin_used_playphase_turn_{game.TurnNumber}_seat_{owner.Seat}";
     }
 
+    /// <summary>
+    /// Gets the usage key for tracking skill usage (static helper for nested resolver).
+    /// </summary>
+    private static string GetUsageKeyStatic(Game game, Player owner)
+    {
+        return $"jieyin_used_playphase_turn_{game.TurnNumber}_seat_{owner.Seat}";
+    }
+
     /// <inheritdoc />
     public ActionDescriptor? GenerateAction(Game game, Player owner)
     {
@@ -174,7 +182,7 @@ public sealed class JieYinSkill : BaseSkill, IPhaseLimitedActionProvidingSkill
                 return discardResult;
 
             // Mark skill as used
-            MarkSkillAsUsed(game, context);
+            MarkSkillAsUsed(game);
 
             // Recover health for both owner and target
             var ownerRecover = RecoverHealth(_owner, 1);
@@ -302,22 +310,12 @@ public sealed class JieYinSkill : BaseSkill, IPhaseLimitedActionProvidingSkill
             }
         }
 
-        private void MarkSkillAsUsed(Game game, ResolutionContext context)
+        private void MarkSkillAsUsed(Game game)
         {
-            // Get skill instance from SkillManager if available
-            if (context.SkillManager is not null)
-            {
-                var skills = context.SkillManager.GetAllSkills(_owner);
-                var jieYinSkill = skills.FirstOrDefault(s => s.Id == "jieyin") as IPhaseLimitedActionProvidingSkill;
-                if (jieYinSkill is not null)
-                {
-                    jieYinSkill.MarkAsUsed(game, _owner);
-                    return;
-                }
-            }
-
-            // Fall back to direct flag setting if SkillManager is not available
-            var usageKey = $"jieyin_used_playphase_turn_{game.TurnNumber}_seat_{_owner.Seat}";
+            // Directly set the flag using the static helper method
+            // Since this resolver is nested in JieYinSkill, we can use the static method
+            // without needing to look up the skill instance from SkillManager
+            var usageKey = JieYinSkill.GetUsageKeyStatic(game, _owner);
             _owner.Flags[usageKey] = true;
         }
 
