@@ -246,6 +246,46 @@ public sealed record PlayerDiedEvent(
 }
 
 /// <summary>
+/// Event published when a player loses HP (not from damage).
+/// This is distinct from damage events and should not trigger skills that respond to damage.
+/// Used by skills like Kurou (苦肉) that lose HP as a cost.
+/// </summary>
+public sealed record HpLostEvent(
+    Game Game,
+    int TargetSeat,
+    int Amount,
+    int PreviousHealth,
+    int CurrentHealth,
+    object? Source,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
+/// Event published after HP loss is fully resolved, including dying process if applicable.
+/// This event is published after:
+/// - LoseHpResolver completes (if no dying)
+/// - DyingRescueHandlerResolver completes successfully (if dying was triggered and player was saved)
+/// This event is used by skills that need to react after HP loss and dying are fully resolved.
+/// </summary>
+public sealed record AfterHpLostEvent(
+    Game Game,
+    int TargetSeat,
+    int Amount,
+    int PreviousHealth,
+    int CurrentHealth,
+    object? Source,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
 /// Event published when cards are moved between zones.
 /// This event wraps the existing CardMoveEvent structure to implement IGameEvent.
 /// </summary>
