@@ -280,6 +280,13 @@ public sealed class BasicCardMoveService : ICardMoveService
 
         _onBeforeMove?.Invoke(beforeEvent);
 
+        // Publish Before CardMovedEvent if event bus is available and Game is provided
+        if (_eventBus is not null && descriptor.Game is not null)
+        {
+            var beforeCardMovedEvent = new CardMovedEvent(descriptor.Game, beforeEvent);
+            _eventBus.Publish(beforeCardMovedEvent);
+        }
+
         // Remove cards from the source zone. We remove by instance reference
 
         // rather than index so we do not depend on any particular ordering
