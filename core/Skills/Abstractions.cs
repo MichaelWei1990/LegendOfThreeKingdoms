@@ -364,6 +364,50 @@ public interface IActionProvidingSkill : ISkill
 }
 
 /// <summary>
+/// Interface for active skills that are limited to once per phase or once per turn.
+/// This is a marker interface that extends IActionProvidingSkill to indicate
+/// that the skill has usage restrictions that need to be tracked.
+/// </summary>
+public interface IPhaseLimitedActionProvidingSkill : IActionProvidingSkill
+{
+    /// <summary>
+    /// Gets the usage limit type for this skill.
+    /// </summary>
+    SkillUsageLimitType UsageLimitType { get; }
+
+    /// <summary>
+    /// Checks whether this skill has already been used in the current limit period.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <returns>True if the skill has already been used, false otherwise.</returns>
+    bool IsAlreadyUsed(Game game, Player owner);
+
+    /// <summary>
+    /// Marks this skill as used for the current limit period.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    void MarkAsUsed(Game game, Player owner);
+}
+
+/// <summary>
+/// Defines the type of usage limit for phase-limited active skills.
+/// </summary>
+public enum SkillUsageLimitType
+{
+    /// <summary>
+    /// Skill can be used once per play phase.
+    /// </summary>
+    OncePerPlayPhase,
+
+    /// <summary>
+    /// Skill can be used once per turn.
+    /// </summary>
+    OncePerTurn
+}
+
+/// <summary>
 /// Interface for skills that respond to before damage events.
 /// Used by trigger skills that need to react before damage is applied,
 /// such as Ice Sword (寒冰剑) that can prevent damage.

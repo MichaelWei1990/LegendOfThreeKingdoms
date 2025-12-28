@@ -13,7 +13,7 @@ namespace LegendOfThreeKingdoms.Core.Skills.Hero;
 /// <summary>
 /// JieYin (结姻) skill: Active skill that allows discarding 2 hand cards to recover 1 HP for both owner and a wounded male target, once per play phase.
 /// </summary>
-public sealed class JieYinSkill : BaseSkill, IActionProvidingSkill
+public sealed class JieYinSkill : BaseSkill, IPhaseLimitedActionProvidingSkill
 {
     /// <inheritdoc />
     public override string Id => "jieyin";
@@ -28,6 +28,31 @@ public sealed class JieYinSkill : BaseSkill, IActionProvidingSkill
     public override SkillCapability Capabilities => SkillCapability.InitiatesChoices;
 
     /// <inheritdoc />
+    public SkillUsageLimitType UsageLimitType => SkillUsageLimitType.OncePerPlayPhase;
+
+    /// <inheritdoc />
+    public bool IsAlreadyUsed(Game game, Player owner)
+    {
+        var usageKey = GetUsageKey(game, owner);
+        return owner.Flags.ContainsKey(usageKey);
+    }
+
+    /// <inheritdoc />
+    public void MarkAsUsed(Game game, Player owner)
+    {
+        var usageKey = GetUsageKey(game, owner);
+        owner.Flags[usageKey] = true;
+    }
+
+    /// <summary>
+    /// Gets the usage key for tracking skill usage.
+    /// </summary>
+    private string GetUsageKey(Game game, Player owner)
+    {
+        return $"jieyin_used_playphase_turn_{game.TurnNumber}_seat_{owner.Seat}";
+    }
+
+    /// <inheritdoc />
     public ActionDescriptor? GenerateAction(Game game, Player owner)
     {
         // Check conditions:
@@ -40,8 +65,7 @@ public sealed class JieYinSkill : BaseSkill, IActionProvidingSkill
             return null;
 
         // 3. Check if already used this play phase
-        var usageKey = $"jieyin_used_playphase_turn_{game.TurnNumber}_seat_{owner.Seat}";
-        if (owner.Flags.ContainsKey(usageKey))
+        if (IsAlreadyUsed(game, owner))
         {
             return null; // Already used this play phase
         }
@@ -150,7 +174,7 @@ public sealed class JieYinSkill : BaseSkill, IActionProvidingSkill
                 return discardResult;
 
             // Mark skill as used
-            MarkSkillAsUsed(game);
+            MarkSkillAsUsed(game, context);
 
             // Recover health for both owner and target
             var ownerRecover = RecoverHealth(_owner, 1);
@@ -278,8 +302,21 @@ public sealed class JieYinSkill : BaseSkill, IActionProvidingSkill
             }
         }
 
-        private void MarkSkillAsUsed(Game game)
+        private void MarkSkillAsUsed(Game game, ResolutionContext context)
         {
+            // Get skill instance from SkillManager if available
+            if (context.SkillManager is not null)
+            {
+                var skills = context.SkillManager.GetAllSkills(_owner);
+                var jieYinSkill = skills.FirstOrDefault(s => s.Id == "jieyin") as IPhaseLimitedActionProvidingSkill;
+                if (jieYinSkill is not null)
+                {
+                    jieYinSkill.MarkAsUsed(game, _owner);
+                    return;
+                }
+            }
+
+            // Fall back to direct flag setting if SkillManager is not available
             var usageKey = $"jieyin_used_playphase_turn_{game.TurnNumber}_seat_{_owner.Seat}";
             _owner.Flags[usageKey] = true;
         }

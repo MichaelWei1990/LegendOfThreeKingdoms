@@ -22,6 +22,7 @@ public static class WuHeroRegistration
         registry.RegisterSkill("liuli", new Hero.LiuliSkillFactory());
         registry.RegisterSkill("guose", new Hero.GuoseSkillFactory());
         registry.RegisterSkill("lianying", new Hero.LianyingSkillFactory());
+        registry.RegisterSkill("jieyin", new Hero.JieYinSkillFactory());
 
         // Register heroes with their skills
         // 1. 大乔 (Da Qiao)
@@ -29,6 +30,9 @@ public static class WuHeroRegistration
 
         // 2. 陆逊 (Lu Xun)
         registry.RegisterHeroSkills("luxun", new[] { "lianying" });
+
+        // 3. 孙尚香 (Sun Shangxiang)
+        registry.RegisterHeroSkills("sunshangxiang", new[] { "jieyin" });
     }
 }
 
