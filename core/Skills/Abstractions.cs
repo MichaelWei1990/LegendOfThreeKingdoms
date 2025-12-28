@@ -599,6 +599,22 @@ public interface IResponseAssistanceSkill : ISkill
 }
 
 /// <summary>
+/// Interface for skills that respond to card moved events.
+/// Used by trigger skills like Lianying (连营) that need to react when cards are moved,
+/// particularly when tracking hand card count changes.
+/// </summary>
+public interface ICardMovedSkill : ISkill
+{
+    /// <summary>
+    /// Handles the card moved event.
+    /// This method is called when a CardMovedEvent is published.
+    /// Skills can use this to track card movements and trigger effects based on zone changes.
+    /// </summary>
+    /// <param name="evt">The card moved event.</param>
+    void OnCardMoved(CardMovedEvent evt);
+}
+
+/// <summary>
 /// Interface for skills that can modify or redirect Slash targets.
 /// Used by skills like Liuli (流离) that allow a player to redirect a Slash to another target.
 /// </summary>
