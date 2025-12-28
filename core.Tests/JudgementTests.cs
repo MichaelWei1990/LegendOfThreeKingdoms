@@ -466,7 +466,8 @@ public sealed class JudgementTests
             player.Seat,
             JudgementReason.Skill,
             source,
-            rule);
+            rule,
+            AllowModify: false); // Set to false to directly execute judgement and store result
 
         var intermediateResults = new Dictionary<string, object>
         {

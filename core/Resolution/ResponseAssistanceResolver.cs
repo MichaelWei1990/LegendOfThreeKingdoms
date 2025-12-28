@@ -5,38 +5,38 @@ using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Response;
 using LegendOfThreeKingdoms.Core.Rules;
 using LegendOfThreeKingdoms.Core.Skills;
-using LegendOfThreeKingdoms.Core.Skills.Hero;
 
 namespace LegendOfThreeKingdoms.Core.Resolution;
 
 /// <summary>
-/// Resolver for Hujia (护驾) skill assistance flow.
-/// Handles asking Wei faction players to assist Cao Cao by playing Dodge on his behalf.
+/// Resolver for response assistance skills (e.g., Hujia 护驾).
+/// Handles asking other players to assist the beneficiary by playing response cards on their behalf.
+/// This is a generic resolver that works with any IResponseAssistanceSkill implementation.
 /// </summary>
-public sealed class HujiaResolver : IResolver
+public sealed class ResponseAssistanceResolver : IResolver
 {
     private readonly Player _beneficiary;
     private readonly ResponseType _responseType;
     private readonly object? _sourceEvent;
-    private readonly IResponseAssistanceSkill _hujiaSkill;
+    private readonly IResponseAssistanceSkill _assistanceSkill;
 
     /// <summary>
-    /// Creates a new HujiaResolver.
+    /// Creates a new ResponseAssistanceResolver.
     /// </summary>
-    /// <param name="beneficiary">The player who needs the response (Cao Cao).</param>
+    /// <param name="beneficiary">The player who needs the response.</param>
     /// <param name="responseType">The type of response needed.</param>
     /// <param name="sourceEvent">The source event that triggered the response requirement.</param>
-    /// <param name="hujiaSkill">The Hujia skill instance.</param>
-    public HujiaResolver(
+    /// <param name="assistanceSkill">The response assistance skill instance.</param>
+    public ResponseAssistanceResolver(
         Player beneficiary,
         ResponseType responseType,
         object? sourceEvent,
-        IResponseAssistanceSkill hujiaSkill)
+        IResponseAssistanceSkill assistanceSkill)
     {
         _beneficiary = beneficiary ?? throw new ArgumentNullException(nameof(beneficiary));
         _responseType = responseType;
         _sourceEvent = sourceEvent;
-        _hujiaSkill = hujiaSkill ?? throw new ArgumentNullException(nameof(hujiaSkill));
+        _assistanceSkill = assistanceSkill ?? throw new ArgumentNullException(nameof(assistanceSkill));
     }
 
     /// <inheritdoc />
@@ -57,8 +57,8 @@ public sealed class HujiaResolver : IResolver
                 details: new { Message = "Required services (GetPlayerChoice or CardMoveService) are missing" });
         }
 
-        // Get list of Wei faction assistants
-        var assistants = _hujiaSkill.GetAssistants(game, _beneficiary);
+        // Get list of assistants
+        var assistants = _assistanceSkill.GetAssistants(game, _beneficiary);
 
         if (assistants.Count == 0)
         {
@@ -142,8 +142,8 @@ public sealed class HujiaResolver : IResolver
                 context.EquipmentSkillRegistry,
                 context.JudgementService);
 
-            // Push handler that checks if assistant successfully provided Dodge
-            context.Stack.Push(new HujiaAssistanceHandlerResolver(_beneficiary, assistant), handlerContext);
+            // Push handler that checks if assistant successfully provided response
+            context.Stack.Push(new ResponseAssistanceHandlerResolver(_beneficiary, assistant), handlerContext);
 
             // Push response window for assistant (will execute first due to LIFO)
             context.Stack.Push(assistantResponseWindow, assistantResponseContext);
@@ -206,21 +206,21 @@ public sealed class HujiaResolver : IResolver
 }
 
 /// <summary>
-/// Handler resolver that checks if Hujia assistance was successful.
-/// If the assistant successfully provided Dodge, marks the response as satisfied.
+/// Handler resolver that checks if response assistance was successful.
+/// If the assistant successfully provided the response, marks it as satisfied.
 /// Otherwise, continues to next assistant or falls back to normal response.
 /// </summary>
-internal sealed class HujiaAssistanceHandlerResolver : IResolver
+internal sealed class ResponseAssistanceHandlerResolver : IResolver
 {
     private readonly Player _beneficiary;
     private readonly Player _assistant;
 
     /// <summary>
-    /// Creates a new HujiaAssistanceHandlerResolver.
+    /// Creates a new ResponseAssistanceHandlerResolver.
     /// </summary>
-    /// <param name="beneficiary">The player who needed the response (Cao Cao).</param>
+    /// <param name="beneficiary">The player who needed the response.</param>
     /// <param name="assistant">The assistant who attempted to provide the response.</param>
-    public HujiaAssistanceHandlerResolver(Player beneficiary, Player assistant)
+    public ResponseAssistanceHandlerResolver(Player beneficiary, Player assistant)
     {
         _beneficiary = beneficiary ?? throw new ArgumentNullException(nameof(beneficiary));
         _assistant = assistant ?? throw new ArgumentNullException(nameof(assistant));
@@ -254,21 +254,33 @@ internal sealed class HujiaAssistanceHandlerResolver : IResolver
             return ResolutionResult.SuccessResult;
         }
 
-        // Check if assistant successfully provided Dodge
+        // Check if assistant successfully provided response
         if (responseResult.State == ResponseWindowState.ResponseSuccess)
         {
-            // Assistant successfully provided Dodge - mark response as satisfied for beneficiary
+            // Assistant successfully provided response - mark response as satisfied for beneficiary
             // Store result so SlashResponseHandlerResolver can find it
             // The key "LastResponseResult" will be used by SlashResponseHandlerResolver
-            // Mark that Hujia was used successfully
-            context.IntermediateResults["HujiaAssistanceUsed"] = true;
-            context.IntermediateResults["HujiaAssistantSeat"] = _assistant.Seat;
+            // Mark that response assistance was used successfully
+            context.IntermediateResults["ResponseAssistanceUsed"] = true;
+            context.IntermediateResults["ResponseAssistantSeat"] = _assistant.Seat;
+
+            // Update DodgeRequestContext if it exists
+            if (context.IntermediateResults.TryGetValue("DodgeRequestContext", out var dodgeContextObj) &&
+                dodgeContextObj is Response.DodgeRequestContext dodgeContext)
+            {
+                dodgeContext.Resolved = true;
+                dodgeContext.ProvidedBy = _assistant;
+                if (responseResult.ResponseCard is not null)
+                {
+                    dodgeContext.ProvidedCard = responseResult.ResponseCard;
+                }
+            }
 
             return ResolutionResult.SuccessResult;
         }
 
-        // Assistant failed to provide Dodge
-        // The HujiaResolver will have already tried the next assistant or fallen back
+        // Assistant failed to provide response
+        // The ResponseAssistanceResolver will have already tried the next assistant or fallen back
         return ResolutionResult.SuccessResult;
     }
 }

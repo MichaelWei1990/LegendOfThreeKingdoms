@@ -487,6 +487,7 @@ public sealed class SlashResolver : IResolver
 
     /// <summary>
     /// Sets up the resolution stack with response window and handler resolver.
+    /// Uses DodgeProviderChainResolver to handle priority: Response Assistance > Bagua Array > Manual Dodge.
     /// </summary>
     internal static void SetupResolutionStack(
         ResolutionContext context,
@@ -499,22 +500,17 @@ public sealed class SlashResolver : IResolver
         // Push SlashResponseHandlerResolver onto stack first (will execute after response window due to LIFO)
         context.Stack.Push(new SlashResponseHandlerResolver(setupResult.Damage), setupResult.HandlerContext);
 
-        // Check if target has Hujia skill and wants to use it
-        if (TryUseHujia(context, setupResult, target, slashCard, sourcePlayer))
-        {
-            // Hujia was activated, resolver has been pushed
-            return;
-        }
+        // Create Dodge request context
+        var sourceEvent = new { Type = "Slash", SourceSeat = sourcePlayer.Seat, TargetSeat = target.Seat, SlashCard = slashCard };
+        var dodgeRequestContext = new Response.DodgeRequestContext(
+            defender: target,
+            attacker: sourcePlayer,
+            sourceEvent: sourceEvent);
 
-        // Hujia not used or not available - create normal response window for Jink
-        // Include SlashCard in sourceEvent for equipment skills that need to check armor validity
-        var responseWindow = setupResult.ResponseContext.CreateJinkResponseWindow(
-            targetPlayer: target,
-            sourceEvent: new { Type = "Slash", SourceSeat = sourcePlayer.Seat, TargetSeat = target.Seat, SlashCard = slashCard },
-            getPlayerChoice: context.GetPlayerChoice!);
-
-        // Push response window onto stack last (will execute first due to LIFO)
-        context.Stack.Push(responseWindow, setupResult.ResponseContext);
+        // Create and push DodgeProviderChainResolver
+        // This will try providers in priority order: Response Assistance (Hujia) > Bagua Array > Manual Dodge
+        var dodgeChainResolver = new Response.DodgeProviderChainResolver(dodgeRequestContext);
+        context.Stack.Push(dodgeChainResolver, setupResult.ResponseContext);
     }
 
     /// <summary>
@@ -548,11 +544,11 @@ public sealed class SlashResolver : IResolver
     }
 
     /// <summary>
-    /// Checks if target has Hujia skill and wants to use it.
-    /// If yes, pushes HujiaResolver onto the stack.
+    /// Checks if target has a response assistance skill and wants to use it.
+    /// If yes, pushes ResponseAssistanceResolver onto the stack.
     /// </summary>
-    /// <returns>True if Hujia was activated, false otherwise.</returns>
-    private static bool TryUseHujia(
+    /// <returns>True if response assistance was activated, false otherwise.</returns>
+    private static bool TryUseResponseAssistance(
         ResolutionContext context,
         SlashSetupResult setupResult,
         Player target,
@@ -563,27 +559,27 @@ public sealed class SlashResolver : IResolver
         if (context.SkillManager is null || context.GetPlayerChoice is null)
             return false;
 
-        // Check if target has Hujia skill
+        // Find any response assistance skill for the target
         var targetSkills = context.SkillManager.GetActiveSkills(context.Game, target);
-        var hujiaSkill = targetSkills.OfType<Skills.IResponseAssistanceSkill>()
-            .FirstOrDefault(s => s.Id == "hujia");
+        var assistanceSkill = targetSkills.OfType<Skills.IResponseAssistanceSkill>()
+            .FirstOrDefault();
 
-        if (hujiaSkill is null)
+        if (assistanceSkill is null)
             return false;
 
-        // Check if Hujia can provide assistance for this response type
+        // Check if the skill can provide assistance for this response type
         var sourceEvent = new { Type = "Slash", SourceSeat = sourcePlayer.Seat, TargetSeat = target.Seat, SlashCard = slashCard };
-        if (!hujiaSkill.CanProvideAssistance(context.Game, target, ResponseType.JinkAgainstSlash, sourceEvent))
+        if (!assistanceSkill.CanProvideAssistance(context.Game, target, ResponseType.JinkAgainstSlash, sourceEvent))
             return false;
 
-        // Ask target if they want to use Hujia
-        if (!hujiaSkill.ShouldActivate(context.Game, target, context.GetPlayerChoice))
+        // Ask target if they want to use the assistance skill
+        if (!assistanceSkill.ShouldActivate(context.Game, target, context.GetPlayerChoice))
             return false;
 
-        // Target wants to use Hujia - push HujiaResolver
-        var hujiaContext = new ResolutionContext(
+        // Target wants to use response assistance - push ResponseAssistanceResolver
+        var assistanceContext = new ResolutionContext(
             context.Game,
-            target, // Beneficiary is the target (Cao Cao)
+            target, // Beneficiary is the target
             Action: null,
             Choice: null,
             context.Stack,
@@ -599,14 +595,14 @@ public sealed class SlashResolver : IResolver
             context.EquipmentSkillRegistry,
             context.JudgementService);
 
-        var hujiaResolver = new HujiaResolver(
+        var assistanceResolver = new ResponseAssistanceResolver(
             beneficiary: target,
             responseType: ResponseType.JinkAgainstSlash,
             sourceEvent: sourceEvent,
-            hujiaSkill: hujiaSkill);
+            assistanceSkill: assistanceSkill);
 
-        // Push HujiaResolver onto stack (will execute first due to LIFO)
-        context.Stack.Push(hujiaResolver, hujiaContext);
+        // Push ResponseAssistanceResolver onto stack (will execute first due to LIFO)
+        context.Stack.Push(assistanceResolver, assistanceContext);
 
         return true;
     }
