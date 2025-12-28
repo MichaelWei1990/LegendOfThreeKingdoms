@@ -491,6 +491,30 @@ public interface IDrawPhaseReplacementSkill : ISkill
 }
 
 /// <summary>
+/// Interface for skills that can actively lose HP (not from damage).
+/// Used by active skills like Kurou (苦肉) that allow the player to lose HP as a cost
+/// to gain other benefits. This is distinct from damage and should not trigger damage-related skills.
+/// </summary>
+public interface IActiveHpLossSkill : ISkill
+{
+    /// <summary>
+    /// Gets the amount of HP that will be lost when this skill is activated.
+    /// </summary>
+    /// <param name="game">The current game state.</param>
+    /// <param name="owner">The player who owns this skill.</param>
+    /// <returns>The amount of HP to lose (must be positive).</returns>
+    int GetHpLossAmount(Game game, Player owner);
+
+    /// <summary>
+    /// Handles the after HP loss event.
+    /// This method is called when an AfterHpLostEvent is published after the HP loss is resolved.
+    /// Skills can use this to perform actions after losing HP (e.g., draw cards).
+    /// </summary>
+    /// <param name="evt">The after HP lost event.</param>
+    void OnAfterHpLost(AfterHpLostEvent evt);
+}
+
+/// <summary>
 /// Interface for skills that can modify the draw count during draw phase.
 /// Unlike IDrawPhaseReplacementSkill which replaces the entire draw phase,
 /// this interface allows skills to modify the draw count (e.g., reduce by 1)
