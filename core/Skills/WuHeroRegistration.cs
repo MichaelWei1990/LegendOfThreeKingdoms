@@ -27,22 +27,36 @@ public static class WuHeroRegistration
         registry.RegisterSkill("fanjian", new Hero.FanJianSkillFactory());
         registry.RegisterSkill("zhiheng", new Hero.ZhiHengSkillFactory());
         registry.RegisterSkill("rescue", new Hero.RescueSkillFactory());
+        registry.RegisterSkill("qixi", new Hero.QixiSkillFactory());
+        registry.RegisterSkill("keji", new Hero.KejiSkillFactory());
+        registry.RegisterSkill("kurou", new Hero.KurouSkillFactory());
+        registry.RegisterSkill("xiaoji", new Hero.XiaojiSkillFactory());
+        registry.RegisterSkill("modesty", new Hero.ModestySkillFactory());
 
-        // Register heroes with their skills
-        // 1. 大乔 (Da Qiao)
-        registry.RegisterHeroSkills("daqiao", new[] { "liuli", "guose" });
+        // Register heroes with their skills (Standard Edition)
+        // 1. 孙权 (Sun Quan) - Lord
+        registry.RegisterHeroSkills("sunquan", new[] { "zhiheng", "rescue" });
 
-        // 2. 陆逊 (Lu Xun)
-        registry.RegisterHeroSkills("luxun", new[] { "lianying", "qianxun" });
+        // 2. 甘宁 (Gan Ning)
+        registry.RegisterHeroSkills("ganning", new[] { "qixi" });
 
-        // 3. 孙尚香 (Sun Shangxiang)
+        // 3. 吕蒙 (Lü Meng)
+        registry.RegisterHeroSkills("lvmeng", new[] { "keji" });
+
+        // 4. 黄盖 (Huang Gai)
+        registry.RegisterHeroSkills("huanggai", new[] { "kurou" });
+
+        // 5. 周瑜 (Zhou Yu)
+        registry.RegisterHeroSkills("zhouyu", new[] { "yingzi", "fanjian" });
+
+        // 6. 大乔 (Da Qiao)
+        registry.RegisterHeroSkills("daqiao", new[] { "guose", "liuli" });
+
+        // 7. 陆逊 (Lu Xun)
+        registry.RegisterHeroSkills("luxun", new[] { "modesty", "lianying" });
+
+        // 8. 孙尚香 (Sun Shangxiang)
         registry.RegisterHeroSkills("sunshangxiang", new[] { "jieyin", "xiaoji" });
-
-        // 4. 周瑜 (Zhou Yu)
-        registry.RegisterHeroSkills("zhouyu", new[] { "fanjian", "yingzi" });
-
-        // 5. 孙权 (Sun Quan)
-        registry.RegisterHeroSkills("sunquan", new[] { "zhiheng" });
     }
 }
 
