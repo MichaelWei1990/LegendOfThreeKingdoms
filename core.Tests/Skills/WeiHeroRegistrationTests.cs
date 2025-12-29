@@ -291,3 +291,4 @@ public sealed class WeiHeroRegistrationTests
     #endregion
 }
 
+
