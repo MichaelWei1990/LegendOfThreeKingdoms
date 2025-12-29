@@ -446,3 +446,30 @@ public sealed record AfterSlashDodgedEvent(
     /// <inheritdoc />
     public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
 }
+
+/// <summary>
+/// Event published right before health recovery is applied.
+/// This event allows skills to modify the recovery amount before it is applied.
+/// Used by skills like Rescue (救援) that can increase recovery amount.
+/// </summary>
+public sealed record BeforeRecoverEvent(
+    Game Game,
+    Player Source,
+    Player Target,
+    int BaseAmount,
+    Card EffectCard,
+    object? Reason,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+
+    /// <summary>
+    /// Recovery amount modification to apply.
+    /// This value will be added to the base recovery amount.
+    /// Can be positive (increase recovery) or negative (decrease recovery).
+    /// Multiple skills can modify recovery, and their modifications are cumulative.
+    /// </summary>
+    public int RecoveryModification { get; set; }
+}

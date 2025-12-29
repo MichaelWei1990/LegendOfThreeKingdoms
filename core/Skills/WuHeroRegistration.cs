@@ -26,6 +26,7 @@ public static class WuHeroRegistration
         registry.RegisterSkill("yingzi", new Hero.YingziSkillFactory());
         registry.RegisterSkill("fanjian", new Hero.FanJianSkillFactory());
         registry.RegisterSkill("zhiheng", new Hero.ZhiHengSkillFactory());
+        registry.RegisterSkill("rescue", new Hero.RescueSkillFactory());
 
         // Register heroes with their skills
         // 1. 大乔 (Da Qiao)

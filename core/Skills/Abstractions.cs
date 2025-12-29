@@ -696,3 +696,18 @@ public interface ISlashTargetModifyingSkill : ISkill
         Model.Card slashCard,
         Resolution.DamageDescriptor pendingDamage);
 }
+
+/// <summary>
+/// Interface for skills that can modify health recovery amount.
+/// Used by skills like Rescue (救援) that can increase recovery amount when certain conditions are met.
+/// </summary>
+public interface IRecoverAmountModifyingSkill : ISkill
+{
+    /// <summary>
+    /// Handles the before recover event.
+    /// This method is called when a BeforeRecoverEvent is published.
+    /// Skills can modify the event (e.g., set RecoveryModification) to modify recovery amount.
+    /// </summary>
+    /// <param name="evt">The before recover event.</param>
+    void OnBeforeRecover(BeforeRecoverEvent evt);
+}
