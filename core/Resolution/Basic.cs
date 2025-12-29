@@ -272,6 +272,7 @@ public sealed class UseCardResolver : IResolver
             _ => actualCard.CardSubType switch
             {
                 CardSubType.Slash => new SlashResolver(),
+                CardSubType.Peach => new PeachResolver(),
                 // Other card types can be added here in the future
                 _ => null
             }

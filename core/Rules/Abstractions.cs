@@ -35,7 +35,12 @@ internal enum TargetSelectionType
     /// <summary>
     /// Self-targeting.
     /// </summary>
-    Self
+    Self,
+
+    /// <summary>
+    /// Peach targets: injured self or any character in dying state (CurrentHealth <= 0).
+    /// </summary>
+    PeachTargets
 }
 
 /// <summary>
