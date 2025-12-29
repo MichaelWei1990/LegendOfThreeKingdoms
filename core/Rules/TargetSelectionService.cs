@@ -50,6 +50,7 @@ public sealed class TargetSelectionService
             TargetSelectionType.SingleOtherNoDistance => GetSingleOtherTargetNoDistance(game, source, card),
             TargetSelectionType.AllOther => GetAllOtherTargets(game, source),
             TargetSelectionType.Self => GetSelfTarget(game, source),
+            TargetSelectionType.PeachTargets => GetPeachTargets(game, source, card),
             TargetSelectionType.None => RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions),
             _ => RuleQueryResult<Player>.Empty(RuleErrorCode.NoLegalOptions)
         };
@@ -70,6 +71,7 @@ public sealed class TargetSelectionService
             CardSubType.WanjianQifa => TargetSelectionType.AllOther,
             CardSubType.NanmanRushin => TargetSelectionType.AllOther,
             CardSubType.Shandian => TargetSelectionType.Self,
+            CardSubType.Peach => TargetSelectionType.PeachTargets,
             _ => TargetSelectionType.None
         };
     }
@@ -181,6 +183,43 @@ public sealed class TargetSelectionService
         }
 
         return RuleQueryResult<Player>.FromItems(legalTargets);
+    }
+
+    /// <summary>
+    /// Gets legal targets for Peach card.
+    /// Peach can target:
+    /// 1. Injured self (CurrentHealth < MaxHealth)
+    /// 2. Any character in dying state (CurrentHealth <= 0)
+    /// Rule: Cannot use Peach on self if no health loss (CurrentHealth >= MaxHealth)
+    /// </summary>
+    private RuleQueryResult<Player> GetPeachTargets(Game game, Player source, Card card)
+    {
+        var legalTargets = new List<Player>();
+
+        // Add injured self (CurrentHealth < MaxHealth)
+        // Rule: Cannot use Peach on self if no health loss
+        if (source.IsAlive && source.CurrentHealth < source.MaxHealth)
+        {
+            legalTargets.Add(source);
+        }
+
+        // Add all characters in dying state (CurrentHealth <= 0)
+        // Rule: Peach can be used on any character in dying state
+        // Note: In dying state, we only check CurrentHealth <= 0, not IsAlive
+        foreach (var player in game.Players)
+        {
+            if (player.CurrentHealth <= 0 && !legalTargets.Contains(player))
+            {
+                legalTargets.Add(player);
+            }
+        }
+
+        // Apply target filtering skills if any
+        var filteredTargets = ApplyTargetFilteringSkills(game, card, legalTargets).ToArray();
+
+        // For Peach, MinTargets is 0, so even if no targets are available, we allow using it on self
+        // But we still return the legal targets for selection
+        return RuleQueryResult<Player>.FromItems(filteredTargets);
     }
 
     /// <summary>

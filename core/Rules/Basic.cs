@@ -275,7 +275,33 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
                 }
             case CardSubType.Peach:
                 {
-                    if (source.CurrentHealth >= source.MaxHealth)
+                    // Peach can be used on:
+                    // 1. Injured self (CurrentHealth < MaxHealth)
+                    // 2. Any character in dying state (CurrentHealth <= 0)
+                    // Rule: Cannot use Peach on self if no health loss (CurrentHealth >= MaxHealth)
+                    var hasValidTarget = false;
+                    
+                    // Check if self is injured
+                    if (source.CurrentHealth < source.MaxHealth)
+                    {
+                        hasValidTarget = true;
+                    }
+                    else
+                    {
+                        // Check if there's any character in dying state (CurrentHealth <= 0)
+                        // Rule: Peach can be used on any character in dying state
+                        // Note: In dying state, we only check CurrentHealth <= 0, not IsAlive
+                        foreach (var player in game.Players)
+                        {
+                            if (player.CurrentHealth <= 0)
+                            {
+                                hasValidTarget = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (!hasValidTarget)
                     {
                         return RuleResult.Disallowed(
                             RuleErrorCode.NoLegalOptions,
