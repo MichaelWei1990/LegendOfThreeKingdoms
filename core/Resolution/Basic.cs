@@ -770,7 +770,10 @@ public sealed class DyingResolver : IResolver
             context.GetPlayerChoice,
             intermediateResults,
             context.EventBus,
-            context.LogCollector
+            context.LogCollector,
+            context.SkillManager,
+            context.EquipmentSkillRegistry,
+            context.JudgementService
         );
         
         // Push DyingRescueHandlerResolver onto stack first (will execute after response window due to LIFO)

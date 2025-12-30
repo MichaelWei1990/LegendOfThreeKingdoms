@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using LegendOfThreeKingdoms.Core.Model;
@@ -613,7 +614,8 @@ public sealed class ActionQueryService : IActionQueryService
     private readonly Skills.SkillManager? _skillManager;
     
     // Cache for TargetConstraints instances to avoid repeated allocations
-    private static readonly Dictionary<CardSubType, TargetConstraints> _targetConstraintsCache = new();
+    // Using ConcurrentDictionary for thread-safety in parallel test execution
+    private static readonly ConcurrentDictionary<CardSubType, TargetConstraints> _targetConstraintsCache = new();
 
     public ActionQueryService(
         IPhaseRuleService phaseRules,
@@ -984,10 +986,11 @@ public sealed class ActionQueryService : IActionQueryService
     /// Gets the target constraints for a given card subtype.
     /// Returns null if the card subtype does not require targets or is not supported.
     /// Uses a cache to avoid repeated allocations of identical TargetConstraints instances.
+    /// Thread-safe implementation using ConcurrentDictionary.
     /// </summary>
     private static TargetConstraints? GetTargetConstraintsForCardSubType(CardSubType cardSubType)
     {
-        // Check cache first
+        // Check cache first (thread-safe read)
         if (_targetConstraintsCache.TryGetValue(cardSubType, out var cached))
         {
             return cached;
@@ -1016,10 +1019,10 @@ public sealed class ActionQueryService : IActionQueryService
             _ => null
         };
         
-        // Cache the instance if it's not null
+        // Cache the instance if it's not null (thread-safe write)
         if (constraints is not null)
         {
-            _targetConstraintsCache[cardSubType] = constraints;
+            _targetConstraintsCache.TryAdd(cardSubType, constraints);
         }
         
         return constraints;

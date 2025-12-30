@@ -768,6 +768,7 @@ public sealed class ZhiHengTests
             // Owner selects all cards to discard (3 hand + 1 equipment = 4 total)
             if (request.ChoiceType == ChoiceType.SelectCards)
             {
+                // Select all cards: 3 hand cards + 1 equipment
                 var allCardIds = cards.Select(c => c.Id).Concat(new[] { equipment.Id }).ToList();
                 return new ChoiceResult(
                     RequestId: request.RequestId,
@@ -804,11 +805,11 @@ public sealed class ZhiHengTests
         mapper.Resolve(ruleContext, action, null, choice);
 
         // Assert
-        // All cards should be discarded
-        Assert.AreEqual(0, owner.HandZone.Cards.Count, "All hand cards should be discarded");
-        Assert.AreEqual(0, owner.EquipmentZone.Cards.Count, "All equipment should be discarded");
+        // All original cards should be discarded
+        Assert.IsFalse(owner.HandZone.Cards.Any(c => cards.Any(dc => dc.Id == c.Id)), "All original hand cards should be discarded");
+        Assert.IsFalse(owner.EquipmentZone.Cards.Any(c => c.Id == equipment.Id), "All equipment should be discarded");
 
-        // Player should have drawn 4 cards
+        // Player should have drawn 4 cards (discarded 4 total: 3 hand + 1 equipment)
         Assert.AreEqual(4, owner.HandZone.Cards.Count, "Player should have drawn 4 cards (discarded 4 total)");
     }
 

@@ -150,7 +150,8 @@ public sealed class BasicResponseWindow : IResponseWindow
                 responseType,
                 context.SourceEvent,
                 choiceFactory,
-                getPlayerChoice);
+                getPlayerChoice,
+                responseRuleService);
 
             if (choice is not null && choice.SelectedCardIds is not null && choice.SelectedCardIds.Count > 0)
             {
@@ -234,7 +235,8 @@ public sealed class BasicResponseWindow : IResponseWindow
         ResponseType responseType,
         object? sourceEvent,
         IChoiceRequestFactory choiceFactory,
-        Func<ChoiceRequest, ChoiceResult> getPlayerChoice)
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice,
+        IResponseRuleService? responseRuleService = null)
     {
         var responseContext = new ResponseContext(
             game,
@@ -242,7 +244,37 @@ public sealed class BasicResponseWindow : IResponseWindow
             responseType,
             sourceEvent);
 
-        var choiceRequest = choiceFactory.CreateForResponse(responseContext);
+        // Use ResponseRuleService to get legal response cards (including convertible cards)
+        // if available, otherwise fall back to ChoiceRequestFactory
+        IReadOnlyList<Card>? allowedCards = null;
+        if (responseRuleService is not null)
+        {
+            var legalCardsResult = responseRuleService.GetLegalResponseCards(responseContext);
+            if (legalCardsResult.HasAny)
+            {
+                allowedCards = legalCardsResult.Items;
+            }
+        }
+
+        // Create choice request with legal cards from ResponseRuleService if available
+        ChoiceRequest choiceRequest;
+        if (allowedCards is not null)
+        {
+            choiceRequest = new ChoiceRequest(
+                RequestId: Guid.NewGuid().ToString("N"),
+                PlayerSeat: responder.Seat,
+                ChoiceType: ChoiceType.SelectCards,
+                TargetConstraints: null,
+                AllowedCards: allowedCards,
+                ResponseWindowId: null,
+                CanPass: true);
+        }
+        else
+        {
+            // Fall back to ChoiceRequestFactory if ResponseRuleService is not available
+            choiceRequest = choiceFactory.CreateForResponse(responseContext);
+        }
+
         return getPlayerChoice(choiceRequest);
     }
 
@@ -260,14 +292,50 @@ public sealed class BasicResponseWindow : IResponseWindow
         ChoiceResult choice,
         ICardMoveService cardMoveService)
     {
-        var selectedCardIds = choice.SelectedCardIds;
-        if (selectedCardIds is null || selectedCardIds.Count == 0)
+        // Step 1: Validate and get selected cards
+        var selectedCards = ValidateAndGetSelectedCards(responder, choice, responseType, context.LogSink);
+        if (selectedCards is null)
+            return null;
+
+        // Step 2: Process card conversion (multi-card or single-card)
+        var conversionResult = ProcessCardConversion(
+            context, responder, game, responseType, legalCards, selectedCards);
+        if (conversionResult is null)
+            return null;
+
+        // Step 3: Move cards and publish events
+        if (!MoveCardsAndPublishEvent(
+            game, responder, conversionResult.CardsToMove, conversionResult.ActualResponseCard,
+            responseType, cardMoveService, context.LogSink, context.EventBus))
         {
-            LogResponseInvalid(context.LogSink, responder, 0, responseType);
             return null;
         }
 
-        // Check if multiple cards are selected (for multi-card conversion skills like Serpent Spear)
+        // Step 4: Return success result
+        return new ResponseWindowResult(
+            State: ResponseWindowState.ResponseSuccess,
+            Responder: responder,
+            ResponseCard: conversionResult.ActualResponseCard,
+            Choice: choice);
+    }
+
+    /// <summary>
+    /// Validates the selected card IDs and retrieves the actual card objects from hand.
+    /// </summary>
+    /// <returns>List of selected cards if valid, null if validation failed.</returns>
+    private static List<Card>? ValidateAndGetSelectedCards(
+        Player responder,
+        ChoiceResult choice,
+        ResponseType responseType,
+        ILogSink? logSink)
+    {
+        var selectedCardIds = choice.SelectedCardIds;
+        if (selectedCardIds is null || selectedCardIds.Count == 0)
+        {
+            LogResponseInvalid(logSink, responder, 0, responseType);
+            return null;
+        }
+
         var handCards = responder.HandZone.Cards?.ToList() ?? new List<Card>();
         var selectedCards = selectedCardIds
             .Select(id => handCards.FirstOrDefault(c => c.Id == id))
@@ -277,120 +345,166 @@ public sealed class BasicResponseWindow : IResponseWindow
 
         if (selectedCards.Count != selectedCardIds.Count)
         {
-            LogResponseInvalid(context.LogSink, responder, selectedCardIds[0], responseType);
+            LogResponseInvalid(logSink, responder, selectedCardIds[0], responseType);
             return null;
         }
 
-        Card actualResponseCard = selectedCards[0]; // Default to first card
-        IReadOnlyList<Card> cardsToMove = new[] { selectedCards[0] }; // Default to first card
+        return selectedCards;
+    }
 
-        // Try multi-card conversion if multiple cards are selected
-        bool isMultiCardConversion = false;
-        if (selectedCards.Count > 1 && context.SkillManager is not null)
+    /// <summary>
+    /// Gets the expected card subtype for a given response type.
+    /// </summary>
+    private static CardSubType? GetExpectedCardSubType(ResponseType responseType)
+    {
+        return responseType switch
         {
-            // Determine expected card type from response type
-            CardSubType? expectedCardSubType = responseType switch
-            {
-                ResponseType.JinkAgainstSlash => CardSubType.Dodge,
-                ResponseType.SlashAgainstDuel => CardSubType.Slash,
-                _ => null
-            };
+            ResponseType.JinkAgainstSlash => CardSubType.Dodge,
+            ResponseType.JinkAgainstWanjianqifa => CardSubType.Dodge,
+            ResponseType.SlashAgainstDuel => CardSubType.Slash,
+            ResponseType.SlashAgainstNanmanRushin => CardSubType.Slash,
+            ResponseType.PeachForDying => CardSubType.Peach,
+            _ => null
+        };
+    }
 
-            if (expectedCardSubType.HasValue)
-            {
-                var multiConversionSkills = context.SkillManager.GetActiveSkills(game, responder)
-                    .OfType<Skills.IMultiCardConversionSkill>()
-                    .ToList();
+    /// <summary>
+    /// Result of card conversion processing.
+    /// </summary>
+    private sealed record CardConversionResult(
+        Card ActualResponseCard,
+        IReadOnlyList<Card> CardsToMove);
 
-                foreach (var skill in multiConversionSkills)
+    /// <summary>
+    /// Processes card conversion (multi-card or single-card) based on selected cards.
+    /// </summary>
+    /// <returns>Conversion result if successful, null if conversion failed.</returns>
+    private static CardConversionResult? ProcessCardConversion(
+        ResponseWindowContext context,
+        Player responder,
+        Game game,
+        ResponseType responseType,
+        IReadOnlyList<Card> legalCards,
+        List<Card> selectedCards)
+    {
+        var expectedCardSubType = GetExpectedCardSubType(responseType);
+
+        // Try multi-card conversion first if multiple cards are selected
+        if (selectedCards.Count > 1 && context.SkillManager is not null && expectedCardSubType.HasValue)
+        {
+            var multiResult = TryMultiCardConversion(
+                context.SkillManager, game, responder, selectedCards, expectedCardSubType.Value);
+            if (multiResult is not null)
+                return multiResult;
+        }
+
+        // Fall back to single-card conversion
+        return TrySingleCardConversion(
+            context, responder, game, responseType, legalCards, selectedCards[0], expectedCardSubType);
+    }
+
+    /// <summary>
+    /// Attempts multi-card conversion (e.g., Serpent Spear).
+    /// </summary>
+    /// <returns>Conversion result if successful, null if no conversion possible.</returns>
+    private static CardConversionResult? TryMultiCardConversion(
+        Skills.SkillManager skillManager,
+        Game game,
+        Player responder,
+        List<Card> selectedCards,
+        CardSubType expectedCardSubType)
+    {
+        var multiConversionSkills = skillManager.GetActiveSkills(game, responder)
+            .OfType<Skills.IMultiCardConversionSkill>()
+            .ToList();
+
+        foreach (var skill in multiConversionSkills)
+        {
+            if (selectedCards.Count != skill.RequiredCardCount)
+                continue;
+
+            if (skill.TargetCardSubType != expectedCardSubType)
+                continue;
+
+            var virtualCard = skill.CreateVirtualCardFromMultiple(selectedCards, game, responder);
+            if (virtualCard is not null && virtualCard.CardSubType == expectedCardSubType)
+            {
+                return new CardConversionResult(virtualCard, selectedCards);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Attempts single-card conversion (e.g., Jijiu).
+    /// </summary>
+    /// <returns>Conversion result if successful, null if conversion failed.</returns>
+    private static CardConversionResult? TrySingleCardConversion(
+        ResponseWindowContext context,
+        Player responder,
+        Game game,
+        ResponseType responseType,
+        IReadOnlyList<Card> legalCards,
+        Card selectedCard,
+        CardSubType? expectedCardSubType)
+    {
+        bool isLegalCard = legalCards.Any(c => c.Id == selectedCard.Id);
+        bool isDirectMatch = expectedCardSubType.HasValue && selectedCard.CardSubType == expectedCardSubType.Value;
+
+        // Try conversion if card doesn't directly match
+        if (!isDirectMatch && context.SkillManager is not null && expectedCardSubType.HasValue)
+        {
+            var conversionSkills = context.SkillManager.GetActiveSkills(game, responder)
+                .OfType<Skills.ICardConversionSkill>()
+                .ToList();
+
+            foreach (var skill in conversionSkills)
+            {
+                var virtualCard = skill.CreateVirtualCard(selectedCard, game, responder);
+                if (virtualCard is not null && virtualCard.CardSubType == expectedCardSubType.Value)
                 {
-                    if (selectedCards.Count != skill.RequiredCardCount)
-                        continue;
-
-                    if (skill.TargetCardSubType != expectedCardSubType.Value)
-                        continue;
-
-                    var virtualCard = skill.CreateVirtualCardFromMultiple(selectedCards, game, responder);
-                    if (virtualCard is not null && virtualCard.CardSubType == expectedCardSubType.Value)
-                    {
-                        actualResponseCard = virtualCard;
-                        cardsToMove = selectedCards;
-                        isMultiCardConversion = true;
-                        break;
-                    }
+                    return new CardConversionResult(virtualCard, new[] { selectedCard });
                 }
             }
         }
 
-        // If multi-card conversion didn't work, try single-card conversion
-        if (!isMultiCardConversion)
+        // If neither direct match nor converted, invalid
+        if (!isDirectMatch)
         {
-            var selectedCard = selectedCards[0];
-            
-            // Check if card is in legal cards list
-            bool isLegalCard = legalCards.Any(c => c.Id == selectedCard.Id);
-            
-            // If not legal, try single-card conversion
-            bool isSingleCardConversion = false;
-            if (!isLegalCard && context.SkillManager is not null)
-            {
-                // Determine expected card type from response type
-                CardSubType? expectedCardSubType = responseType switch
-                {
-                    ResponseType.JinkAgainstSlash => CardSubType.Dodge,
-                    ResponseType.JinkAgainstWanjianqifa => CardSubType.Dodge,
-                    ResponseType.SlashAgainstDuel => CardSubType.Slash,
-                    ResponseType.SlashAgainstNanmanRushin => CardSubType.Slash,
-                    _ => null
-                };
-
-                if (expectedCardSubType.HasValue)
-                {
-                    var conversionSkills = context.SkillManager.GetActiveSkills(game, responder)
-                        .OfType<Skills.ICardConversionSkill>()
-                        .ToList();
-
-                    foreach (var skill in conversionSkills)
-                    {
-                        var virtualCard = skill.CreateVirtualCard(selectedCard, game, responder);
-                        if (virtualCard is not null && virtualCard.CardSubType == expectedCardSubType.Value)
-                        {
-                            // Conversion successful
-                            actualResponseCard = virtualCard;
-                            cardsToMove = new[] { selectedCard };
-                            isSingleCardConversion = true;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // If neither legal nor converted, invalid
-            if (!isLegalCard && !isSingleCardConversion)
-            {
-                LogResponseInvalid(context.LogSink, responder, selectedCard.Id, responseType);
-                return null;
-            }
-
-            // If legal but not converted, use original card
-            if (isLegalCard && !isSingleCardConversion)
-            {
-                actualResponseCard = selectedCard;
-                cardsToMove = new[] { selectedCard };
-            }
+            LogResponseInvalid(context.LogSink, responder, selectedCard.Id, responseType);
+            return null;
         }
 
+        // Direct match or legal card - use original card
+        return new CardConversionResult(selectedCard, new[] { selectedCard });
+    }
+
+    /// <summary>
+    /// Moves response cards to discard pile, logs the action, and publishes events.
+    /// </summary>
+    /// <returns>True if successful, false if card move failed.</returns>
+    private static bool MoveCardsAndPublishEvent(
+        Game game,
+        Player responder,
+        IReadOnlyList<Card> cardsToMove,
+        Card actualResponseCard,
+        ResponseType responseType,
+        ICardMoveService cardMoveService,
+        ILogSink? logSink,
+        IEventBus? eventBus)
+    {
         // Move response card(s) from hand to discard pile
-        if (!TryMoveResponseCards(game, responder, cardsToMove, cardMoveService, context.LogSink))
+        if (!TryMoveResponseCards(game, responder, cardsToMove, cardMoveService, logSink))
         {
-            return null;
+            return false;
         }
 
         // Log successful response
-        LogResponseCardPlayed(context.LogSink, responder, actualResponseCard, responseType);
+        LogResponseCardPlayed(logSink, responder, actualResponseCard, responseType);
 
         // Publish CardPlayedEvent for skills that need to track card playing (e.g., Keji)
-        if (context.EventBus is not null)
+        if (eventBus is not null)
         {
             var cardPlayedEvent = new CardPlayedEvent(
                 game,
@@ -399,15 +513,10 @@ public sealed class BasicResponseWindow : IResponseWindow
                 actualResponseCard.CardSubType,
                 responseType
             );
-            context.EventBus.Publish(cardPlayedEvent);
+            eventBus.Publish(cardPlayedEvent);
         }
 
-        // Response successful - return immediately (first response wins)
-        return new ResponseWindowResult(
-            State: ResponseWindowState.ResponseSuccess,
-            Responder: responder,
-            ResponseCard: actualResponseCard,
-            Choice: choice);
+        return true;
     }
 
     /// <summary>

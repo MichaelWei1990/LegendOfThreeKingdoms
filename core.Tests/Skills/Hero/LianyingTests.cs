@@ -327,8 +327,10 @@ public class LianyingTests
         var skills = registry.GetSkillsForHero("luxun").ToList();
 
         // Assert
-        Assert.AreEqual(1, skills.Count);
+        // Lu Xun has 2 skills: "modesty" and "lianying"
+        Assert.AreEqual(2, skills.Count);
         Assert.IsTrue(skills.Any(s => s.Id == "lianying"));
+        Assert.IsTrue(skills.Any(s => s.Id == "modesty"));
     }
 }
 
