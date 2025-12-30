@@ -20,17 +20,18 @@ public static class QunHeroRegistration
 
         // Register all skill factories
         registry.RegisterSkill("jijiu", new Hero.JijiuSkillFactory());
+        registry.RegisterSkill("qingnang", new Hero.QingnangSkillFactory());
         registry.RegisterSkill("wushuang", new Hero.WushuangSkillFactory());
         registry.RegisterSkill("biyue", new Hero.BiyueSkillFactory());
         registry.RegisterSkill("lijian", new Hero.LijianSkillFactory());
 
         // Register heroes with their skills
-        // 1. 华佗 (Hua Tuo)
-        registry.RegisterHeroSkills("huatuo", new[] { "jijiu" });
-        // 2. 吕布 (Lu Bu) - placeholder, actual hero ID may differ
+        // 1. 华佗 (Hua Tuo): 急救 (Jijiu), 青囊 (Qingnang)
+        registry.RegisterHeroSkills("huatuo", new[] { "jijiu", "qingnang" });
+        // 2. 吕布 (Lu Bu): 无双 (Wushuang)
         registry.RegisterHeroSkills("lubu", new[] { "wushuang" });
-        // 3. 貂蝉 (Diao Chan)
-        registry.RegisterHeroSkills("diaochan", new[] { "biyue", "lijian" });
+        // 3. 貂蝉 (Diao Chan): 离间 (Lijian), 闭月 (Biyue)
+        registry.RegisterHeroSkills("diaochan", new[] { "lijian", "biyue" });
     }
 }
 
