@@ -77,18 +77,64 @@ public sealed class SlashResponseHandlerResolver : IResolver
         }
         else if (responseResult.State == ResponseWindowState.ResponseSuccess)
         {
-            // Response successful - slash dodged, no damage
-            // Publish AfterSlashDodgedEvent for skills like Stone Axe (贯石斧)
-            if (context.EventBus is not null && _pendingDamage.CausingCard is not null)
+            // Check if enough response units were provided
+            // Calculate required count based on source player's skills (e.g., Wushuang)
+            int requiredCount = 1;
+            if (_pendingDamage.CausingCard is not null && context.SkillManager is not null)
             {
-                var afterSlashDodgedEvent = new AfterSlashDodgedEvent(
-                    Game: context.Game,
-                    AttackerSeat: _pendingDamage.SourceSeat,
-                    TargetSeat: _pendingDamage.TargetSeat,
-                    SlashCard: _pendingDamage.CausingCard,
-                    OriginalDamage: _pendingDamage
+                var sourcePlayer = context.Game.Players.FirstOrDefault(p => p.Seat == _pendingDamage.SourceSeat);
+                var targetPlayer = context.Game.Players.FirstOrDefault(p => p.Seat == _pendingDamage.TargetSeat);
+                if (sourcePlayer is not null && targetPlayer is not null)
+                {
+                    requiredCount = ResponseRequirementCalculator.CalculateJinkRequirementForSlash(
+                        context.Game,
+                        sourcePlayer,
+                        targetPlayer,
+                        _pendingDamage.CausingCard,
+                        context.SkillManager);
+                }
+            }
+
+            // Only consider response successful if enough units were provided
+            if (responseResult.ResponseUnitsProvided >= requiredCount)
+            {
+                // Response successful - slash dodged, no damage
+                // Publish AfterSlashDodgedEvent for skills like Stone Axe (贯石斧)
+                if (context.EventBus is not null && _pendingDamage.CausingCard is not null)
+                {
+                    var afterSlashDodgedEvent = new AfterSlashDodgedEvent(
+                        Game: context.Game,
+                        AttackerSeat: _pendingDamage.SourceSeat,
+                        TargetSeat: _pendingDamage.TargetSeat,
+                        SlashCard: _pendingDamage.CausingCard,
+                        OriginalDamage: _pendingDamage
+                    );
+                    context.EventBus.Publish(afterSlashDodgedEvent);
+                }
+            }
+            else
+            {
+                // Insufficient response units - treat as no response and trigger damage
+                var damageContext = new ResolutionContext(
+                    context.Game,
+                    context.SourcePlayer,
+                    context.Action,
+                    context.Choice,
+                    context.Stack,
+                    context.CardMoveService,
+                    context.RuleService,
+                    PendingDamage: _pendingDamage,
+                    LogSink: context.LogSink,
+                    context.GetPlayerChoice,
+                    context.IntermediateResults,
+                    context.EventBus,
+                    context.LogCollector,
+                    context.SkillManager,
+                    context.EquipmentSkillRegistry,
+                    context.JudgementService
                 );
-                context.EventBus.Publish(afterSlashDodgedEvent);
+
+                context.Stack.Push(new DamageResolver(), damageContext);
             }
         }
 

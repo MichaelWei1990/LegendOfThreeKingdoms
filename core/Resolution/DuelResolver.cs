@@ -179,6 +179,23 @@ public sealed class DuelResolver : IResolver
         // Push handler resolver first (will execute after response window due to LIFO)
         context.Stack.Push(new DuelResponseHandlerResolver(currentPlayerSeat, otherPlayerSeat, responseResultKey), handlerContext);
 
+        // Calculate required Slash count (check if opposing player has Wushuang or similar skills)
+        int requiredCount = 1;
+        Card? duelCard = null;
+        if (intermediateResults.TryGetValue("DuelCard", out var cardObj) && cardObj is Card card)
+        {
+            duelCard = card;
+        }
+        if (context.SkillManager is not null)
+        {
+            requiredCount = ResponseRequirementCalculator.CalculateSlashRequirementForDuel(
+                context.Game,
+                currentPlayer,
+                otherPlayer,
+                duelCard,
+                context.SkillManager);
+        }
+
         // Create response window for Slash
         var responseContext = new ResolutionContext(
             context.Game,
@@ -204,7 +221,8 @@ public sealed class DuelResolver : IResolver
             responseContext,
             currentPlayer,
             responseResultKey,
-            context.GetPlayerChoice);
+            context.GetPlayerChoice,
+            requiredCount);
 
         // Push response window last (will execute first due to LIFO)
         context.Stack.Push(responseWindow, responseContext);
@@ -221,6 +239,7 @@ internal sealed class DuelResponseWindowResolver : IResolver
     private readonly ResponseWindowContext _windowContext;
     private readonly Func<ChoiceRequest, ChoiceResult> _getPlayerChoice;
     private readonly string _resultKey;
+    private readonly int _requiredCount;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DuelResponseWindowResolver"/> class.
@@ -229,7 +248,8 @@ internal sealed class DuelResponseWindowResolver : IResolver
         ResolutionContext context,
         Player responder,
         string resultKey,
-        Func<ChoiceRequest, ChoiceResult> getPlayerChoice)
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice,
+        int requiredCount = 1)
     {
         if (context is null) throw new ArgumentNullException(nameof(context));
         if (responder is null) throw new ArgumentNullException(nameof(responder));
@@ -238,6 +258,7 @@ internal sealed class DuelResponseWindowResolver : IResolver
 
         _resultKey = resultKey;
         _getPlayerChoice = getPlayerChoice;
+        _requiredCount = requiredCount;
 
         // Create responder order (only the current player)
         var responderOrder = new[] { responder };
@@ -257,7 +278,8 @@ internal sealed class DuelResponseWindowResolver : IResolver
             SkillManager: context.SkillManager,
             JudgementService: context.JudgementService,
             EventBus: context.EventBus,
-            IntermediateResults: context.IntermediateResults
+            IntermediateResults: context.IntermediateResults,
+            RequiredResponseCount: requiredCount
         );
     }
 
@@ -352,8 +374,29 @@ internal sealed class DuelResponseHandlerResolver : IResolver
             return ResolutionResult.SuccessResult;
         }
 
+        // Calculate required count to check if response was sufficient
+        int requiredCount = 1;
+        Card? duelCardForRequirement = null;
+        if (intermediateResults.TryGetValue("DuelCard", out var cardObjForRequirement) && cardObjForRequirement is Card cardForRequirement)
+        {
+            duelCardForRequirement = cardForRequirement;
+        }
+        if (context.SkillManager is not null && otherPlayer is not null)
+        {
+            requiredCount = ResponseRequirementCalculator.CalculateSlashRequirementForDuel(
+                game,
+                currentPlayer,
+                otherPlayer,
+                duelCardForRequirement,
+                context.SkillManager);
+        }
+
         // Decide whether to continue or deal damage
-        if (responseResult.State == ResponseWindowState.NoResponse)
+        // Response is insufficient if state is NoResponse OR if provided units < required count
+        bool responseInsufficient = responseResult.State == ResponseWindowState.NoResponse ||
+            responseResult.ResponseUnitsProvided < requiredCount;
+
+        if (responseInsufficient)
         {
             // Get the Duel card from intermediate results
             Card? duelCard = null;

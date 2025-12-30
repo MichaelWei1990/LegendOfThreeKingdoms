@@ -643,6 +643,37 @@ public interface IResponseAssistanceSkill : ISkill
 }
 
 /// <summary>
+/// Interface for skills that can modify response requirements (e.g., Wushuang).
+/// Skills implementing this interface can change the required number of response units.
+/// </summary>
+public interface IResponseRequirementModifyingSkill : ISkill
+{
+    /// <summary>
+    /// Modifies the required number of Jink response units for a Slash.
+    /// Returns null if no modification is needed, otherwise returns the modified count.
+    /// </summary>
+    /// <param name="current">The current required count (default: 1).</param>
+    /// <param name="game">The current game state.</param>
+    /// <param name="slashSource">The player who used the Slash.</param>
+    /// <param name="target">The target player who needs to respond.</param>
+    /// <param name="slashCard">The Slash card being used.</param>
+    /// <returns>Null if no modification, otherwise the modified count.</returns>
+    int? ModifyJinkRequirementForSlash(int current, Game game, Player slashSource, Player target, Card slashCard);
+
+    /// <summary>
+    /// Modifies the required number of Slash response units for a Duel.
+    /// Returns null if no modification is needed, otherwise returns the modified count.
+    /// </summary>
+    /// <param name="current">The current required count (default: 1).</param>
+    /// <param name="game">The current game state.</param>
+    /// <param name="playerToRespond">The player who needs to respond.</param>
+    /// <param name="opposingPlayer">The opposing player in the duel.</param>
+    /// <param name="duelCard">The Duel card being used.</param>
+    /// <returns>Null if no modification, otherwise the modified count.</returns>
+    int? ModifySlashRequirementForDuel(int current, Game game, Player playerToRespond, Player opposingPlayer, Card? duelCard);
+}
+
+/// <summary>
 /// Interface for skills that respond to card moved events.
 /// Used by trigger skills like Lianying (连营) that need to react when cards are moved,
 /// particularly when tracking hand card count changes.

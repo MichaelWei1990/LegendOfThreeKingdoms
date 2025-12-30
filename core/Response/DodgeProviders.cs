@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Reflection;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Resolution;
 using LegendOfThreeKingdoms.Core.Rules;
@@ -213,13 +214,32 @@ public sealed class ManualDodgeProvider : IDodgeProvider
             return false;
 
         var defender = requestContext.Defender;
+        var attacker = requestContext.Attacker;
         var sourceEvent = requestContext.SourceEvent;
+
+        // Calculate required Jink count (check if attacker has Wushuang or similar skills)
+        int requiredCount = 1;
+        if (sourceEvent is not null)
+        {
+            // Try to extract SlashCard from sourceEvent
+            var slashCardProperty = sourceEvent.GetType().GetProperty("SlashCard");
+            if (slashCardProperty?.GetValue(sourceEvent) is Card slashCard && context.SkillManager is not null)
+            {
+                requiredCount = ResponseRequirementCalculator.CalculateJinkRequirementForSlash(
+                    context.Game,
+                    attacker,
+                    defender,
+                    slashCard,
+                    context.SkillManager);
+            }
+        }
 
         // Create normal response window for manual Dodge
         var responseWindow = context.CreateJinkResponseWindow(
             targetPlayer: defender,
             sourceEvent: sourceEvent,
-            getPlayerChoice: context.GetPlayerChoice);
+            getPlayerChoice: context.GetPlayerChoice,
+            requiredCount: requiredCount);
 
         // Push response window onto stack
         context.Stack.Push(responseWindow, context);

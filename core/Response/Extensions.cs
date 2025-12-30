@@ -20,12 +20,14 @@ public static class ResponseExtensions
     /// <param name="targetPlayer">The target player who can respond.</param>
     /// <param name="sourceEvent">The source event that triggered the response window (e.g., Slash event).</param>
     /// <param name="getPlayerChoice">Function to get player choice for a given choice request.</param>
+    /// <param name="requiredCount">The required number of response units (default: 1).</param>
     /// <returns>The response window resolver that can be pushed onto the resolution stack.</returns>
     public static ResponseWindowResolver CreateJinkResponseWindow(
         this ResolutionContext context,
         Player targetPlayer,
         object? sourceEvent,
-        Func<ChoiceRequest, ChoiceResult> getPlayerChoice)
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice,
+        int requiredCount = 1)
     {
         if (context is null) throw new ArgumentNullException(nameof(context));
         if (targetPlayer is null) throw new ArgumentNullException(nameof(targetPlayer));
@@ -51,7 +53,8 @@ public static class ResponseExtensions
             SkillManager: context.SkillManager,
             JudgementService: context.JudgementService,
             EventBus: context.EventBus,
-            IntermediateResults: context.IntermediateResults
+            IntermediateResults: context.IntermediateResults,
+            RequiredResponseCount: requiredCount
         );
 
         return new ResponseWindowResolver(windowContext, getPlayerChoice);

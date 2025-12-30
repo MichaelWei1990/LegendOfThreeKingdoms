@@ -45,7 +45,8 @@ public sealed record ResponseWindowContext(
     SkillManager? SkillManager = null,
     IJudgementService? JudgementService = null,
     IEventBus? EventBus = null,
-    Dictionary<string, object>? IntermediateResults = null
+    Dictionary<string, object>? IntermediateResults = null,
+    int RequiredResponseCount = 1
 );
 
 /// <summary>
@@ -66,7 +67,8 @@ public sealed record ResponseWindowResult(
     ResponseWindowState State,
     Player? Responder = null,
     Card? ResponseCard = null,
-    ChoiceResult? Choice = null
+    ChoiceResult? Choice = null,
+    int ResponseUnitsProvided = 0
 );
 
 /// <summary>

@@ -20,6 +20,13 @@ namespace LegendOfThreeKingdoms.Core.Response;
 public sealed class BasicResponseWindow : IResponseWindow
 {
     /// <inheritdoc />
+    /// <summary>
+    /// Executes the response window by polling players in order until the required number of response units is met.
+    /// Supports cumulative responses (e.g., Wushuang requires 2 Jinks - player can provide them one at a time).
+    /// </summary>
+    /// <param name="context">The response window context containing game state and dependencies.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for a given choice request.</param>
+    /// <returns>The result of the response window execution, including the number of response units provided.</returns>
     public ResponseWindowResult Execute(
         ResponseWindowContext context,
         Func<ChoiceRequest, ChoiceResult> getPlayerChoice)
@@ -27,6 +34,105 @@ public sealed class BasicResponseWindow : IResponseWindow
         if (context is null) throw new ArgumentNullException(nameof(context));
         if (getPlayerChoice is null) throw new ArgumentNullException(nameof(getPlayerChoice));
 
+        // Step 1: Log that the response window has been opened
+        LogResponseWindowOpened(context);
+
+        // Step 2: Poll all responders in order until requirement is met or all players pass
+        var pollingResult = PollRespondersUntilRequirementMet(context, getPlayerChoice);
+
+        // Step 3: Create and return the final result based on whether requirement was met
+        return CreateFinalResult(context, pollingResult);
+    }
+
+    /// <summary>
+    /// Logs that a response window has been opened.
+    /// </summary>
+    private static void LogResponseWindowOpened(ResponseWindowContext context)
+    {
+        if (context.LogSink is null)
+            return;
+
+        var logEntry = new LogEntry
+        {
+            EventType = "ResponseWindowOpened",
+            Level = "Info",
+            Message = $"Response window opened for {context.ResponseType}",
+            Data = new
+            {
+                ResponseType = context.ResponseType.ToString(),
+                ResponderCount = context.ResponderOrder.Count,
+                ResponderSeats = context.ResponderOrder.Select(p => p.Seat).ToArray(),
+                RequiredResponseCount = context.RequiredResponseCount
+            }
+        };
+        context.LogSink.Log(logEntry);
+    }
+
+    /// <summary>
+    /// Tracks the state of response polling during cumulative response collection.
+    /// </summary>
+    /// <param name="ProvidedUnits">The number of response units provided so far (e.g., 1 Jink, 2 Jinks).</param>
+    /// <param name="LastResponder">The last player who successfully provided a response unit.</param>
+    /// <param name="LastResponseCard">The last card used to provide a response unit.</param>
+    /// <param name="LastChoice">The last choice result from the player.</param>
+    private sealed record PollingState(
+        int ProvidedUnits,
+        Player? LastResponder,
+        Card? LastResponseCard,
+        ChoiceResult? LastChoice);
+
+    /// <summary>
+    /// Polls responders until the required number of response units is met or all players have passed.
+    /// This method handles cumulative responses where players can provide multiple response units
+    /// (e.g., for Wushuang, a player can provide 2 Jinks one at a time).
+    /// </summary>
+    /// <param name="context">The response window context.</param>
+    /// <param name="getPlayerChoice">Function to get player choice.</param>
+    /// <returns>The final polling state with the number of response units provided.</returns>
+    private static PollingState PollRespondersUntilRequirementMet(
+        ResponseWindowContext context,
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice)
+    {
+        // Initialize state: no response units provided yet
+        var state = new PollingState(0, null, null, null);
+        var requiredCount = context.RequiredResponseCount;
+
+        // Continue polling rounds until requirement is met or no one responds
+        while (state.ProvidedUnits < requiredCount)
+        {
+            // Process one round: poll all responders in order
+            var roundResult = ProcessResponseRound(context, getPlayerChoice, state, requiredCount);
+            
+            // If no one responded this round, stop polling
+            if (roundResult is null)
+                break;
+
+            // Update state with the round result
+            state = roundResult;
+
+            // If requirement is now met, stop polling
+            if (state.ProvidedUnits >= requiredCount)
+                break;
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Processes one round of polling all responders in order.
+    /// Each responder gets a chance to provide one response unit (e.g., one Jink card).
+    /// </summary>
+    /// <param name="context">The response window context.</param>
+    /// <param name="getPlayerChoice">Function to get player choice.</param>
+    /// <param name="currentState">The current polling state before this round.</param>
+    /// <param name="requiredCount">The total number of response units required.</param>
+    /// <returns>Updated polling state if any responder responded this round, null if no one responded.</returns>
+    private static PollingState? ProcessResponseRound(
+        ResponseWindowContext context,
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice,
+        PollingState currentState,
+        int requiredCount)
+    {
         var game = context.Game;
         var responseType = context.ResponseType;
         var responderOrder = context.ResponderOrder;
@@ -34,27 +140,17 @@ public sealed class BasicResponseWindow : IResponseWindow
         var choiceFactory = context.ChoiceFactory;
         var cardMoveService = context.CardMoveService;
 
-        // Log response window opening
-        if (context.LogSink is not null)
-        {
-            var logEntry = new LogEntry
-            {
-                EventType = "ResponseWindowOpened",
-                Level = "Info",
-                Message = $"Response window opened for {responseType}",
-                Data = new
-                {
-                    ResponseType = responseType.ToString(),
-                    ResponderCount = responderOrder.Count,
-                    ResponderSeats = responderOrder.Select(p => p.Seat).ToArray()
-                }
-            };
-            context.LogSink.Log(logEntry);
-        }
+        var state = currentState;
+        bool anyResponseThisRound = false;
 
-        // Poll each player in order
+        // Poll each responder in order
         foreach (var responder in responderOrder)
         {
+            // Skip if we already have enough response units
+            if (state.ProvidedUnits >= requiredCount)
+                break;
+
+            // Try to get a response from this responder
             var result = TryPollResponder(
                 context,
                 responder,
@@ -63,31 +159,167 @@ public sealed class BasicResponseWindow : IResponseWindow
                 responseRuleService,
                 choiceFactory,
                 cardMoveService,
-                getPlayerChoice);
+                getPlayerChoice,
+                state.ProvidedUnits,
+                requiredCount);
 
-            if (result is not null)
+            // If responder successfully provided a response unit
+            if (result is not null && result.State == ResponseWindowState.ResponseSuccess)
             {
-                return result;
+                // Update state: increment provided units, update last responder info
+                state = HandleSuccessfulResponse(context, responder, result, state, requiredCount);
+                anyResponseThisRound = true;
+
+                // If requirement is now met, stop polling this round
+                if (state.ProvidedUnits >= requiredCount)
+                    break;
             }
         }
 
-        // No player responded - log and return
-        if (context.LogSink is not null)
-        {
-            var logEntry = new LogEntry
-            {
-                EventType = "ResponseWindowClosed",
-                Level = "Info",
-                Message = $"Response window closed with no response for {responseType}",
-                Data = new
-                {
-                    ResponseType = responseType.ToString()
-                }
-            };
-            context.LogSink.Log(logEntry);
-        }
+        // Return updated state if anyone responded, null if no one responded
+        return anyResponseThisRound ? state : null;
+    }
 
-        return new ResponseWindowResult(State: ResponseWindowState.NoResponse);
+    /// <summary>
+    /// Handles a successful response from a player, updating the polling state and logging the event.
+    /// Each successful response increments the provided units count by 1.
+    /// </summary>
+    /// <param name="context">The response window context.</param>
+    /// <param name="responder">The player who provided the response.</param>
+    /// <param name="result">The response window result from the player.</param>
+    /// <param name="currentState">The current polling state before this response.</param>
+    /// <param name="requiredCount">The total number of response units required.</param>
+    /// <returns>Updated polling state with incremented provided units count.</returns>
+    private static PollingState HandleSuccessfulResponse(
+        ResponseWindowContext context,
+        Player responder,
+        ResponseWindowResult result,
+        PollingState currentState,
+        int requiredCount)
+    {
+        // Increment the provided units count (each response = 1 unit)
+        var newProvidedUnits = currentState.ProvidedUnits + 1;
+
+        // Log that a response unit was provided
+        LogResponseUnitProvided(context, responder, newProvidedUnits, requiredCount, result.ResponseCard);
+
+        // Return updated state with new provided units count and last responder info
+        return new PollingState(
+            ProvidedUnits: newProvidedUnits,
+            LastResponder: result.Responder,
+            LastResponseCard: result.ResponseCard,
+            LastChoice: result.Choice);
+    }
+
+    /// <summary>
+    /// Logs that a response unit has been provided by a player.
+    /// This is called each time a player successfully provides one response unit
+    /// (e.g., plays one Jink card in a cumulative response scenario).
+    /// </summary>
+    /// <param name="context">The response window context.</param>
+    /// <param name="responder">The player who provided the response unit.</param>
+    /// <param name="providedUnits">The total number of response units provided so far (after this one).</param>
+    /// <param name="requiredCount">The total number of response units required.</param>
+    /// <param name="responseCard">The card used to provide this response unit.</param>
+    private static void LogResponseUnitProvided(
+        ResponseWindowContext context,
+        Player responder,
+        int providedUnits,
+        int requiredCount,
+        Card? responseCard)
+    {
+        if (context.LogSink is null)
+            return;
+
+        var logEntry = new LogEntry
+        {
+            EventType = "ResponseUnitProvided",
+            Level = "Info",
+            Message = $"Player {responder.Seat} provided response unit {providedUnits}/{requiredCount}",
+            Data = new
+            {
+                ResponderSeat = responder.Seat,
+                ProvidedUnits = providedUnits,
+                RequiredCount = requiredCount,
+                ResponseCard = responseCard?.Id
+            }
+        };
+        context.LogSink.Log(logEntry);
+    }
+
+    /// <summary>
+    /// Creates the final response window result based on whether the required number of response units was met.
+    /// </summary>
+    /// <param name="context">The response window context.</param>
+    /// <param name="state">The final polling state after all rounds.</param>
+    /// <returns>
+    /// ResponseSuccess if providedUnits >= requiredCount (requirement met),
+    /// NoResponse if providedUnits < requiredCount (requirement not met).
+    /// </returns>
+    private static ResponseWindowResult CreateFinalResult(
+        ResponseWindowContext context,
+        PollingState state)
+    {
+        var providedUnits = state.ProvidedUnits;
+        var requiredCount = context.RequiredResponseCount;
+
+        // Check if the requirement was met
+        if (providedUnits >= requiredCount)
+        {
+            // Requirement met: log success and return ResponseSuccess
+            LogResponseWindowClosed(context, providedUnits, requiredCount, success: true);
+            return new ResponseWindowResult(
+                State: ResponseWindowState.ResponseSuccess,
+                Responder: state.LastResponder,
+                ResponseCard: state.LastResponseCard,
+                Choice: state.LastChoice,
+                ResponseUnitsProvided: providedUnits);
+        }
+        else
+        {
+            // Requirement not met: log failure and return NoResponse
+            // Note: Even if some units were provided (e.g., 1 out of 2), it's still NoResponse
+            // because the full requirement was not met. The provided units are still tracked.
+            LogResponseWindowClosed(context, providedUnits, requiredCount, success: false);
+            return new ResponseWindowResult(
+                State: ResponseWindowState.NoResponse,
+                ResponseUnitsProvided: providedUnits);
+        }
+    }
+
+    /// <summary>
+    /// Logs that a response window has been closed, indicating whether the requirement was met.
+    /// </summary>
+    /// <param name="context">The response window context.</param>
+    /// <param name="providedUnits">The total number of response units that were provided.</param>
+    /// <param name="requiredCount">The total number of response units that were required.</param>
+    /// <param name="success">True if providedUnits >= requiredCount, false otherwise.</param>
+    private static void LogResponseWindowClosed(
+        ResponseWindowContext context,
+        int providedUnits,
+        int requiredCount,
+        bool success)
+    {
+        if (context.LogSink is null)
+            return;
+
+        var message = success
+            ? $"Response window closed with success: {providedUnits}/{requiredCount} units provided"
+            : $"Response window closed with insufficient response: {providedUnits}/{requiredCount} units provided";
+
+        var logEntry = new LogEntry
+        {
+            EventType = "ResponseWindowClosed",
+            Level = "Info",
+            Message = message,
+            Data = new
+            {
+                ResponseType = context.ResponseType.ToString(),
+                ProvidedUnits = providedUnits,
+                RequiredCount = requiredCount
+            }
+        };
+        context.LogSink.Log(logEntry);
     }
 
     /// <summary>
@@ -102,8 +334,16 @@ public sealed class BasicResponseWindow : IResponseWindow
         IResponseRuleService responseRuleService,
         IChoiceRequestFactory choiceFactory,
         ICardMoveService cardMoveService,
-        Func<ChoiceRequest, ChoiceResult> getPlayerChoice)
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice,
+        int providedUnits,
+        int requiredCount)
     {
+        // Check if we already have enough response units
+        if (providedUnits >= requiredCount)
+        {
+            return null;
+        }
+
         // Check if player is still alive (may have changed during the window)
         if (!responder.IsAlive)
         {
@@ -311,12 +551,13 @@ public sealed class BasicResponseWindow : IResponseWindow
             return null;
         }
 
-        // Step 4: Return success result
+        // Step 4: Return success result (1 response unit provided)
         return new ResponseWindowResult(
             State: ResponseWindowState.ResponseSuccess,
             Responder: responder,
             ResponseCard: conversionResult.ActualResponseCard,
-            Choice: choice);
+            Choice: choice,
+            ResponseUnitsProvided: 1);
     }
 
     /// <summary>
@@ -704,7 +945,8 @@ public sealed class BasicResponseWindow : IResponseWindow
 
                 return new ResponseWindowResult(
                     State: ResponseWindowState.ResponseSuccess,
-                    Responder: responder);
+                    Responder: responder,
+                    ResponseUnitsProvided: 1);
             }
             // If enhancement failed, continue to next skill or fall back to legal cards
         }
