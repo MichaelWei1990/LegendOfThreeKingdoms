@@ -9,13 +9,15 @@ namespace LegendOfThreeKingdoms.Core.Resolution;
 /// <summary>
 /// Resolver for Taoyuan Jieyi (桃园结义) immediate trick card.
 /// Effect: All alive players restore 1 health point, in turn order starting from the user.
+/// Note: This trick affects all players without explicit targeting, so nullification
+/// cannot be used to cancel the effect on a single target (单体无懈无效).
 /// </summary>
-public sealed class TaoyuanJieyiResolver : IResolver
+public sealed class TaoyuanJieyiResolver : UntargetedMassTrickResolverBase
 {
     private const int HealAmount = 1;
 
     /// <inheritdoc />
-    public ResolutionResult Resolve(ResolutionContext context)
+    public override ResolutionResult Resolve(ResolutionContext context)
     {
         if (context is null) throw new ArgumentNullException(nameof(context));
 

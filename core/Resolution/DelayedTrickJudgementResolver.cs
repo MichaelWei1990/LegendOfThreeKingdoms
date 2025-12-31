@@ -109,7 +109,7 @@ public sealed class DelayedTrickJudgementResolver : IResolver
             judgementService
         );
 
-        // Push handler resolver to process judgement result and apply effects (push first so it executes after JudgementResolver)
+        // Push handler resolver to process nullification, judgement result and apply effects
         // Use the same intermediateResults dictionary so DelayedTrickEffectResolver can access JudgementResult
         var handlerContext = new ResolutionContext(
             game,
@@ -132,8 +132,19 @@ public sealed class DelayedTrickJudgementResolver : IResolver
 
         context.Stack.Push(new DelayedTrickEffectResolver(_delayedTrickCard, _effectResolver), handlerContext);
 
-        // Push JudgementResolver to execute the judgement (push last so it executes first)
+        // Push JudgementResolver to execute the judgement (will execute after nullification window)
         context.Stack.Push(new JudgementResolver(), judgementContext);
+
+        // Open nullification window before judgement (push last so it executes first)
+        // Nullification can be used to cancel the delayed trick before judgement card is flipped
+        var nullifiableEffect = NullificationHelper.CreateNullifiableEffect(
+            effectKey: $"DelayedTrick.Judgement_{_delayedTrickCard.CardSubType}",
+            targetPlayer: judgeOwner,
+            causingCard: _delayedTrickCard,
+            isNullifiable: true);
+
+        var nullificationResultKey = $"DelayedTrickNullification_{_delayedTrickCard.Id}";
+        NullificationHelper.OpenNullificationWindow(context, nullifiableEffect, nullificationResultKey);
 
         return ResolutionResult.SuccessResult;
     }
@@ -159,6 +170,39 @@ internal sealed class DelayedTrickEffectResolver : IResolver
 
         var game = context.Game;
         var judgeOwner = context.SourcePlayer;
+
+        // Check nullification result first
+        var nullificationResultKey = $"DelayedTrickNullification_{_delayedTrickCard.Id}";
+        if (context.IntermediateResults is not null &&
+            context.IntermediateResults.TryGetValue(nullificationResultKey, out var nullificationObj) &&
+            nullificationObj is NullificationResult nullificationResult &&
+            nullificationResult.IsNullified)
+        {
+            // Effect was nullified, skip judgement and effect
+            // Note: The delayed trick card handling after nullification (discard/transfer)
+            // is determined by the specific delayed trick resolver (e.g., Shandian may transfer)
+            if (context.LogSink is not null)
+            {
+                context.LogSink.Log(new LogEntry
+                {
+                    EventType = "DelayedTrickNullified",
+                    Level = "Info",
+                    Message = $"Delayed trick {_delayedTrickCard.CardSubType} on player {judgeOwner.Seat} was nullified",
+                    Data = new
+                    {
+                        PlayerSeat = judgeOwner.Seat,
+                        CardSubType = _delayedTrickCard.CardSubType,
+                        CardId = _delayedTrickCard.Id,
+                        NullificationCount = nullificationResult.NullificationCount
+                    }
+                });
+            }
+
+            // For nullified delayed tricks, the specific resolver may handle discard/transfer
+            // For now, we skip judgement and let the card remain in judgement zone
+            // Specific resolvers (like Shandian) can handle the transfer logic if needed
+            return ResolutionResult.SuccessResult;
+        }
 
         // Get judgement result from IntermediateResults
         if (context.IntermediateResults is null || !context.IntermediateResults.TryGetValue("JudgementResult", out var resultObj))

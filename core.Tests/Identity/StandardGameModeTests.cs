@@ -20,9 +20,9 @@ public sealed class StandardGameModeTests
             MaxHealth = 4,
             CurrentHealth = p.IsAlive ? 4 : 0,
             IsAlive = p.IsAlive,
-            HandZone = new Model.Zones.Zone($"Hand_{p.Seat}", p.Seat, isPublic: false),
-            EquipmentZone = new Model.Zones.Zone($"Equip_{p.Seat}", p.Seat, isPublic: true),
-            JudgementZone = new Model.Zones.Zone($"Judge_{p.Seat}", p.Seat, isPublic: true)
+            HandZone = new Zone($"Hand_{p.Seat}", p.Seat, isPublic: false),
+            EquipmentZone = new Zone($"Equip_{p.Seat}", p.Seat, isPublic: true),
+            JudgementZone = new Zone($"Judge_{p.Seat}", p.Seat, isPublic: true)
         }).ToArray();
 
         return new Game
@@ -63,10 +63,10 @@ public sealed class StandardGameModeTests
         // Arrange
         var gameMode = new StandardGameMode();
         var game = CreateGameWithRoles(
-            (0, Model.RoleConstants.Loyalist, true),
-            (1, Model.RoleConstants.Lord, true),
-            (2, Model.RoleConstants.Rebel, true),
-            (3, Model.RoleConstants.Renegade, true)
+            (0, RoleConstants.Loyalist, true),
+            (1, RoleConstants.Lord, true),
+            (2, RoleConstants.Rebel, true),
+            (3, RoleConstants.Renegade, true)
         );
 
         // Act
@@ -82,10 +82,10 @@ public sealed class StandardGameModeTests
         // Arrange
         var gameMode = new StandardGameMode();
         var game = CreateGameWithRoles(
-            (0, Model.RoleConstants.Loyalist, true),
-            (1, Model.RoleConstants.Lord, false),
-            (2, Model.RoleConstants.Rebel, true),
-            (3, Model.RoleConstants.Renegade, true)
+            (0, RoleConstants.Loyalist, true),
+            (1, RoleConstants.Lord, false),
+            (2, RoleConstants.Rebel, true),
+            (3, RoleConstants.Renegade, true)
         );
 
         // Act

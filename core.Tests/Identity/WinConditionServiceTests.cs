@@ -19,9 +19,9 @@ public sealed class WinConditionServiceTests
             MaxHealth = 4,
             CurrentHealth = p.IsAlive ? 4 : 0,
             IsAlive = p.IsAlive,
-            HandZone = new Model.Zones.Zone($"Hand_{p.Seat}", p.Seat, isPublic: false),
-            EquipmentZone = new Model.Zones.Zone($"Equip_{p.Seat}", p.Seat, isPublic: true),
-            JudgementZone = new Model.Zones.Zone($"Judge_{p.Seat}", p.Seat, isPublic: true)
+            HandZone = new Zone($"Hand_{p.Seat}", p.Seat, isPublic: false),
+            EquipmentZone = new Zone($"Equip_{p.Seat}", p.Seat, isPublic: true),
+            JudgementZone = new Zone($"Judge_{p.Seat}", p.Seat, isPublic: true)
         }).ToArray();
 
         return new Game
@@ -42,10 +42,10 @@ public sealed class WinConditionServiceTests
         // Arrange
         var service = new BasicWinConditionService();
         var game = CreateGameWithRoles(
-            (0, Model.RoleConstants.Lord, true),
-            (1, Model.RoleConstants.Loyalist, true),
-            (2, Model.RoleConstants.Rebel, false),
-            (3, Model.RoleConstants.Renegade, false)
+            (0, RoleConstants.Lord, true),
+            (1, RoleConstants.Loyalist, true),
+            (2, RoleConstants.Rebel, false),
+            (3, RoleConstants.Renegade, false)
         );
 
         // Act
@@ -56,8 +56,8 @@ public sealed class WinConditionServiceTests
         Assert.AreEqual(WinType.LordAndLoyalists, result.WinType);
         Assert.IsNotNull(result.WinningPlayers);
         Assert.AreEqual(2, result.WinningPlayers.Count);
-        Assert.IsTrue(result.WinningPlayers.Any(p => p.CampId == Model.RoleConstants.Lord));
-        Assert.IsTrue(result.WinningPlayers.Any(p => p.CampId == Model.RoleConstants.Loyalist));
+        Assert.IsTrue(result.WinningPlayers.Any(p => p.CampId == RoleConstants.Lord));
+        Assert.IsTrue(result.WinningPlayers.Any(p => p.CampId == RoleConstants.Loyalist));
     }
 
     [TestMethod]
@@ -66,10 +66,10 @@ public sealed class WinConditionServiceTests
         // Arrange
         var service = new BasicWinConditionService();
         var game = CreateGameWithRoles(
-            (0, Model.RoleConstants.Lord, false),
-            (1, Model.RoleConstants.Loyalist, true),
-            (2, Model.RoleConstants.Rebel, true),
-            (3, Model.RoleConstants.Renegade, true)
+            (0, RoleConstants.Lord, false),
+            (1, RoleConstants.Loyalist, true),
+            (2, RoleConstants.Rebel, true),
+            (3, RoleConstants.Renegade, true)
         );
 
         // Act
@@ -79,7 +79,7 @@ public sealed class WinConditionServiceTests
         Assert.IsTrue(result.IsGameOver);
         Assert.AreEqual(WinType.Rebels, result.WinType);
         Assert.IsNotNull(result.WinningPlayers);
-        Assert.IsTrue(result.WinningPlayers.All(p => p.CampId == Model.RoleConstants.Rebel));
+        Assert.IsTrue(result.WinningPlayers.All(p => p.CampId == RoleConstants.Rebel));
     }
 
     [TestMethod]
@@ -88,10 +88,10 @@ public sealed class WinConditionServiceTests
         // Arrange
         var service = new BasicWinConditionService();
         var game = CreateGameWithRoles(
-            (0, Model.RoleConstants.Lord, false),
-            (1, Model.RoleConstants.Loyalist, false),
-            (2, Model.RoleConstants.Rebel, false),
-            (3, Model.RoleConstants.Renegade, true)
+            (0, RoleConstants.Lord, false),
+            (1, RoleConstants.Loyalist, false),
+            (2, RoleConstants.Rebel, false),
+            (3, RoleConstants.Renegade, true)
         );
 
         // Act
@@ -102,7 +102,7 @@ public sealed class WinConditionServiceTests
         Assert.AreEqual(WinType.Renegade, result.WinType);
         Assert.IsNotNull(result.WinningPlayers);
         Assert.AreEqual(1, result.WinningPlayers.Count);
-        Assert.AreEqual(Model.RoleConstants.Renegade, result.WinningPlayers[0].CampId);
+        Assert.AreEqual(RoleConstants.Renegade, result.WinningPlayers[0].CampId);
     }
 
     [TestMethod]
@@ -111,10 +111,10 @@ public sealed class WinConditionServiceTests
         // Arrange - Lord dead, only Renegade alive
         var service = new BasicWinConditionService();
         var game = CreateGameWithRoles(
-            (0, Model.RoleConstants.Lord, false),
-            (1, Model.RoleConstants.Loyalist, false),
-            (2, Model.RoleConstants.Rebel, false),
-            (3, Model.RoleConstants.Renegade, true)
+            (0, RoleConstants.Lord, false),
+            (1, RoleConstants.Loyalist, false),
+            (2, RoleConstants.Rebel, false),
+            (3, RoleConstants.Renegade, true)
         );
 
         // Act
@@ -124,7 +124,7 @@ public sealed class WinConditionServiceTests
         Assert.IsTrue(result.IsGameOver);
         Assert.AreEqual(WinType.Renegade, result.WinType);
         Assert.IsNotNull(result.WinningPlayers);
-        Assert.AreEqual(Model.RoleConstants.Renegade, result.WinningPlayers[0].CampId);
+        Assert.AreEqual(RoleConstants.Renegade, result.WinningPlayers[0].CampId);
     }
 
     [TestMethod]
@@ -133,16 +133,16 @@ public sealed class WinConditionServiceTests
         // Arrange - 10 player game with 2 renegades, only one survives
         var service = new BasicWinConditionService();
         var game = CreateGameWithRoles(
-            (0, Model.RoleConstants.Lord, false),
-            (1, Model.RoleConstants.Loyalist, false),
-            (2, Model.RoleConstants.Loyalist, false),
-            (3, Model.RoleConstants.Loyalist, false),
-            (4, Model.RoleConstants.Rebel, false),
-            (5, Model.RoleConstants.Rebel, false),
-            (6, Model.RoleConstants.Rebel, false),
-            (7, Model.RoleConstants.Rebel, false),
-            (8, Model.RoleConstants.Renegade, false),
-            (9, Model.RoleConstants.Renegade, true)
+            (0, RoleConstants.Lord, false),
+            (1, RoleConstants.Loyalist, false),
+            (2, RoleConstants.Loyalist, false),
+            (3, RoleConstants.Loyalist, false),
+            (4, RoleConstants.Rebel, false),
+            (5, RoleConstants.Rebel, false),
+            (6, RoleConstants.Rebel, false),
+            (7, RoleConstants.Rebel, false),
+            (8, RoleConstants.Renegade, false),
+            (9, RoleConstants.Renegade, true)
         );
 
         // Act
@@ -154,7 +154,7 @@ public sealed class WinConditionServiceTests
         Assert.IsNotNull(result.WinningPlayers);
         Assert.AreEqual(1, result.WinningPlayers.Count);
         Assert.AreEqual(9, result.WinningPlayers[0].Seat);
-        Assert.AreEqual(Model.RoleConstants.Renegade, result.WinningPlayers[0].CampId);
+        Assert.AreEqual(RoleConstants.Renegade, result.WinningPlayers[0].CampId);
     }
 
     [TestMethod]
@@ -163,10 +163,10 @@ public sealed class WinConditionServiceTests
         // Arrange
         var service = new BasicWinConditionService();
         var game = CreateGameWithRoles(
-            (0, Model.RoleConstants.Lord, true),
-            (1, Model.RoleConstants.Loyalist, true),
-            (2, Model.RoleConstants.Rebel, true),
-            (3, Model.RoleConstants.Renegade, true)
+            (0, RoleConstants.Lord, true),
+            (1, RoleConstants.Loyalist, true),
+            (2, RoleConstants.Rebel, true),
+            (3, RoleConstants.Renegade, true)
         );
 
         // Act
@@ -184,8 +184,8 @@ public sealed class WinConditionServiceTests
         // Arrange - Invalid game state (no Lord)
         var service = new BasicWinConditionService();
         var game = CreateGameWithRoles(
-            (0, Model.RoleConstants.Loyalist, true),
-            (1, Model.RoleConstants.Rebel, true)
+            (0, RoleConstants.Loyalist, true),
+            (1, RoleConstants.Rebel, true)
         );
 
         // Act

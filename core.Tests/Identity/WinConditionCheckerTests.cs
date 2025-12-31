@@ -21,9 +21,9 @@ public sealed class WinConditionCheckerTests
             MaxHealth = 4,
             CurrentHealth = p.IsAlive ? 4 : 0,
             IsAlive = p.IsAlive,
-            HandZone = new Model.Zones.Zone($"Hand_{p.Seat}", p.Seat, isPublic: false),
-            EquipmentZone = new Model.Zones.Zone($"Equip_{p.Seat}", p.Seat, isPublic: true),
-            JudgementZone = new Model.Zones.Zone($"Judge_{p.Seat}", p.Seat, isPublic: true)
+            HandZone = new Zone($"Hand_{p.Seat}", p.Seat, isPublic: false),
+            EquipmentZone = new Zone($"Equip_{p.Seat}", p.Seat, isPublic: true),
+            JudgementZone = new Zone($"Judge_{p.Seat}", p.Seat, isPublic: true)
         }).ToArray();
 
         return new Game
@@ -32,8 +32,8 @@ public sealed class WinConditionCheckerTests
             CurrentPlayerSeat = 0,
             CurrentPhase = Phase.None,
             TurnNumber = 1,
-            DrawPile = new Model.Zones.Zone("DrawPile", ownerSeat: null, isPublic: false),
-            DiscardPile = new Model.Zones.Zone("DiscardPile", ownerSeat: null, isPublic: true),
+            DrawPile = new Zone("DrawPile", ownerSeat: null, isPublic: false),
+            DiscardPile = new Zone("DiscardPile", ownerSeat: null, isPublic: true),
             IsFinished = false
         };
     }
@@ -48,10 +48,10 @@ public sealed class WinConditionCheckerTests
 
         // Game state: Lord and Loyalist alive, Rebel and Renegade dead
         var game = CreateGameWithRoles(
-            (0, Model.RoleConstants.Lord, true),
-            (1, Model.RoleConstants.Loyalist, true),
-            (2, Model.RoleConstants.Rebel, false),
-            (3, Model.RoleConstants.Renegade, false)
+            (0, RoleConstants.Lord, true),
+            (1, RoleConstants.Loyalist, true),
+            (2, RoleConstants.Rebel, false),
+            (3, RoleConstants.Renegade, false)
         );
 
         // Act - Publish PlayerDiedEvent (simulating last enemy death)
@@ -77,10 +77,10 @@ public sealed class WinConditionCheckerTests
 
         // Game state: Only Renegade alive (sole survivor)
         var game = CreateGameWithRoles(
-            (0, Model.RoleConstants.Lord, false),
-            (1, Model.RoleConstants.Loyalist, false),
-            (2, Model.RoleConstants.Rebel, false),
-            (3, Model.RoleConstants.Renegade, true)
+            (0, RoleConstants.Lord, false),
+            (1, RoleConstants.Loyalist, false),
+            (2, RoleConstants.Rebel, false),
+            (3, RoleConstants.Renegade, true)
         );
 
         // Act
@@ -106,10 +106,10 @@ public sealed class WinConditionCheckerTests
 
         // Game state: Multiple players still alive
         var game = CreateGameWithRoles(
-            (0, Model.RoleConstants.Lord, true),
-            (1, Model.RoleConstants.Loyalist, true),
-            (2, Model.RoleConstants.Rebel, true),
-            (3, Model.RoleConstants.Renegade, true)
+            (0, RoleConstants.Lord, true),
+            (1, RoleConstants.Loyalist, true),
+            (2, RoleConstants.Rebel, true),
+            (3, RoleConstants.Renegade, true)
         );
 
         // Act
@@ -133,10 +133,10 @@ public sealed class WinConditionCheckerTests
 
         // Game state: Game already finished
         var game = CreateGameWithRoles(
-            (0, Model.RoleConstants.Lord, true),
-            (1, Model.RoleConstants.Loyalist, true),
-            (2, Model.RoleConstants.Rebel, false),
-            (3, Model.RoleConstants.Renegade, false)
+            (0, RoleConstants.Lord, true),
+            (1, RoleConstants.Loyalist, true),
+            (2, RoleConstants.Rebel, false),
+            (3, RoleConstants.Renegade, false)
         );
         game.IsFinished = true;
 

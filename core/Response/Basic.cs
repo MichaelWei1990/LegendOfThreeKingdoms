@@ -605,6 +605,7 @@ public sealed class BasicResponseWindow : IResponseWindow
             ResponseType.SlashAgainstDuel => CardSubType.Slash,
             ResponseType.SlashAgainstNanmanRushin => CardSubType.Slash,
             ResponseType.PeachForDying => CardSubType.Peach,
+            ResponseType.Nullification => CardSubType.Wuxiekeji,
             _ => null
         };
     }

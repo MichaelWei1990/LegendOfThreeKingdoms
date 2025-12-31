@@ -471,6 +471,7 @@ public sealed class ResponseRuleService : IResponseRuleService
             ResponseType.PeachForDying => CardSubType.Peach,
             ResponseType.SlashAgainstNanmanRushin => CardSubType.Slash,
             ResponseType.SlashAgainstDuel => CardSubType.Slash,
+            ResponseType.Nullification => CardSubType.Wuxiekeji,
             _ => null
         };
     }

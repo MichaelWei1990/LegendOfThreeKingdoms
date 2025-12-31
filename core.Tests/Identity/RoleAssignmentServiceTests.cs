@@ -45,9 +45,9 @@ public sealed class RoleAssignmentServiceTests
                 MaxHealth = 4,
                 CurrentHealth = 4,
                 IsAlive = true,
-                HandZone = new Model.Zones.Zone($"Hand_{i}", i, isPublic: false),
-                EquipmentZone = new Model.Zones.Zone($"Equip_{i}", i, isPublic: true),
-                JudgementZone = new Model.Zones.Zone($"Judge_{i}", i, isPublic: true)
+                HandZone = new Zone($"Hand_{i}", i, isPublic: false),
+                EquipmentZone = new Zone($"Equip_{i}", i, isPublic: true),
+                JudgementZone = new Zone($"Judge_{i}", i, isPublic: true)
             };
         }
 
@@ -76,10 +76,10 @@ public sealed class RoleAssignmentServiceTests
 
         // Assert
         Assert.IsNotNull(result);
-        var lordCount = result.Players.Count(p => p.CampId == Model.RoleConstants.Lord);
-        var loyalistCount = result.Players.Count(p => p.CampId == Model.RoleConstants.Loyalist);
-        var rebelCount = result.Players.Count(p => p.CampId == Model.RoleConstants.Rebel);
-        var renegadeCount = result.Players.Count(p => p.CampId == Model.RoleConstants.Renegade);
+        var lordCount = result.Players.Count(p => p.CampId == RoleConstants.Lord);
+        var loyalistCount = result.Players.Count(p => p.CampId == RoleConstants.Loyalist);
+        var rebelCount = result.Players.Count(p => p.CampId == RoleConstants.Rebel);
+        var renegadeCount = result.Players.Count(p => p.CampId == RoleConstants.Renegade);
 
         Assert.AreEqual(1, lordCount);
         Assert.AreEqual(1, loyalistCount);
@@ -100,10 +100,10 @@ public sealed class RoleAssignmentServiceTests
 
         // Assert
         Assert.IsNotNull(result);
-        var lordCount = result.Players.Count(p => p.CampId == Model.RoleConstants.Lord);
-        var loyalistCount = result.Players.Count(p => p.CampId == Model.RoleConstants.Loyalist);
-        var rebelCount = result.Players.Count(p => p.CampId == Model.RoleConstants.Rebel);
-        var renegadeCount = result.Players.Count(p => p.CampId == Model.RoleConstants.Renegade);
+        var lordCount = result.Players.Count(p => p.CampId == RoleConstants.Lord);
+        var loyalistCount = result.Players.Count(p => p.CampId == RoleConstants.Loyalist);
+        var rebelCount = result.Players.Count(p => p.CampId == RoleConstants.Rebel);
+        var renegadeCount = result.Players.Count(p => p.CampId == RoleConstants.Renegade);
 
         Assert.AreEqual(1, lordCount);
         Assert.AreEqual(1, loyalistCount);
@@ -124,10 +124,10 @@ public sealed class RoleAssignmentServiceTests
 
         // Assert
         Assert.IsNotNull(result);
-        var lordCount = result.Players.Count(p => p.CampId == Model.RoleConstants.Lord);
-        var loyalistCount = result.Players.Count(p => p.CampId == Model.RoleConstants.Loyalist);
-        var rebelCount = result.Players.Count(p => p.CampId == Model.RoleConstants.Rebel);
-        var renegadeCount = result.Players.Count(p => p.CampId == Model.RoleConstants.Renegade);
+        var lordCount = result.Players.Count(p => p.CampId == RoleConstants.Lord);
+        var loyalistCount = result.Players.Count(p => p.CampId == RoleConstants.Loyalist);
+        var rebelCount = result.Players.Count(p => p.CampId == RoleConstants.Rebel);
+        var renegadeCount = result.Players.Count(p => p.CampId == RoleConstants.Renegade);
 
         Assert.AreEqual(1, lordCount);
         Assert.AreEqual(3, loyalistCount);
@@ -186,12 +186,12 @@ public sealed class RoleAssignmentServiceTests
         service.RevealLordRole(gameWithRoles);
 
         // Assert
-        var lord = gameWithRoles.Players.FirstOrDefault(p => p.CampId == Model.RoleConstants.Lord);
+        var lord = gameWithRoles.Players.FirstOrDefault(p => p.CampId == RoleConstants.Lord);
         Assert.IsNotNull(lord);
         Assert.IsTrue(lord.RoleRevealed, "Lord should have RoleRevealed = true");
 
         // Other players should still have RoleRevealed = false
-        var nonLords = gameWithRoles.Players.Where(p => p.CampId != Model.RoleConstants.Lord);
+        var nonLords = gameWithRoles.Players.Where(p => p.CampId != RoleConstants.Lord);
         foreach (var player in nonLords)
         {
             Assert.IsFalse(player.RoleRevealed, $"Non-lord player {player.Seat} should have RoleRevealed = false");

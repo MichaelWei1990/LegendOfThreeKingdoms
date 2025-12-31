@@ -163,10 +163,10 @@ public sealed class GameInitializationTests
         var game = result.Game!;
 
         // Check that roles are assigned
-        var lordCount = game.Players.Count(p => p.CampId == Model.RoleConstants.Lord);
-        var loyalistCount = game.Players.Count(p => p.CampId == Model.RoleConstants.Loyalist);
-        var rebelCount = game.Players.Count(p => p.CampId == Model.RoleConstants.Rebel);
-        var renegadeCount = game.Players.Count(p => p.CampId == Model.RoleConstants.Renegade);
+        var lordCount = game.Players.Count(p => p.CampId == RoleConstants.Lord);
+        var loyalistCount = game.Players.Count(p => p.CampId == RoleConstants.Loyalist);
+        var rebelCount = game.Players.Count(p => p.CampId == RoleConstants.Rebel);
+        var renegadeCount = game.Players.Count(p => p.CampId == RoleConstants.Renegade);
 
         Assert.AreEqual(1, lordCount, "Should have exactly 1 Lord");
         Assert.AreEqual(1, loyalistCount, "Should have exactly 1 Loyalist");
@@ -174,12 +174,12 @@ public sealed class GameInitializationTests
         Assert.AreEqual(1, renegadeCount, "Should have exactly 1 Renegade");
 
         // Check that Lord's role is revealed
-        var lord = game.Players.FirstOrDefault(p => p.CampId == Model.RoleConstants.Lord);
+        var lord = game.Players.FirstOrDefault(p => p.CampId == RoleConstants.Lord);
         Assert.IsNotNull(lord);
         Assert.IsTrue(lord.RoleRevealed, "Lord's role should be revealed");
 
         // Check that other players' roles are not revealed
-        var nonLords = game.Players.Where(p => p.CampId != Model.RoleConstants.Lord);
+        var nonLords = game.Players.Where(p => p.CampId != RoleConstants.Lord);
         foreach (var player in nonLords)
         {
             Assert.IsFalse(player.RoleRevealed, $"Player {player.Seat} should not have role revealed");
@@ -219,10 +219,10 @@ public sealed class GameInitializationTests
         Assert.IsTrue(result.Success);
         var game = result.Game!;
 
-        var lordCount = game.Players.Count(p => p.CampId == Model.RoleConstants.Lord);
-        var loyalistCount = game.Players.Count(p => p.CampId == Model.RoleConstants.Loyalist);
-        var rebelCount = game.Players.Count(p => p.CampId == Model.RoleConstants.Rebel);
-        var renegadeCount = game.Players.Count(p => p.CampId == Model.RoleConstants.Renegade);
+        var lordCount = game.Players.Count(p => p.CampId == RoleConstants.Lord);
+        var loyalistCount = game.Players.Count(p => p.CampId == RoleConstants.Loyalist);
+        var rebelCount = game.Players.Count(p => p.CampId == RoleConstants.Rebel);
+        var renegadeCount = game.Players.Count(p => p.CampId == RoleConstants.Renegade);
 
         Assert.AreEqual(1, lordCount);
         Assert.AreEqual(1, loyalistCount);
@@ -306,7 +306,7 @@ public sealed class GameInitializationTests
         var game = result.Game!;
 
         // Verify roles are assigned
-        var lordCount = game.Players.Count(p => p.CampId == Model.RoleConstants.Lord);
+        var lordCount = game.Players.Count(p => p.CampId == RoleConstants.Lord);
         Assert.AreEqual(1, lordCount);
 
         // Verify win condition checking is set up by publishing a PlayerDiedEvent
@@ -316,8 +316,8 @@ public sealed class GameInitializationTests
 
         // Simulate game state where Lord and Loyalist are alive, Rebel and Renegade are dead
         // First, mark Rebel and Renegade as dead
-        var rebel = game.Players.First(p => p.CampId == Model.RoleConstants.Rebel);
-        var renegade = game.Players.First(p => p.CampId == Model.RoleConstants.Renegade);
+        var rebel = game.Players.First(p => p.CampId == RoleConstants.Rebel);
+        var renegade = game.Players.First(p => p.CampId == RoleConstants.Renegade);
         rebel.IsAlive = false;
         renegade.IsAlive = false;
 

@@ -89,7 +89,12 @@ public enum CardSubType
     /// <summary>
     /// 闪电 (Shandian).
     /// </summary>
-    Shandian
+    Shandian,
+
+    /// <summary>
+    /// 无懈可击 (Wuxiekeji / Nullification).
+    /// </summary>
+    Wuxiekeji
 }
 
 /// <summary>

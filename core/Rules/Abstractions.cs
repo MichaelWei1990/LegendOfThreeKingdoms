@@ -175,7 +175,11 @@ public enum ResponseType
     /// <summary>
     /// Playing a Slash in a Duel (决斗).
     /// </summary>
-    SlashAgainstDuel
+    SlashAgainstDuel,
+    /// <summary>
+    /// Playing Nullification (无懈可击) to nullify a trick card effect.
+    /// </summary>
+    Nullification
 }
 
 /// <summary>

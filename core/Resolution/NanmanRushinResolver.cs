@@ -13,14 +13,14 @@ namespace LegendOfThreeKingdoms.Core.Resolution;
 /// Effect: All alive players except the user must play a Slash, or take 1 damage.
 /// Targets are processed in turn order starting from the user's next player.
 /// </summary>
-public sealed class NanmanRushinResolver : IResolver
+public sealed class NanmanRushinResolver : UntargetedMassTrickResolverBase
 {
     private const string TargetsKey = "NanmanRushinTargets";
     private const string CurrentTargetIndexKey = "NanmanRushinCurrentTargetIndex";
     private const string CausingCardKey = "NanmanRushinCausingCard";
 
     /// <inheritdoc />
-    public ResolutionResult Resolve(ResolutionContext context)
+    public override ResolutionResult Resolve(ResolutionContext context)
     {
         if (context is null) throw new ArgumentNullException(nameof(context));
 
@@ -163,7 +163,7 @@ public sealed class NanmanRushinResolver : IResolver
             CausingCard: causingCard  // The Nanman Rushin card that causes the damage
         );
 
-        // Create handler resolver context (will check response result and apply damage if needed)
+        // Create handler resolver context (will check nullification, response result and apply damage if needed)
         var handlerContext = new ResolutionContext(
             context.Game,
             context.SourcePlayer,
@@ -183,7 +183,7 @@ public sealed class NanmanRushinResolver : IResolver
             context.JudgementService
         );
 
-        // Push handler resolver first (will execute after response window due to LIFO)
+        // Push handler resolver first (will execute after nullification and response windows due to LIFO)
         // The handler will also push this resolver back to process next target
         context.Stack.Push(new NanmanRushinTargetHandlerResolver(damage, targets, currentIndex), handlerContext);
 
@@ -218,11 +218,21 @@ public sealed class NanmanRushinResolver : IResolver
             responseResultKey,
             context.GetPlayerChoice);
 
-        // Push response window last (will execute first due to LIFO)
+        // Push response window (will execute after nullification window due to LIFO)
         context.Stack.Push(responseWindow, responseContext);
         
         // Store the response result key for the handler to use
         intermediateResults[$"NanmanRushinResponseKey_{currentIndex}"] = responseResultKey;
+
+        // Open nullification window before response window (push last so it executes first)
+        var nullifiableEffect = NullificationHelper.CreateNullifiableEffect(
+            effectKey: $"NanmanRushin.TargetStep_{target.Seat}",
+            targetPlayer: target,
+            causingCard: causingCard,
+            isNullifiable: true);
+
+        var nullificationResultKey = $"NanmanRushinNullification_{target.Seat}";
+        NullificationHelper.OpenNullificationWindow(context, nullifiableEffect, nullificationResultKey);
 
         return ResolutionResult.SuccessResult;
     }
@@ -420,32 +430,59 @@ internal sealed class NanmanRushinTargetHandlerResolver : IResolver
                 messageKey: "resolution.nanmanrushin.invalidResponseResult");
         }
 
-        // Decide whether to trigger damage based on response result
-        if (responseResult.State == ResponseWindowState.NoResponse)
+        // Check nullification result first
+        var nullificationResultKey = $"NanmanRushinNullification_{_pendingDamage.TargetSeat}";
+        if (intermediateResults.TryGetValue(nullificationResultKey, out var nullificationObj) &&
+            nullificationObj is NullificationResult nullificationResult &&
+            nullificationResult.IsNullified)
         {
-            // No response - trigger damage
-            var damageContext = new ResolutionContext(
-                context.Game,
-                context.SourcePlayer,
-                context.Action,
-                context.Choice,
-                context.Stack,
-                context.CardMoveService,
-                context.RuleService,
-                PendingDamage: _pendingDamage,
-                LogSink: context.LogSink,
-                context.GetPlayerChoice,
-                context.IntermediateResults,
-                context.EventBus,
-                context.LogCollector,
-                context.SkillManager,
-                context.EquipmentSkillRegistry,
-                context.JudgementService
-            );
-
-            context.Stack.Push(new DamageResolver(), damageContext);
+            // Effect was nullified for this target, skip damage
+            if (context.LogSink is not null)
+            {
+                context.LogSink.Log(new LogEntry
+                {
+                    EventType = "NanmanRushinNullified",
+                    Level = "Info",
+                    Message = $"Nanman Rushin effect on player {_pendingDamage.TargetSeat} was nullified",
+                    Data = new
+                    {
+                        TargetPlayerSeat = _pendingDamage.TargetSeat,
+                        NullificationCount = nullificationResult.NullificationCount
+                    }
+                });
+            }
+            // Continue to next target without dealing damage
         }
-        // If response was successful, no damage is dealt
+        else
+        {
+            // Effect was not nullified, check response result
+            // Decide whether to trigger damage based on response result
+            if (responseResult.State == ResponseWindowState.NoResponse)
+            {
+                // No response - trigger damage
+                var damageContext = new ResolutionContext(
+                    context.Game,
+                    context.SourcePlayer,
+                    context.Action,
+                    context.Choice,
+                    context.Stack,
+                    context.CardMoveService,
+                    context.RuleService,
+                    PendingDamage: _pendingDamage,
+                    LogSink: context.LogSink,
+                    context.GetPlayerChoice,
+                    context.IntermediateResults,
+                    context.EventBus,
+                    context.LogCollector,
+                    context.SkillManager,
+                    context.EquipmentSkillRegistry,
+                    context.JudgementService
+                );
+
+                context.Stack.Push(new DamageResolver(), damageContext);
+            }
+            // If response was successful, no damage is dealt
+        }
 
         // Continue processing next target
         var nextIndex = _currentTargetIndex + 1;

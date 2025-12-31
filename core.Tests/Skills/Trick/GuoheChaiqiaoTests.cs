@@ -83,6 +83,39 @@ public sealed class GuoheChaiqiaoTests
         // Mock GetPlayerChoice to return the target card
         Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
         {
+            // Handle nullification window requests (no response)
+            // Check if this is a nullification request by checking if AllowedCards contains Wuxiekeji
+            // or if AllowedCards is null/empty (player has no nullification cards)
+            if (request.ChoiceType == ChoiceType.SelectCards)
+            {
+                if (request.AllowedCards is null || request.AllowedCards.Count == 0)
+                {
+                    // Player has no legal response cards, return pass
+                    return new ChoiceResult(
+                        RequestId: request.RequestId,
+                        PlayerSeat: request.PlayerSeat,
+                        SelectedTargetSeats: null,
+                        SelectedCardIds: null, // No card selected = pass
+                        SelectedOptionId: null,
+                        Confirmed: null
+                    );
+                }
+                
+                if (request.AllowedCards.Any(c => c.CardSubType == CardSubType.Wuxiekeji))
+                {
+                    // This is a nullification window request, but player chooses not to respond
+                    return new ChoiceResult(
+                        RequestId: request.RequestId,
+                        PlayerSeat: request.PlayerSeat,
+                        SelectedTargetSeats: null,
+                        SelectedCardIds: null, // No card selected = pass
+                        SelectedOptionId: null,
+                        Confirmed: null
+                    );
+                }
+            }
+            
+            // Handle card selection for GuoheChaiqiao
             return new ChoiceResult(
                 RequestId: request.RequestId,
                 PlayerSeat: request.PlayerSeat,
@@ -108,6 +141,14 @@ public sealed class GuoheChaiqiaoTests
 
         // Act
         var result = resolver.Resolve(context);
+
+        // Execute stack to process nullification window and effect handler
+        while (!stack.IsEmpty)
+        {
+            var stackResult = stack.Pop();
+            Assert.IsTrue(stackResult.Success, 
+                $"Stack execution should succeed. Error: {stackResult.ErrorCode}, Message: {stackResult.MessageKey}");
+        }
 
         // Assert
         Assert.IsTrue(result.Success);
@@ -159,6 +200,39 @@ public sealed class GuoheChaiqiaoTests
 
         Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
         {
+            // Handle nullification window requests (no response)
+            // Check if this is a nullification request by checking if AllowedCards contains Wuxiekeji
+            // or if AllowedCards is null/empty (player has no nullification cards)
+            if (request.ChoiceType == ChoiceType.SelectCards)
+            {
+                if (request.AllowedCards is null || request.AllowedCards.Count == 0)
+                {
+                    // Player has no legal response cards, return pass
+                    return new ChoiceResult(
+                        RequestId: request.RequestId,
+                        PlayerSeat: request.PlayerSeat,
+                        SelectedTargetSeats: null,
+                        SelectedCardIds: null, // No card selected = pass
+                        SelectedOptionId: null,
+                        Confirmed: null
+                    );
+                }
+                
+                if (request.AllowedCards.Any(c => c.CardSubType == CardSubType.Wuxiekeji))
+                {
+                    // This is a nullification window request, but player chooses not to respond
+                    return new ChoiceResult(
+                        RequestId: request.RequestId,
+                        PlayerSeat: request.PlayerSeat,
+                        SelectedTargetSeats: null,
+                        SelectedCardIds: null, // No card selected = pass
+                        SelectedOptionId: null,
+                        Confirmed: null
+                    );
+                }
+            }
+            
+            // Handle card selection for GuoheChaiqiao
             return new ChoiceResult(
                 RequestId: request.RequestId,
                 PlayerSeat: request.PlayerSeat,
@@ -184,6 +258,14 @@ public sealed class GuoheChaiqiaoTests
 
         // Act
         var result = resolver.Resolve(context);
+
+        // Execute stack to process nullification window and effect handler
+        while (!stack.IsEmpty)
+        {
+            var stackResult = stack.Pop();
+            Assert.IsTrue(stackResult.Success, 
+                $"Stack execution should succeed. Error: {stackResult.ErrorCode}, Message: {stackResult.MessageKey}");
+        }
 
         // Assert
         Assert.IsTrue(result.Success);
@@ -235,6 +317,23 @@ public sealed class GuoheChaiqiaoTests
 
         Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
         {
+            // Handle nullification window requests (no response)
+            if (request.ChoiceType == ChoiceType.SelectCards && 
+                request.AllowedCards is not null && 
+                request.AllowedCards.Any(c => c.CardSubType == CardSubType.Wuxiekeji))
+            {
+                // No nullification response
+                return new ChoiceResult(
+                    RequestId: request.RequestId,
+                    PlayerSeat: request.PlayerSeat,
+                    SelectedTargetSeats: null,
+                    SelectedCardIds: null, // No card selected = pass
+                    SelectedOptionId: null,
+                    Confirmed: null
+                );
+            }
+            
+            // Handle card selection for GuoheChaiqiao
             return new ChoiceResult(
                 RequestId: request.RequestId,
                 PlayerSeat: request.PlayerSeat,
@@ -260,6 +359,14 @@ public sealed class GuoheChaiqiaoTests
 
         // Act
         var result = resolver.Resolve(context);
+
+        // Execute stack to process nullification window and effect handler
+        while (!stack.IsEmpty)
+        {
+            var stackResult = stack.Pop();
+            Assert.IsTrue(stackResult.Success, 
+                $"Stack execution should succeed. Error: {stackResult.ErrorCode}, Message: {stackResult.MessageKey}");
+        }
 
         // Assert
         Assert.IsTrue(result.Success);
@@ -303,6 +410,39 @@ public sealed class GuoheChaiqiaoTests
 
         Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
         {
+            // Handle nullification window requests (no response)
+            // Check if this is a nullification request by checking if AllowedCards contains Wuxiekeji
+            // or if AllowedCards is null/empty (player has no nullification cards)
+            if (request.ChoiceType == ChoiceType.SelectCards)
+            {
+                if (request.AllowedCards is null || request.AllowedCards.Count == 0)
+                {
+                    // Player has no legal response cards, return pass
+                    return new ChoiceResult(
+                        RequestId: request.RequestId,
+                        PlayerSeat: request.PlayerSeat,
+                        SelectedTargetSeats: null,
+                        SelectedCardIds: null, // No card selected = pass
+                        SelectedOptionId: null,
+                        Confirmed: null
+                    );
+                }
+                
+                if (request.AllowedCards.Any(c => c.CardSubType == CardSubType.Wuxiekeji))
+                {
+                    // This is a nullification window request, but player chooses not to respond
+                    return new ChoiceResult(
+                        RequestId: request.RequestId,
+                        PlayerSeat: request.PlayerSeat,
+                        SelectedTargetSeats: null,
+                        SelectedCardIds: null, // No card selected = pass
+                        SelectedOptionId: null,
+                        Confirmed: null
+                    );
+                }
+            }
+            
+            // Handle card selection for GuoheChaiqiao
             return new ChoiceResult(
                 RequestId: request.RequestId,
                 PlayerSeat: request.PlayerSeat,
@@ -328,6 +468,14 @@ public sealed class GuoheChaiqiaoTests
 
         // Act
         var result = resolver.Resolve(context);
+
+        // Execute stack to process nullification window and effect handler
+        while (!stack.IsEmpty)
+        {
+            var stackResult = stack.Pop();
+            Assert.IsTrue(stackResult.Success, 
+                $"Stack execution should succeed. Error: {stackResult.ErrorCode}, Message: {stackResult.MessageKey}");
+        }
 
         // Assert
         Assert.IsTrue(result.Success, "GuoheChaiqiao should work with distant targets (no distance restriction).");
