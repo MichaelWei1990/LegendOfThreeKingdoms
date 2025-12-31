@@ -220,10 +220,20 @@ public sealed class SingleCardConversionStrategy : ICardConversionStrategy
             var virtualCard = skill.CreateVirtualCard(card, game, sourcePlayer);
             if (virtualCard is not null && virtualCard.CardSubType == expectedCardSubType.Value)
             {
+                // For Wusheng skill with equipment cards, dependency checking will happen during actual conversion
+                // For now, we skip dependency check during candidate discovery to avoid complexity
+                // Full dependency validation will happen during actual conversion if needed
+
                 // Store original card and conversion skill in IntermediateResults for cleanup
                 var intermediateResults = context.IntermediateResults ?? new Dictionary<string, object>();
                 intermediateResults["ConversionOriginalCard"] = card;
                 intermediateResults["ConversionSkill"] = skill;
+                // Mark if card is from equipment zone for cleanup
+                var cardIsFromEquipment = sourcePlayer.EquipmentZone.Cards.Any(c => c.Id == card.Id);
+                if (cardIsFromEquipment)
+                {
+                    intermediateResults["ConversionFromEquipment"] = true;
+                }
 
                 return new CardConversionResult(
                     ActualCard: virtualCard,

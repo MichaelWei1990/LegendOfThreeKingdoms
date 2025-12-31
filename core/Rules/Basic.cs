@@ -338,6 +338,30 @@ public sealed class CardUsageRuleService : ICardUsageRuleService
     {
         return _targetSelection.GetLegalTargets(context);
     }
+
+    /// <inheritdoc />
+    public RuleResult CanUseCardWithHypotheticalState(
+        CardUsageContext context,
+        Func<Game, Player> createHypotheticalState)
+    {
+        if (context is null) throw new ArgumentNullException(nameof(context));
+        if (createHypotheticalState is null) throw new ArgumentNullException(nameof(createHypotheticalState));
+
+        // Create hypothetical player state
+        var hypotheticalPlayer = createHypotheticalState(context.Game);
+
+        // Create new context with hypothetical player
+        var hypotheticalContext = new CardUsageContext(
+            Game: context.Game,
+            SourcePlayer: hypotheticalPlayer,
+            Card: context.Card,
+            CandidateTargets: context.CandidateTargets,
+            IsExtraAction: context.IsExtraAction,
+            UsageCountThisTurn: context.UsageCountThisTurn);
+
+        // Use the standard CanUseCard logic with hypothetical player
+        return CanUseCard(hypotheticalContext);
+    }
 }
 
 /// <summary>
@@ -366,6 +390,28 @@ public sealed class ResponseRuleService : IResponseRuleService
         return legalCards.HasAny
             ? RuleResult.Allowed
             : RuleResult.Disallowed(RuleErrorCode.NoLegalOptions);
+    }
+
+    /// <inheritdoc />
+    public RuleResult CanRespondWithCardWithHypotheticalState(
+        ResponseContext context,
+        Func<Game, Player> createHypotheticalState)
+    {
+        if (context is null) throw new ArgumentNullException(nameof(context));
+        if (createHypotheticalState is null) throw new ArgumentNullException(nameof(createHypotheticalState));
+
+        // Create hypothetical player state
+        var hypotheticalResponder = createHypotheticalState(context.Game);
+
+        // Create new context with hypothetical responder
+        var hypotheticalContext = new ResponseContext(
+            Game: context.Game,
+            Responder: hypotheticalResponder,
+            ResponseType: context.ResponseType,
+            SourceEvent: context.SourceEvent);
+
+        // Use the standard CanRespondWithCard logic with hypothetical responder
+        return CanRespondWithCard(hypotheticalContext);
     }
 
     public RuleQueryResult<Card> GetLegalResponseCards(ResponseContext context)
@@ -459,6 +505,38 @@ public sealed class ResponseRuleService : IResponseRuleService
                 var virtualCard = conversionSkill.CreateVirtualCard(card, game, player);
                 if (virtualCard is not null && virtualCard.CardSubType == targetSubType)
                 {
+                    // This card can be converted to the target type
+                    if (!convertibleCards.Any(c => c.Id == card.Id))
+                    {
+                        convertibleCards.Add(card);
+                    }
+                    // Only need one successful conversion per card
+                    break;
+                }
+            }
+        }
+
+        // Also try to convert equipment cards (for skills like Wusheng)
+        foreach (var card in player.EquipmentZone.Cards)
+        {
+            // Skip if card is already of the target type
+            if (card.CardSubType == targetSubType)
+                continue;
+
+            // Try each conversion skill
+            foreach (var conversionSkill in conversionSkills)
+            {
+                var virtualCard = conversionSkill.CreateVirtualCard(card, game, player);
+                if (virtualCard is not null && virtualCard.CardSubType == targetSubType)
+                {
+                    // For equipment cards, check dependency (e.g., Wusheng)
+                    if (conversionSkill is Skills.Hero.WushengSkill wushengSkill)
+                    {
+                        // For response scenarios, dependency checking is usually not needed
+                        // But we still check if the skill supports it
+                        // For now, we'll add the card and let the dependency check happen during actual conversion
+                    }
+
                     // This card can be converted to the target type
                     if (!convertibleCards.Any(c => c.Id == card.Id))
                     {
@@ -819,75 +897,172 @@ public sealed class ActionQueryService : IActionQueryService
     {
         var conversionTargets = new Dictionary<CardSubType, List<Card>>();
         
-        if (_skillManager is null)
-            return conversionTargets;
-        
-        var conversionSkills = _skillManager.GetActiveSkills(game, player)
-            .OfType<Skills.ICardConversionSkill>()
-            .ToList();
-        
+        var conversionSkills = GetConversionSkills(game, player);
         if (conversionSkills.Count == 0)
             return conversionTargets;
         
-        // Try to convert each card in hand
-        foreach (var card in player.HandZone.Cards)
-        {
-            // Try each conversion skill
-            foreach (var conversionSkill in conversionSkills)
-            {
-                var virtualCard = conversionSkill.CreateVirtualCard(card, game, player);
-                if (virtualCard is null)
-                    continue;
-                
-                var targetSubType = virtualCard.CardSubType;
-                
-                // Skip if the card is already of the target type
-                if (card.CardSubType == targetSubType)
-                    continue;
-                
-                // Check if the virtual card can be used
-                var usage = new CardUsageContext(
-                    game,
-                    player,
-                    virtualCard,
-                    game.Players,
-                    IsExtraAction: false,
-                    UsageCountThisTurn: 0);
-                
-                if (!_cardUsageRules.CanUseCard(usage).IsAllowed)
-                    continue;
-
-                // For cards that require targets, check if there are legal targets
-                // This ensures we don't generate actions for cards that can't actually be used
-                var targetConstraints = GetTargetConstraintsForCardSubType(targetSubType);
-                
-                if (targetConstraints is not null && targetConstraints.MinTargets > 0)
-                {
-                    var legalTargetsResult = _cardUsageRules.GetLegalTargets(usage);
-                    
-                    if (!legalTargetsResult.HasAny)
-                        continue;
-                }
-                
-                // Add to candidates for this target card type
-                if (!conversionTargets.TryGetValue(targetSubType, out var candidates))
-                {
-                    candidates = new List<Card>();
-                    conversionTargets[targetSubType] = candidates;
-                }
-                
-                // Avoid duplicates
-                if (!candidates.Any(c => c.Id == card.Id))
-                {
-                    candidates.Add(card);
-                }
-                
-                // Only need one successful conversion per card
-                break;
-            }
-        }
+        // Discover conversions from hand zone
+        DiscoverConversionsFromZone(
+            game, 
+            player, 
+            player.HandZone.Cards, 
+            conversionSkills, 
+            conversionTargets);
+        
+        // Discover conversions from equipment zone (for skills like Wusheng)
+        DiscoverConversionsFromZone(
+            game, 
+            player, 
+            player.EquipmentZone.Cards, 
+            conversionSkills, 
+            conversionTargets);
         
         return conversionTargets;
+    }
+
+    /// <summary>
+    /// Gets all active conversion skills for the player.
+    /// </summary>
+    private List<Skills.ICardConversionSkill> GetConversionSkills(Game game, Player player)
+    {
+        if (_skillManager is null)
+            return new List<Skills.ICardConversionSkill>();
+        
+        return _skillManager.GetActiveSkills(game, player)
+            .OfType<Skills.ICardConversionSkill>()
+            .ToList();
+    }
+
+    /// <summary>
+    /// Discovers conversion candidates from a specific zone (hand or equipment).
+    /// </summary>
+    private void DiscoverConversionsFromZone(
+        Game game,
+        Player player,
+        IEnumerable<Card> cards,
+        List<Skills.ICardConversionSkill> conversionSkills,
+        Dictionary<CardSubType, List<Card>> conversionTargets)
+    {
+        foreach (var card in cards)
+        {
+            var converted = TryFindValidConversion(
+                game, 
+                player, 
+                card, 
+                conversionSkills);
+            
+            if (converted is not null)
+            {
+                AddConversionCandidate(
+                    conversionTargets, 
+                    converted.TargetSubType, 
+                    card);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Result of a conversion attempt.
+    /// </summary>
+    private record ConversionResult(CardSubType TargetSubType);
+
+    /// <summary>
+    /// Tries to find a valid conversion for a card using available conversion skills.
+    /// Returns the target subtype if a valid conversion is found, null otherwise.
+    /// </summary>
+    private ConversionResult? TryFindValidConversion(
+        Game game,
+        Player player,
+        Card card,
+        List<Skills.ICardConversionSkill> conversionSkills)
+    {
+        foreach (var conversionSkill in conversionSkills)
+        {
+            var virtualCard = conversionSkill.CreateVirtualCard(card, game, player);
+            if (virtualCard is null)
+                continue;
+            
+            var targetSubType = virtualCard.CardSubType;
+            
+            // Skip if the card is already of the target type
+            if (card.CardSubType == targetSubType)
+                continue;
+            
+            // Check if the virtual card can be used
+            if (!CanUseConvertedCard(game, player, virtualCard))
+                continue;
+
+            // Check if there are legal targets (if required)
+            if (!HasLegalTargets(game, player, virtualCard, targetSubType))
+                continue;
+
+            // Found a valid conversion
+            return new ConversionResult(targetSubType);
+        }
+        
+        return null;
+    }
+
+    /// <summary>
+    /// Checks if a converted virtual card can be used.
+    /// </summary>
+    private bool CanUseConvertedCard(Game game, Player player, Card virtualCard)
+    {
+        var usage = new CardUsageContext(
+            game,
+            player,
+            virtualCard,
+            game.Players,
+            IsExtraAction: false,
+            UsageCountThisTurn: 0);
+        
+        return _cardUsageRules.CanUseCard(usage).IsAllowed;
+    }
+
+    /// <summary>
+    /// Checks if a converted card has legal targets (if targets are required).
+    /// </summary>
+    private bool HasLegalTargets(Game game, Player player, Card virtualCard, CardSubType targetSubType)
+    {
+        var targetConstraints = GetTargetConstraintsForCardSubType(targetSubType);
+        
+        // If no targets are required, it's valid
+        if (targetConstraints is null || targetConstraints.MinTargets == 0)
+            return true;
+        
+        // Check if there are legal targets
+        var usage = new CardUsageContext(
+            game,
+            player,
+            virtualCard,
+            game.Players,
+            IsExtraAction: false,
+            UsageCountThisTurn: 0);
+        
+        var legalTargetsResult = _cardUsageRules.GetLegalTargets(usage);
+        return legalTargetsResult.HasAny;
+    }
+
+    /// <summary>
+    /// Adds a card to the conversion candidates for a target subtype.
+    /// Avoids duplicates.
+    /// </summary>
+    private static void AddConversionCandidate(
+        Dictionary<CardSubType, List<Card>> conversionTargets,
+        CardSubType targetSubType,
+        Card card)
+    {
+        if (!conversionTargets.TryGetValue(targetSubType, out var candidates))
+        {
+            candidates = new List<Card>();
+            conversionTargets[targetSubType] = candidates;
+        }
+        
+        // Avoid duplicates
+        if (!candidates.Any(c => c.Id == card.Id))
+        {
+            candidates.Add(card);
+        }
     }
 
 

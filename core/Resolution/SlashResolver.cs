@@ -363,6 +363,11 @@ public sealed class SlashResolver : IResolver
             {
                 slashCard = sourcePlayer.HandZone.Cards.FirstOrDefault(c => c.Id == cardId);
             }
+            // If still not found, try to find from source player's equipment zone
+            if (slashCard is null && sourcePlayer.EquipmentZone.Cards is not null)
+            {
+                slashCard = sourcePlayer.EquipmentZone.Cards.FirstOrDefault(c => c.Id == cardId);
+            }
         }
 
         // If no card selected, check if Jijiang (激将) was used and get virtual Slash card from intermediate results

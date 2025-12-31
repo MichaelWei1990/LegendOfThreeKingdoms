@@ -23,6 +23,7 @@ public static class ShuHeroRegistration
         registry.RegisterSkill("guanxing", new Hero.GuanxingSkillFactory());
         registry.RegisterSkill("rende", new Hero.RendeSkillFactory());
         registry.RegisterSkill("jijiang", new Hero.JijiangSkillFactory());
+        registry.RegisterSkill("wusheng", new Hero.WushengSkillFactory());
 
         // Register heroes with their skills (Standard Edition)
         // 1. 赵云 (Zhao Yun): 龙胆 (Longdan)
@@ -31,6 +32,8 @@ public static class ShuHeroRegistration
         registry.RegisterHeroSkills("zhugeliang", new[] { "guanxing" });
         // 3. 刘备 (Liu Bei): 仁德 (Rende), 激将 (Jijiang) - Lord skill
         registry.RegisterHeroSkills("liubei", new[] { "rende", "jijiang" });
+        // 4. 关羽 (Guan Yu): 武圣 (Wusheng)
+        registry.RegisterHeroSkills("guanyu", new[] { "wusheng" });
     }
 }
 

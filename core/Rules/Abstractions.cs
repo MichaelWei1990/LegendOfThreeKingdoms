@@ -90,6 +90,17 @@ public interface ICardUsageRuleService
     RuleResult CanUseCard(CardUsageContext context);
 
     RuleQueryResult<Player> GetLegalTargets(CardUsageContext context);
+
+    /// <summary>
+    /// Checks if a card can be used with a hypothetical game state.
+    /// This is used for dependency checking (e.g., Wusheng skill checking if removing equipment would invalidate the usage).
+    /// </summary>
+    /// <param name="context">The card usage context.</param>
+    /// <param name="createHypotheticalState">Function that creates a hypothetical player state (e.g., with equipment removed).</param>
+    /// <returns>The rule result indicating whether the card can be used in the hypothetical state.</returns>
+    RuleResult CanUseCardWithHypotheticalState(
+        CardUsageContext context,
+        Func<Game, Player> createHypotheticalState);
 }
 
 /// <summary>
