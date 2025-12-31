@@ -5,6 +5,7 @@ using LegendOfThreeKingdoms.Core.Abstractions;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Response;
 using LegendOfThreeKingdoms.Core.Rules;
+using LegendOfThreeKingdoms.Core.Skills;
 
 namespace LegendOfThreeKingdoms.Core.Resolution;
 
@@ -153,6 +154,13 @@ public sealed class DuelResolver : IResolver
             return ResolutionResult.SuccessResult;
         }
 
+        // Get the Duel card
+        Card? duelCard = null;
+        if (intermediateResults.TryGetValue("DuelCard", out var cardObj) && cardObj is Card card)
+        {
+            duelCard = card;
+        }
+
         // Create response window for current player to play Slash
         var responseResultKey = $"DuelResponse_{currentPlayerSeat}_{intermediateResults.Count}";
         
@@ -176,16 +184,18 @@ public sealed class DuelResolver : IResolver
             context.JudgementService
         );
 
+        // Check if current player has a response assistance skill (e.g., Jijiang) and wants to use it
+        if (TryUseResponseAssistance(context, currentPlayer, otherPlayer, duelCard, intermediateResults, responseResultKey))
+        {
+            // Response assistance was activated, handler resolver will be pushed by TryUseResponseAssistance
+            return ResolutionResult.SuccessResult;
+        }
+
         // Push handler resolver first (will execute after response window due to LIFO)
         context.Stack.Push(new DuelResponseHandlerResolver(currentPlayerSeat, otherPlayerSeat, responseResultKey), handlerContext);
 
         // Calculate required Slash count (check if opposing player has Wushuang or similar skills)
         int requiredCount = 1;
-        Card? duelCard = null;
-        if (intermediateResults.TryGetValue("DuelCard", out var cardObj) && cardObj is Card card)
-        {
-            duelCard = card;
-        }
         if (context.SkillManager is not null)
         {
             requiredCount = ResponseRequirementCalculator.CalculateSlashRequirementForDuel(
@@ -228,6 +238,95 @@ public sealed class DuelResolver : IResolver
         context.Stack.Push(responseWindow, responseContext);
 
         return ResolutionResult.SuccessResult;
+    }
+
+    /// <summary>
+    /// Checks if current player has a response assistance skill (e.g., Jijiang) and wants to use it.
+    /// If yes, pushes JijiangResponseAssistanceResolver onto the stack.
+    /// </summary>
+    /// <returns>True if response assistance was activated, false otherwise.</returns>
+    private static bool TryUseResponseAssistance(
+        ResolutionContext context,
+        Player currentPlayer,
+        Player otherPlayer,
+        Card? duelCard,
+        Dictionary<string, object> intermediateResults,
+        string responseResultKey)
+    {
+        // Check if SkillManager is available
+        if (context.SkillManager is null || context.GetPlayerChoice is null)
+            return false;
+
+        // Find any response assistance skill for the current player
+        var currentPlayerSkills = context.SkillManager.GetActiveSkills(context.Game, currentPlayer);
+        var assistanceSkill = currentPlayerSkills.OfType<Skills.IResponseAssistanceSkill>()
+            .FirstOrDefault();
+
+        if (assistanceSkill is null)
+            return false;
+
+        // Check if the skill can provide assistance for Slash against Duel
+        var sourceEvent = new { Type = "Duel", ResponderSeat = currentPlayer.Seat, OtherPlayerSeat = otherPlayer.Seat, DuelCard = duelCard };
+        if (!assistanceSkill.CanProvideAssistance(context.Game, currentPlayer, Rules.ResponseType.SlashAgainstDuel, sourceEvent))
+            return false;
+
+        // Ask current player if they want to use the assistance skill
+        if (!assistanceSkill.ShouldActivate(context.Game, currentPlayer, context.GetPlayerChoice))
+            return false;
+
+        // Current player wants to use response assistance - push JijiangResponseAssistanceResolver
+        var assistanceContext = new ResolutionContext(
+            context.Game,
+            currentPlayer, // Beneficiary is the current player
+            Action: null,
+            Choice: null,
+            context.Stack,
+            context.CardMoveService,
+            context.RuleService,
+            context.PendingDamage,
+            context.LogSink,
+            context.GetPlayerChoice,
+            intermediateResults,
+            context.EventBus,
+            context.LogCollector,
+            context.SkillManager,
+            context.EquipmentSkillRegistry,
+            context.JudgementService);
+
+        var assistanceResolver = new JijiangResponseAssistanceResolver(
+            beneficiary: currentPlayer,
+            responseType: Rules.ResponseType.SlashAgainstDuel,
+            sourceEvent: sourceEvent,
+            assistanceSkill: assistanceSkill);
+
+        // Push handler resolver first (will execute after response assistance resolver due to LIFO)
+        var handlerContext = new ResolutionContext(
+            context.Game,
+            context.SourcePlayer,
+            context.Action,
+            context.Choice,
+            context.Stack,
+            context.CardMoveService,
+            context.RuleService,
+            context.PendingDamage,
+            context.LogSink,
+            context.GetPlayerChoice,
+            intermediateResults,
+            context.EventBus,
+            context.LogCollector,
+            context.SkillManager,
+            context.EquipmentSkillRegistry,
+            context.JudgementService);
+
+        context.Stack.Push(new DuelResponseHandlerResolver(
+            currentPlayerSeat: currentPlayer.Seat,
+            otherPlayerSeat: otherPlayer.Seat,
+            responseResultKey: responseResultKey), handlerContext);
+
+        // Push response assistance resolver (will execute first due to LIFO)
+        context.Stack.Push(assistanceResolver, assistanceContext);
+
+        return true;
     }
 }
 

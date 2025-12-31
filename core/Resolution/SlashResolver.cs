@@ -165,6 +165,20 @@ public sealed class SlashResolver : IResolver
 
         var target = targetResult.Target!;
 
+        // Step 2.5: Try to use Jijiang (激将) for use assistance if no card is selected
+        var choice = context.Choice!;
+        var sourcePlayer = context.SourcePlayer;
+        if ((choice.SelectedCardIds is null || choice.SelectedCardIds.Count == 0) &&
+            context.SkillManager is not null && context.GetPlayerChoice is not null)
+        {
+            var jijiangResult = TryUseJijiangForUse(context, sourcePlayer);
+            if (jijiangResult.ShouldContinue)
+            {
+                // Jijiang was activated, wait for it to complete
+                return ResolutionResult.SuccessResult;
+            }
+        }
+
         // Step 3: Get Slash card
         var cardResult = GetSlashCard(context);
         if (!cardResult.Success)
@@ -327,11 +341,13 @@ public sealed class SlashResolver : IResolver
 
     /// <summary>
     /// Gets the Slash card being used from the choice.
+    /// If no card is selected and the source player has Jijiang skill, tries to use Jijiang.
     /// </summary>
     private static CardExtractionResult GetSlashCard(ResolutionContext context)
     {
         var choice = context.Choice!;
         var sourcePlayer = context.SourcePlayer;
+        var game = context.Game;
 
         Card? slashCard = null;
         if (choice.SelectedCardIds is not null && choice.SelectedCardIds.Count > 0)
@@ -349,6 +365,16 @@ public sealed class SlashResolver : IResolver
             }
         }
 
+        // If no card selected, check if Jijiang (激将) was used and get virtual Slash card from intermediate results
+        if (slashCard is null && context.IntermediateResults is not null)
+        {
+            if (context.IntermediateResults.TryGetValue("JijiangUseSlashCard", out var jijiangCardObj) &&
+                jijiangCardObj is Card jijiangCard)
+            {
+                return CardExtractionResult.CreateSuccess(jijiangCard);
+            }
+        }
+
         if (slashCard is null)
         {
             return CardExtractionResult.CreateFailure(ResolutionResult.Failure(
@@ -357,6 +383,88 @@ public sealed class SlashResolver : IResolver
         }
 
         return CardExtractionResult.CreateSuccess(slashCard);
+    }
+
+    /// <summary>
+    /// Tries to use Jijiang (激将) skill for active Slash use.
+    /// If successful, pushes resolvers to handle the assistance flow.
+    /// </summary>
+    private static JijiangUseResult TryUseJijiangForUse(ResolutionContext context, Player sourcePlayer)
+    {
+        var game = context.Game;
+        var skillManager = context.SkillManager!;
+        var getPlayerChoice = context.GetPlayerChoice!;
+
+        // Find Jijiang skill
+        var sourcePlayerSkills = skillManager.GetActiveSkills(game, sourcePlayer);
+        var jijiangSkill = sourcePlayerSkills.OfType<Skills.Hero.JijiangSkill>().FirstOrDefault();
+
+        if (jijiangSkill is null)
+        {
+            return JijiangUseResult.DoNotContinue();
+        }
+
+        // Check if Jijiang can provide assistance for use
+        if (!jijiangSkill.CanProvideAssistanceForUse(game, sourcePlayer))
+        {
+            return JijiangUseResult.DoNotContinue();
+        }
+
+        // Ask source player if they want to use Jijiang
+        if (!jijiangSkill.ShouldActivate(game, sourcePlayer, getPlayerChoice))
+        {
+            return JijiangUseResult.DoNotContinue();
+        }
+
+        // Source player wants to use Jijiang - push JijiangUseAssistanceResolver
+        var assistanceContext = new ResolutionContext(
+            game,
+            sourcePlayer,
+            context.Action,
+            context.Choice,
+            context.Stack,
+            context.CardMoveService,
+            context.RuleService,
+            context.PendingDamage,
+            context.LogSink,
+            getPlayerChoice,
+            context.IntermediateResults,
+            context.EventBus,
+            context.LogCollector,
+            skillManager,
+            context.EquipmentSkillRegistry,
+            context.JudgementService);
+
+        var assistanceResolver = new JijiangUseAssistanceResolver(
+            beneficiary: sourcePlayer,
+            assistanceSkill: jijiangSkill);
+
+        // Push handler resolver that will re-enter SlashResolver after Jijiang completes
+        var handlerContext = new ResolutionContext(
+            game,
+            sourcePlayer,
+            context.Action,
+            context.Choice,
+            context.Stack,
+            context.CardMoveService,
+            context.RuleService,
+            context.PendingDamage,
+            context.LogSink,
+            getPlayerChoice,
+            context.IntermediateResults,
+            context.EventBus,
+            context.LogCollector,
+            skillManager,
+            context.EquipmentSkillRegistry,
+            context.JudgementService);
+
+        // Push SlashResolver again to continue with the virtual Slash card
+        context.Stack.Push(new SlashResolver(), handlerContext);
+
+        // Push use assistance resolver (will execute first due to LIFO)
+        context.Stack.Push(assistanceResolver, assistanceContext);
+
+        return JijiangUseResult.Continue();
     }
 
     /// <summary>
@@ -818,16 +926,35 @@ internal sealed class CardExtractionResult
     public bool Success { get; private init; }
     public ResolutionResult? Result { get; private init; }
     public Card? Card { get; private init; }
+    public bool ShouldContinue { get; private init; }
 
-    private CardExtractionResult(bool success, ResolutionResult? result = null, Card? card = null)
+    private CardExtractionResult(bool success, ResolutionResult? result = null, Card? card = null, bool shouldContinue = false)
     {
         Success = success;
         Result = result;
         Card = card;
+        ShouldContinue = shouldContinue;
     }
 
     public static CardExtractionResult CreateSuccess(Card card) => new(true, card: card);
     public static CardExtractionResult CreateFailure(ResolutionResult result) => new(false, result);
+    public static CardExtractionResult CreateContinue() => new(false, shouldContinue: true);
+}
+
+/// <summary>
+/// Helper class to store Jijiang use attempt result.
+/// </summary>
+internal sealed class JijiangUseResult
+{
+    public bool ShouldContinue { get; private init; }
+
+    private JijiangUseResult(bool shouldContinue)
+    {
+        ShouldContinue = shouldContinue;
+    }
+
+    public static JijiangUseResult Continue() => new(true);
+    public static JijiangUseResult DoNotContinue() => new(false);
 }
 
 /// <summary>
