@@ -1161,46 +1161,38 @@ public sealed class ActionQueryService : IActionQueryService
     /// Gets the target constraints for a given card subtype.
     /// Returns null if the card subtype does not require targets or is not supported.
     /// Uses a cache to avoid repeated allocations of identical TargetConstraints instances.
-    /// Thread-safe implementation using ConcurrentDictionary.
+    /// Thread-safe implementation using ConcurrentDictionary.GetOrAdd for atomic operations.
     /// </summary>
     private static TargetConstraints? GetTargetConstraintsForCardSubType(CardSubType cardSubType)
     {
-        // Check cache first (thread-safe read)
-        if (_targetConstraintsCache.TryGetValue(cardSubType, out var cached))
+        // Use GetOrAdd for atomic check-and-add operation to avoid race conditions
+        // This ensures only one thread will create the value, even if multiple threads
+        // call this method concurrently for the same cardSubType
+        return _targetConstraintsCache.GetOrAdd(cardSubType, key =>
         {
-            return cached;
-        }
-        
-        // Create new instance based on card subtype
-        TargetConstraints? constraints = cardSubType switch
-        {
-            CardSubType.Slash => new TargetConstraints(
-                MinTargets: 1,
-                MaxTargets: 1,
-                FilterType: TargetFilterType.Enemies),
-            CardSubType.Peach => new TargetConstraints(
-                MinTargets: 0,
-                MaxTargets: 0,
-                FilterType: TargetFilterType.SelfOrFriends),
-            CardSubType.GuoheChaiqiao => new TargetConstraints(
-                MinTargets: 1,
-                MaxTargets: 1,
-                FilterType: TargetFilterType.Any),
-            CardSubType.Lebusishu => new TargetConstraints(
-                MinTargets: 1,
-                MaxTargets: 1,
-                FilterType: TargetFilterType.Any),
-            // Add more mappings as needed
-            _ => null
-        };
-        
-        // Cache the instance if it's not null (thread-safe write)
-        if (constraints is not null)
-        {
-            _targetConstraintsCache.TryAdd(cardSubType, constraints);
-        }
-        
-        return constraints;
+            // Factory function: create new instance based on card subtype
+            return key switch
+            {
+                CardSubType.Slash => new TargetConstraints(
+                    MinTargets: 1,
+                    MaxTargets: 1,
+                    FilterType: TargetFilterType.Enemies),
+                CardSubType.Peach => new TargetConstraints(
+                    MinTargets: 0,
+                    MaxTargets: 0,
+                    FilterType: TargetFilterType.SelfOrFriends),
+                CardSubType.GuoheChaiqiao => new TargetConstraints(
+                    MinTargets: 1,
+                    MaxTargets: 1,
+                    FilterType: TargetFilterType.Any),
+                CardSubType.Lebusishu => new TargetConstraints(
+                    MinTargets: 1,
+                    MaxTargets: 1,
+                    FilterType: TargetFilterType.Any),
+                // Add more mappings as needed
+                _ => null
+            };
+        });
     }
 }
 

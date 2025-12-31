@@ -116,12 +116,12 @@ public sealed class JijiangUseAssistanceResolver : IResolver
             // Create a special response window for use assistance
             // We use SlashAgainstDuel as the response type, but the actual context is use assistance
             // This allows the assistant to play Slash, which will be converted to a virtual Slash for the beneficiary
-            var assistantResponseWindow = assistantResponseContext.CreateSlashResponseWindow(
-                responder: assistant,
+            var responderOrder = new[] { assistant };
+            var assistantResponseWindow = assistantResponseContext.CreateResponseWindow(
                 responseType: ResponseType.SlashAgainstDuel, // Use a valid response type for the window
+                responderOrder: responderOrder,
                 sourceEvent: new { Type = "JijiangUseAssistance", BeneficiarySeat = _beneficiary.Seat },
-                getPlayerChoice: getPlayerChoice,
-                requiredCount: 1);
+                getPlayerChoice: getPlayerChoice);
 
             // Push handler resolver first (will execute after response window due to LIFO)
             var handlerContext = new ResolutionContext(

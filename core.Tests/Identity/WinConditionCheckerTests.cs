@@ -3,6 +3,8 @@ using System.Linq;
 using LegendOfThreeKingdoms.Core.Events;
 using LegendOfThreeKingdoms.Core.Identity;
 using LegendOfThreeKingdoms.Core.Model;
+using LegendOfThreeKingdoms.Core.Model.Zones;
+using LegendOfThreeKingdoms.Core.Zones;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace core.Tests.Identity;

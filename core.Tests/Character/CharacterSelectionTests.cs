@@ -32,11 +32,9 @@ public sealed class CharacterSelectionTests
         
         // Register test hero with skills
         registry.RegisterHeroSkills("test_hero", new[] { "test_skill", "jijiang" });
-        registry.RegisterHeroMetadata("test_hero", maxHealth: 4, gender: Gender.Male);
         
         // Register another test hero without lord skill
         registry.RegisterHeroSkills("test_hero2", new[] { "test_skill", "rende" });
-        registry.RegisterHeroMetadata("test_hero2", maxHealth: 3, gender: Gender.Female);
         
         return registry;
     }

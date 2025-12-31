@@ -238,15 +238,14 @@ public sealed class QinglongYanyueDaoSkill : BaseSkill, ISlashNegatedByJinkSkill
         // Create Action and Choice for using the Slash
         var action = new ActionDescriptor(
             ActionId: Guid.NewGuid().ToString(),
-            ActionType: "UseSlash",
-            PlayerSeat: owner.Seat,
-            CardCandidates: new[] { selectedSlash },
+            DisplayKey: "UseSlash",
             RequiresTargets: true,
             TargetConstraints: new TargetConstraints(
                 MinTargets: 1,
                 MaxTargets: 1,
-                AllowedTargetSeats: new[] { target.Seat }
-            )
+                FilterType: TargetFilterType.Enemies
+            ),
+            CardCandidates: new[] { selectedSlash }
         );
 
         var choice = new ChoiceResult(

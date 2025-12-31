@@ -1,6 +1,8 @@
 using System.Linq;
 using LegendOfThreeKingdoms.Core.Identity;
 using LegendOfThreeKingdoms.Core.Model;
+using LegendOfThreeKingdoms.Core.Model.Zones;
+using LegendOfThreeKingdoms.Core.Zones;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace core.Tests.Identity;
@@ -28,8 +30,8 @@ public sealed class WinConditionServiceTests
             CurrentPlayerSeat = 0,
             CurrentPhase = Phase.None,
             TurnNumber = 1,
-            DrawPile = new Model.Zones.Zone("DrawPile", ownerSeat: null, isPublic: false),
-            DiscardPile = new Model.Zones.Zone("DiscardPile", ownerSeat: null, isPublic: true),
+            DrawPile = new Zone("DrawPile", ownerSeat: null, isPublic: false),
+            DiscardPile = new Zone("DiscardPile", ownerSeat: null, isPublic: true),
             IsFinished = false
         };
     }

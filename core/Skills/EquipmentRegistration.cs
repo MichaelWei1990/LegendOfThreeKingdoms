@@ -31,7 +31,7 @@ public static class EquipmentRegistration
 
         // Register armor skills by DefinitionId
         registry.RegisterEquipmentSkill("renwang_shield", new Equipment.RenwangShieldSkillFactory());
-        registry.RegisterEquipmentSkill("bagua_array", new Equipment.BaguaArraySkillFactory());
+        registry.RegisterEquipmentSkill("bagua_array", new Equipment.BaguaFormationFactory());
 
         // Register horse skills by CardSubType (shared skills for all horses of the same type)
         registry.RegisterEquipmentSkillBySubType(CardSubType.OffensiveHorse, new Equipment.OffensiveHorseSkillFactory());

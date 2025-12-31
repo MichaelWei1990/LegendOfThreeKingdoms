@@ -97,11 +97,6 @@ public sealed class BasicCharacterCatalog : ICharacterCatalog
         if (!_skillRegistry.HasHeroSkills(heroId))
             return null;
 
-        // Get metadata
-        var metadata = _skillRegistry.GetHeroMetadata(heroId);
-        if (metadata is null)
-            return null;
-
         // Get skills
         var skills = _skillRegistry.GetSkillsForHero(heroId).ToList();
         var skillRefs = new List<SkillDefinitionRef>();
@@ -125,8 +120,8 @@ public sealed class BasicCharacterCatalog : ICharacterCatalog
             CharacterId = heroId,
             Name = GetCharacterName(heroId), // In a full implementation, this would come from a name mapping
             FactionId = factionId,
-            Gender = metadata.Gender,
-            MaxHp = metadata.MaxHealth,
+            Gender = Gender.Neutral, // Default value - in a full implementation, this would come from metadata
+            MaxHp = 4, // Default value - in a full implementation, this would come from metadata
             Skills = skillRefs
         };
     }

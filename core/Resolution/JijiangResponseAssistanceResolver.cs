@@ -118,12 +118,12 @@ public sealed class JijiangResponseAssistanceResolver : IResolver
             // Create response window for assistant to play Slash
             // Note: The response window will support card conversion automatically
             // because ResponseRuleService already checks ICardConversionSkill
-            var assistantResponseWindow = assistantResponseContext.CreateSlashResponseWindow(
-                responder: assistant,
+            var responderOrder = new[] { assistant };
+            var assistantResponseWindow = assistantResponseContext.CreateResponseWindow(
                 responseType: _responseType,
+                responderOrder: responderOrder,
                 sourceEvent: _sourceEvent,
-                getPlayerChoice: getPlayerChoice,
-                requiredCount: 1);
+                getPlayerChoice: getPlayerChoice);
 
             // Push handler resolver first (will execute after response window due to LIFO)
             var handlerContext = new ResolutionContext(
@@ -197,12 +197,12 @@ public sealed class JijiangResponseAssistanceResolver : IResolver
             context.EquipmentSkillRegistry,
             context.JudgementService);
 
-        var responseWindow = responseContext.CreateSlashResponseWindow(
-            responder: _beneficiary,
+        var responderOrder = new[] { _beneficiary };
+        var responseWindow = responseContext.CreateResponseWindow(
             responseType: _responseType,
+            responderOrder: responderOrder,
             sourceEvent: _sourceEvent,
-            getPlayerChoice: getPlayerChoice,
-            requiredCount: 1);
+            getPlayerChoice: getPlayerChoice);
 
         context.Stack.Push(responseWindow, responseContext);
 
