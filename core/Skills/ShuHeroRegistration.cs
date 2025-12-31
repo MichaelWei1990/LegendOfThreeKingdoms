@@ -20,10 +20,13 @@ public static class ShuHeroRegistration
 
         // Register all skill factories
         registry.RegisterSkill("longdan", new Hero.LongdanSkillFactory());
+        registry.RegisterSkill("guanxing", new Hero.GuanxingSkillFactory());
 
         // Register heroes with their skills (Standard Edition)
-        // 1. 赵云 (Zhao Yun)
+        // 1. 赵云 (Zhao Yun): 龙胆 (Longdan)
         registry.RegisterHeroSkills("zhaoyun", new[] { "longdan" });
+        // 2. 诸葛亮 (Zhuge Liang): 观星 (Guanxing)
+        registry.RegisterHeroSkills("zhugeliang", new[] { "guanxing" });
     }
 }
 
