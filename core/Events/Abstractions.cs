@@ -515,3 +515,18 @@ public sealed record SkillsRegisteredEvent(
     /// <inheritdoc />
     public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
 }
+
+/// <summary>
+/// Event published when the game ends due to a win condition being met.
+/// </summary>
+public sealed record GameEndedEvent(
+    Game Game,
+    Identity.WinType WinType,
+    IReadOnlyList<int> WinningPlayerSeats,
+    string EndReason,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}

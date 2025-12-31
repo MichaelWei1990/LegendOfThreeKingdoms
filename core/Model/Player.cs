@@ -52,6 +52,12 @@ public sealed class Player
     public bool IsAlive { get; set; } = true;
 
     /// <summary>
+    /// Whether this player's role is revealed (publicly known).
+    /// In identity mode, the Lord's role must be revealed at game start.
+    /// </summary>
+    public bool RoleRevealed { get; set; } = false;
+
+    /// <summary>
     /// Zone containing the player's hand cards.
     /// </summary>
     public IZone HandZone { get; init; } = new Zone("Hand_Default", ownerSeat: null, isPublic: false);

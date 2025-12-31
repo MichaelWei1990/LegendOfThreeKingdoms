@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using LegendOfThreeKingdoms.Core.Abstractions;
 using LegendOfThreeKingdoms.Core.Configuration;
+using LegendOfThreeKingdoms.Core.Identity;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Model.Zones;
 using LegendOfThreeKingdoms.Core.Turns;
@@ -57,6 +58,23 @@ public sealed class BasicGameInitializer : IGameInitializer
         // Phase 1: map configuration to a bare Game state.
         var game = Game.FromConfig(config);
 
+        // Phase 1.5: assign roles if the game mode supports it (identity mode).
+        var roleAssignmentService = options.GameMode.GetRoleAssignmentService();
+        if (roleAssignmentService is not null)
+        {
+            var updatedGame = roleAssignmentService.AssignRoles(game, options.Random);
+            if (updatedGame is null)
+            {
+                return GameInitializationResult.Failure(
+                    errorCode: "RoleAssignmentFailed",
+                    errorMessage: "Failed to assign roles to players.");
+            }
+            game = updatedGame;
+            
+            // Reveal Lord's role
+            roleAssignmentService.RevealLordRole(game);
+        }
+
         // Phase 2: build and shuffle the deck, then write it into the draw pile.
         var deckCardIds = options.PrebuiltDeckCardIds ?? BuildDeckCardIds(config.DeckConfig);
         if (deckCardIds.Count == 0)
@@ -79,6 +97,17 @@ public sealed class BasicGameInitializer : IGameInitializer
         // Phase 4: initialize the first turn using the basic turn engine and game mode.
         var turnEngine = new BasicTurnEngine(options.GameMode);
         _ = turnEngine.InitializeTurnState(game);
+
+        // Phase 5: set up win condition checking if event bus and win condition service are available.
+        if (options.EventBus is not null)
+        {
+            var winConditionService = options.GameMode.GetWinConditionService();
+            if (winConditionService is not null)
+            {
+                // Create WinConditionChecker which will automatically subscribe to PlayerDiedEvent
+                _ = new WinConditionChecker(winConditionService, options.EventBus);
+            }
+        }
 
         return GameInitializationResult.SuccessResult(game);
     }

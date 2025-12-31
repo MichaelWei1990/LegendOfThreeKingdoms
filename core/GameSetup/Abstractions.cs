@@ -35,6 +35,13 @@ public sealed class GameInitializationOptions
     /// from <see cref="GameConfig.DeckConfig"/>. Primarily intended for tests.
     /// </summary>
     public IReadOnlyList<string>? PrebuiltDeckCardIds { get; init; }
+
+    /// <summary>
+    /// Optional event bus for publishing and subscribing to game events.
+    /// If provided and the game mode supports win condition checking, a WinConditionChecker
+    /// will be automatically created and registered to listen for PlayerDiedEvent.
+    /// </summary>
+    public Events.IEventBus? EventBus { get; init; }
 }
 
 /// <summary>

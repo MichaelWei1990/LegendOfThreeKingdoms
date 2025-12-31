@@ -32,6 +32,20 @@ public interface IGameMode
     /// <returns>The seat index of the first player.</returns>
     int SelectFirstPlayerSeat(Game game);
 
+    /// <summary>
+    /// Gets the role assignment service for this game mode, if applicable.
+    /// Identity mode should return a service instance; other modes may return null.
+    /// </summary>
+    /// <returns>Role assignment service, or null if not applicable.</returns>
+    Identity.IRoleAssignmentService? GetRoleAssignmentService() => null;
+
+    /// <summary>
+    /// Gets the win condition service for this game mode, if applicable.
+    /// Identity mode should return a service instance; other modes may return null.
+    /// </summary>
+    /// <returns>Win condition service, or null if not applicable.</returns>
+    Identity.IWinConditionService? GetWinConditionService() => null;
+
     // Future phases will extend this interface with additional methods to
     // build initial game state, drive phase progression and evaluate
     // victory conditions based on the current state.
