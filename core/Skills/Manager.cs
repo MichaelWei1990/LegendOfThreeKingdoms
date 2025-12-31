@@ -56,12 +56,28 @@ public sealed class SkillManager
 
         // Load skills from registry
         var skills = _registry.GetSkillsForHero(player.HeroId).ToList();
-        var skillList = new List<ISkill>(skills);
+        var skillList = new List<ISkill>();
 
-        // Attach each skill to the player
-        foreach (var skill in skillList)
+        // Check if player is Lord
+        var isLord = player.Flags.TryGetValue("IsLord", out var isLordValue) && 
+                     isLordValue is bool isLordFlag && isLordFlag;
+
+        // Filter and attach skills
+        foreach (var skill in skills)
         {
+            // If skill is a Lord skill, only register if player is Lord
+            if (skill is ILordSkill)
+            {
+                if (!isLord)
+                {
+                    // Skip this lord skill - player is not Lord
+                    continue;
+                }
+            }
+
+            // Attach the skill to the player
             skill.Attach(game, player, _eventBus);
+            skillList.Add(skill);
         }
 
         _playerSkills[player.Seat] = skillList;

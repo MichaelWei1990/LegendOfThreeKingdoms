@@ -11,7 +11,7 @@ namespace LegendOfThreeKingdoms.Core.Skills.Hero;
 /// you can ask other Wei faction players to play Dodge on your behalf.
 /// This is a Lord skill, only available when the owner is the Lord.
 /// </summary>
-public sealed class HujiaSkill : BaseSkill, IResponseAssistanceSkill
+public sealed class HujiaSkill : BaseSkill, ILordSkill, IResponseAssistanceSkill
 {
     /// <inheritdoc />
     public override string Id => "hujia";

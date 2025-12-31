@@ -11,7 +11,7 @@ namespace LegendOfThreeKingdoms.Core.Skills.Hero;
 /// When you need to use or play Slash (杀), you can ask other Shu faction players
 /// to play Slash on your behalf (considered as used/played by you).
 /// </summary>
-public sealed class JijiangSkill : BaseSkill, IResponseAssistanceSkill
+public sealed class JijiangSkill : BaseSkill, ILordSkill, IResponseAssistanceSkill
 {
     /// <inheritdoc />
     public override string Id => "jijiang";

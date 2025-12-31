@@ -7,7 +7,7 @@ namespace LegendOfThreeKingdoms.Core.Skills.Hero;
 /// Rescue (救援) skill: Lord skill, Locked skill.
 /// When other Wu faction characters use Peach on you, the recovery amount is increased by 1.
 /// </summary>
-public sealed class RescueSkill : BaseSkill, IRecoverAmountModifyingSkill
+public sealed class RescueSkill : BaseSkill, ILordSkill, IRecoverAmountModifyingSkill
 {
     private Game? _game;
     private Player? _owner;

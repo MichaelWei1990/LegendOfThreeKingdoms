@@ -473,3 +473,45 @@ public sealed record BeforeRecoverEvent(
     /// </summary>
     public int RecoveryModification { get; set; }
 }
+
+/// <summary>
+/// Event published when candidate characters are offered to a player for selection.
+/// </summary>
+public sealed record CharactersOfferedEvent(
+    Game Game,
+    int PlayerSeat,
+    IReadOnlyList<string> CandidateCharacterIds,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
+/// Event published when a player selects a character.
+/// </summary>
+public sealed record CharacterSelectedEvent(
+    Game Game,
+    int PlayerSeat,
+    string CharacterId,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
+/// Event published when skills are registered for a player after character selection.
+/// </summary>
+public sealed record SkillsRegisteredEvent(
+    Game Game,
+    int PlayerSeat,
+    IReadOnlyList<string> SkillIds,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}

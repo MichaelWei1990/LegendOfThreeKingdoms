@@ -608,6 +608,16 @@ public interface IDrawPhaseModifyingSkill : ISkill
 }
 
 /// <summary>
+/// Marker interface for Lord skills (主公技).
+/// Lord skills are only active when the player is the Lord.
+/// Skills implementing this interface will only be registered if the player's Flags["IsLord"] is true.
+/// </summary>
+public interface ILordSkill : ISkill
+{
+    // Marker interface - no additional methods required
+}
+
+/// <summary>
 /// Interface for skills that can provide response assistance.
 /// Used by skills like Hujia (护驾) that allow other players to assist the owner
 /// by playing response cards on their behalf.
