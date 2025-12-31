@@ -102,6 +102,9 @@ public sealed class SlashResponseHandlerResolver : IResolver
                 // Publish AfterSlashDodgedEvent for skills like Stone Axe (贯石斧)
                 if (context.EventBus is not null && _pendingDamage.CausingCard is not null)
                 {
+                    var sourcePlayer = context.Game.Players.FirstOrDefault(p => p.Seat == _pendingDamage.SourceSeat);
+                    var targetPlayer = context.Game.Players.FirstOrDefault(p => p.Seat == _pendingDamage.TargetSeat);
+                    
                     var afterSlashDodgedEvent = new AfterSlashDodgedEvent(
                         Game: context.Game,
                         AttackerSeat: _pendingDamage.SourceSeat,
@@ -110,6 +113,19 @@ public sealed class SlashResponseHandlerResolver : IResolver
                         OriginalDamage: _pendingDamage
                     );
                     context.EventBus.Publish(afterSlashDodgedEvent);
+                    
+                    // Publish SlashNegatedByJinkEvent for skills like Qinglong Yanyue Dao (青龙偃月刀)
+                    if (sourcePlayer is not null && targetPlayer is not null)
+                    {
+                        var slashNegatedEvent = new SlashNegatedByJinkEvent(
+                            Game: context.Game,
+                            Source: sourcePlayer,
+                            Target: targetPlayer,
+                            SlashCard: _pendingDamage.CausingCard,
+                            DistanceWasChecked: true // Original slash had distance check
+                        );
+                        context.EventBus.Publish(slashNegatedEvent);
+                    }
                 }
             }
             else

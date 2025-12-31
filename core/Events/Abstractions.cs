@@ -448,6 +448,24 @@ public sealed record AfterSlashDodgedEvent(
 }
 
 /// <summary>
+/// Event published when a Slash is negated by a Jink (闪) response.
+/// This event is published when a Slash is successfully dodged by a Jink,
+/// allowing skills like Qinglong Yanyue Dao (青龙偃月刀) to trigger a chase effect.
+/// </summary>
+public sealed record SlashNegatedByJinkEvent(
+    Game Game,
+    Player Source,
+    Player Target,
+    Card SlashCard,
+    bool DistanceWasChecked = false,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
 /// Event published right before health recovery is applied.
 /// This event allows skills to modify the recovery amount before it is applied.
 /// Used by skills like Rescue (救援) that can increase recovery amount.

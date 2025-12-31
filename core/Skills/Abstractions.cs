@@ -447,13 +447,28 @@ public interface IDamageModifyingSkill : ISkill
 /// </summary>
 public interface IAfterSlashDodgedSkill : ISkill
 {
+/// <summary>
+/// Handles the after slash dodged event.
+/// This method is called when an AfterSlashDodgedEvent is published.
+/// Skills can use this to take actions after a Slash has been successfully dodged.
+/// </summary>
+/// <param name="evt">The after slash dodged event.</param>
+void OnAfterSlashDodged(AfterSlashDodgedEvent evt);
+}
+
+/// <summary>
+/// Interface for skills that respond to slash negated by jink events.
+/// Used by trigger skills that need to react when a Slash is negated by a Jink (闪).
+/// </summary>
+public interface ISlashNegatedByJinkSkill : ISkill
+{
     /// <summary>
-    /// Handles the after slash dodged event.
-    /// This method is called when an AfterSlashDodgedEvent is published.
-    /// Skills can use this to take actions after a Slash has been successfully dodged.
+    /// Handles the slash negated by jink event.
+    /// This method is called when a SlashNegatedByJinkEvent is published.
+    /// Skills can use this to take actions after a Slash has been negated by a Jink.
     /// </summary>
-    /// <param name="evt">The after slash dodged event.</param>
-    void OnAfterSlashDodged(AfterSlashDodgedEvent evt);
+    /// <param name="evt">The slash negated by jink event.</param>
+    void OnSlashNegatedByJink(SlashNegatedByJinkEvent evt);
 }
 
 /// <summary>
