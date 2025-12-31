@@ -125,7 +125,7 @@ public sealed class RoleDistributionTests
         Assert.IsTrue(variants.Count > 0);
         var variant = variants[0];
         Assert.AreEqual(1, variant.LordCount);
-        Assert.AreEqual(1, variant.LoyalistCount);
+        Assert.AreEqual(2, variant.LoyalistCount);
         Assert.AreEqual(3, variant.RebelCount);
         Assert.AreEqual(2, variant.RenegadeCount);
         Assert.AreEqual(8, variant.TotalCount);

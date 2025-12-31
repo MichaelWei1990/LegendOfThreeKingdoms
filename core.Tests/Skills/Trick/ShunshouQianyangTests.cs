@@ -111,6 +111,14 @@ public sealed class ShunshouQianyangTests
 
         // Assert
         Assert.IsTrue(result.Success);
+
+        // Execute the resolution stack to apply the effect
+        while (!stack.IsEmpty)
+        {
+            var stackResult = stack.Pop();
+            Assert.IsTrue(stackResult.Success, "Stack execution should succeed.");
+        }
+
         Assert.AreEqual(initialSourceHandCount + 1, source.HandZone.Cards.Count, "Source player should have 1 more card.");
         Assert.AreEqual(initialTargetHandCount - 1, target.HandZone.Cards.Count, "Target player should have 1 fewer card.");
         Assert.IsTrue(source.HandZone.Cards.Contains(targetCard), "Target card should be in source player's hand.");
@@ -187,6 +195,14 @@ public sealed class ShunshouQianyangTests
 
         // Assert
         Assert.IsTrue(result.Success);
+
+        // Execute the resolution stack to apply the effect
+        while (!stack.IsEmpty)
+        {
+            var stackResult = stack.Pop();
+            Assert.IsTrue(stackResult.Success, "Stack execution should succeed.");
+        }
+
         Assert.AreEqual(initialSourceHandCount + 1, source.HandZone.Cards.Count, "Source player should have 1 more card.");
         Assert.AreEqual(initialTargetEquipmentCount - 1, target.EquipmentZone.Cards.Count, "Target player should have 1 fewer equipment.");
         Assert.IsTrue(source.HandZone.Cards.Contains(equipmentCard), "Equipment card should be in source player's hand.");
@@ -263,6 +279,14 @@ public sealed class ShunshouQianyangTests
 
         // Assert
         Assert.IsTrue(result.Success);
+
+        // Execute the resolution stack to apply the effect
+        while (!stack.IsEmpty)
+        {
+            var stackResult = stack.Pop();
+            Assert.IsTrue(stackResult.Success, "Stack execution should succeed.");
+        }
+
         Assert.AreEqual(initialSourceHandCount + 1, source.HandZone.Cards.Count, "Source player should have 1 more card.");
         Assert.AreEqual(initialTargetJudgementCount - 1, target.JudgementZone.Cards.Count, "Target player should have 1 fewer judgement card.");
         Assert.IsTrue(source.HandZone.Cards.Contains(judgementCard), "Judgement card should be in source player's hand.");

@@ -132,8 +132,8 @@ public sealed class QinglongYanyueDaoSkill : BaseSkill, ISlashNegatedByJinkSkill
         if (!evt.Target.IsAlive)
             return;
 
-        // Get available Slash cards from hand
-        var availableSlashCards = GetAvailableSlashCards(_owner);
+        // Get available Slash cards from hand, excluding the Slash card that was already used
+        var availableSlashCards = GetAvailableSlashCards(_owner, evt.SlashCard);
         if (availableSlashCards.Count == 0)
         {
             // No Slash cards available, cannot activate
@@ -174,16 +174,18 @@ public sealed class QinglongYanyueDaoSkill : BaseSkill, ISlashNegatedByJinkSkill
     }
 
     /// <summary>
-    /// Gets available Slash cards from the player's hand.
+    /// Gets available Slash cards from the player's hand, excluding the already used Slash card.
     /// </summary>
-    private static List<Card> GetAvailableSlashCards(Player player)
+    private static List<Card> GetAvailableSlashCards(Player player, Card? excludeSlashCard = null)
     {
         var availableCards = new List<Card>();
 
-        // Add Slash cards from hand
+        // Add Slash cards from hand, excluding the one that was already used
         if (player.HandZone.Cards is not null)
         {
-            availableCards.AddRange(player.HandZone.Cards.Where(c => c.CardSubType == CardSubType.Slash));
+            availableCards.AddRange(player.HandZone.Cards.Where(c => 
+                c.CardSubType == CardSubType.Slash && 
+                (excludeSlashCard is null || c.Id != excludeSlashCard.Id)));
         }
 
         return availableCards;
@@ -198,33 +200,40 @@ public sealed class QinglongYanyueDaoSkill : BaseSkill, ISlashNegatedByJinkSkill
         Player target,
         List<Card> availableSlashCards)
     {
-        if (_cardMoveService is null || _ruleService is null || _getPlayerChoice is null)
+        if (_cardMoveService is null || _ruleService is null)
+            return;
+
+        // Check if target is still alive before triggering chase
+        if (!target.IsAlive)
             return;
 
         Card? selectedSlash = null;
 
-        // Ask player to select a Slash card
-        var selectRequest = new ChoiceRequest(
-            RequestId: Guid.NewGuid().ToString(),
-            PlayerSeat: owner.Seat,
-            ChoiceType: ChoiceType.SelectCards,
-            TargetConstraints: null,
-            AllowedCards: availableSlashCards,
-            ResponseWindowId: null,
-            CanPass: false // Must select a Slash card
-        );
+        // Ask player to select a Slash card (if getPlayerChoice is available)
+        if (_getPlayerChoice is not null)
+        {
+            var selectRequest = new ChoiceRequest(
+                RequestId: Guid.NewGuid().ToString(),
+                PlayerSeat: owner.Seat,
+                ChoiceType: ChoiceType.SelectCards,
+                TargetConstraints: null,
+                AllowedCards: availableSlashCards,
+                ResponseWindowId: null,
+                CanPass: false // Must select a Slash card
+            );
 
-        try
-        {
-            var selectResult = _getPlayerChoice(selectRequest);
-            if (selectResult?.SelectedCardIds is not null && selectResult.SelectedCardIds.Count > 0)
+            try
             {
-                selectedSlash = availableSlashCards.FirstOrDefault(c => c.Id == selectResult.SelectedCardIds[0]);
+                var selectResult = _getPlayerChoice(selectRequest);
+                if (selectResult?.SelectedCardIds is not null && selectResult.SelectedCardIds.Count > 0)
+                {
+                    selectedSlash = availableSlashCards.FirstOrDefault(c => c.Id == selectResult.SelectedCardIds[0]);
+                }
             }
-        }
-        catch
-        {
-            // If getting choice fails, fall back to auto-select
+            catch
+            {
+                // If getting choice fails, fall back to auto-select
+            }
         }
 
         // If no card selected or getPlayerChoice not available, auto-select first Slash card

@@ -202,6 +202,19 @@ public sealed class LebusishuTests
         var stack = new BasicResolutionStack();
         var eventBus = new BasicEventBus();
 
+        // Provide a GetPlayerChoice function that returns "pass" (no nullification)
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null, // Pass (no nullification)
+                SelectedOptionId: null,
+                Confirmed: null
+            );
+        };
+
         var context = new ResolutionContext(
             game,
             target,
@@ -212,7 +225,7 @@ public sealed class LebusishuTests
             ruleService,
             PendingDamage: null,
             LogSink: null,
-            GetPlayerChoice: null,
+            GetPlayerChoice: getPlayerChoice,
             IntermediateResults: new System.Collections.Generic.Dictionary<string, object>(),
             EventBus: eventBus,
             LogCollector: null,
@@ -405,6 +418,19 @@ public sealed class LebusishuTests
         var stack = new BasicResolutionStack();
         var judgePhaseService = new JudgePhaseService(cardMoveService, ruleService, eventBus, stack);
 
+        // Provide a GetPlayerChoice function that returns "pass" (no nullification)
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null, // Pass (no nullification)
+                SelectedOptionId: null,
+                Confirmed: null
+            );
+        };
+
         // Act - Trigger judge phase (this will trigger Lebusishu judgement)
         var phaseStartEvent = new PhaseStartEvent(game, target.Seat, Phase.Judge);
         eventBus.Publish(phaseStartEvent);
@@ -509,6 +535,15 @@ public sealed class LebusishuTests
 
         // Assert
         Assert.IsTrue(result.Success);
+
+        // Execute the stack to complete the effect (nullification window and effect handler)
+        while (!stack.IsEmpty)
+        {
+            var stackResult = stack.Pop();
+            Assert.IsTrue(stackResult.Success, 
+                $"Stack execution should succeed. Error: {stackResult.ErrorCode}, Message: {stackResult.MessageKey}");
+        }
+
         Assert.AreEqual(initialSourceHandCount + 1, source.HandZone.Cards.Count, "Source player should have 1 more card.");
         Assert.AreEqual(initialTargetJudgementCount - 1, target.JudgementZone.Cards.Count, "Target player should have 1 fewer judgement card.");
         Assert.IsTrue(source.HandZone.Cards.Contains(lebusishu), "Lebusishu card should be in source player's hand.");
@@ -590,6 +625,14 @@ public sealed class LebusishuTests
 
         // Assert
         Assert.IsTrue(result.Success);
+
+        // Execute the resolution stack to apply the effect
+        while (!stack.IsEmpty)
+        {
+            var stackResult = stack.Pop();
+            Assert.IsTrue(stackResult.Success, "Stack execution should succeed.");
+        }
+
         Assert.AreEqual(initialTargetJudgementCount - 1, target.JudgementZone.Cards.Count, "Target player should have 1 fewer judgement card.");
         Assert.AreEqual(initialDiscardPileCount + 1, game.DiscardPile.Cards.Count, "Discard pile should have 1 more card.");
         Assert.IsFalse(target.JudgementZone.Cards.Contains(lebusishu), "Lebusishu card should not be in target player's judgement zone.");

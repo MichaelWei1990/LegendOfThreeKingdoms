@@ -121,11 +121,11 @@ public sealed class RoleDistributionTable
             RenegadeCount = 2
         });
 
-        // 8 players variant: 1 Lord, 1 Loyalist, 3 Rebels, 2 Renegades
+        // 8 players variant: 1 Lord, 2 Loyalists, 3 Rebels, 2 Renegades
         AddVariant(8, new RoleDistribution
         {
             LordCount = 1,
-            LoyalistCount = 1,
+            LoyalistCount = 2,
             RebelCount = 3,
             RenegadeCount = 2
         });

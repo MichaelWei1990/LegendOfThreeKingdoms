@@ -146,11 +146,11 @@ public sealed class QinglongYanyueDaoTests
         var skill = equipmentSkillRegistry.GetSkillForEquipment("Weapon_QinglongYanyueDao");
         skillManager.AddEquipmentSkill(game, attacker, skill);
 
-        var ruleService = new RuleService();
-        ruleService.SetModifierProvider(skillManager);
+        var modifierProvider = new SkillRuleModifierProvider(skillManager);
+        var rangeRuleService = new RangeRuleService(modifierProvider);
 
         // Act
-        var attackDistance = ruleService.GetAttackDistance(game, attacker, defender);
+        var attackDistance = rangeRuleService.GetAttackDistance(game, attacker, defender);
 
         // Assert
         // Qinglong Yanyue Dao provides attack range of 3
@@ -179,11 +179,11 @@ public sealed class QinglongYanyueDaoTests
         var skill = equipmentSkillRegistry.GetSkillForEquipment("Weapon_QinglongYanyueDao");
         skillManager.AddEquipmentSkill(game, attacker, skill);
 
-        var ruleService = new RuleService();
-        ruleService.SetModifierProvider(skillManager);
+        var modifierProvider = new SkillRuleModifierProvider(skillManager);
+        var rangeRuleService = new RangeRuleService(modifierProvider);
 
         // Act
-        var isWithinRange = ruleService.IsWithinAttackRange(game, attacker, defender);
+        var isWithinRange = rangeRuleService.IsWithinAttackRange(game, attacker, defender);
 
         // Assert
         // Seat distance = 1, attack distance = 3, so 1 <= 3, within range
@@ -351,15 +351,16 @@ public sealed class QinglongYanyueDaoTests
 
         skillManager.AddEquipmentSkill(game, attacker, skill);
 
-        // Attacker has no Slash cards
+        // Attacker has no Slash cards (originalSlash was already used)
+        // Note: In a real scenario, originalSlash would have been removed from hand when used
+        // For this test, we simulate that by not adding it to hand, or by removing it before publishing the event
         var initialAttackerHandCount = attacker.HandZone.Cards.Count;
 
         // Create original Slash card (will be used, then no more Slash cards)
+        // In reality, this card would have been removed from hand when used, but for testing
+        // we create it to pass to the event, but don't add it to hand (or remove it before event)
         var originalSlash = CreateSlashCard(1);
-        if (attacker.HandZone is Zone handZone)
-        {
-            handZone.MutableCards.Add(originalSlash);
-        }
+        // Don't add originalSlash to hand - it was already used and removed
 
         // Act: Publish SlashNegatedByJinkEvent
         var slashNegatedEvent = new SlashNegatedByJinkEvent(
@@ -422,14 +423,13 @@ public sealed class QinglongYanyueDaoTests
             attackerHand.MutableCards.Add(chaseSlash);
         }
 
-        var initialAttackerHandCount = attacker.HandZone.Cards.Count;
-
-        // Create original Slash card
+        // Create original Slash card (will be used, then removed from hand)
+        // In reality, this card would have been removed from hand when used, but for testing
+        // we create it to pass to the event, but don't add it to hand (or remove it before event)
         var originalSlash = CreateSlashCard(1);
-        if (attacker.HandZone is Zone handZone)
-        {
-            handZone.MutableCards.Add(originalSlash);
-        }
+        // Don't add originalSlash to hand - it was already used and removed
+
+        var initialAttackerHandCount = attacker.HandZone.Cards.Count;
 
         // Act: Publish SlashNegatedByJinkEvent
         var slashNegatedEvent = new SlashNegatedByJinkEvent(
@@ -472,8 +472,9 @@ public sealed class QinglongYanyueDaoTests
 
         var skill = equipmentSkillRegistry.GetSkillForEquipment("Weapon_QinglongYanyueDao");
         var cardMoveService = new BasicCardMoveService(eventBus);
-        var ruleService = new RuleService();
-        ruleService.SetModifierProvider(skillManager);
+        var modifierProvider = new SkillRuleModifierProvider(skillManager);
+        var rangeRuleService = new RangeRuleService(modifierProvider);
+        var ruleService = new RuleService(modifierProvider: modifierProvider);
 
         // Set services on skill
         if (skill is QinglongYanyueDaoSkill qinglongSkill)
@@ -486,7 +487,7 @@ public sealed class QinglongYanyueDaoTests
         skillManager.AddEquipmentSkill(game, attacker, skill);
 
         // Verify normal attack distance is 3 (seat distance 2 should be within range)
-        var normalAttackDistance = ruleService.GetAttackDistance(game, attacker, target);
+        var normalAttackDistance = rangeRuleService.GetAttackDistance(game, attacker, target);
         Assert.AreEqual(3, normalAttackDistance);
 
         // For chase Slash, the skill should set a flag that allows distance bypass
