@@ -91,6 +91,12 @@ public abstract class RuleModifyingSkillBase : BaseSkill, IRuleModifyingSkill
     {
         return null;
     }
+
+    /// <inheritdoc />
+    public virtual int? ModifyMaxTargets(int current, CardUsageContext context)
+    {
+        return null;
+    }
 }
 
 /// <summary>

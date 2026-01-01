@@ -151,6 +151,15 @@ public interface IRuleModifyingSkill : ISkill
     /// <param name="owner">The player who owns this skill.</param>
     /// <returns>Null if no modification, otherwise the modified value.</returns>
     int? ModifyDrawCount(int current, Game game, Player owner);
+
+    /// <summary>
+    /// Modifies the maximum number of targets for a card usage.
+    /// Returns null if no modification is needed, otherwise returns the modified value.
+    /// </summary>
+    /// <param name="current">The current maximum target count.</param>
+    /// <param name="context">The card usage context.</param>
+    /// <returns>Null if no modification, otherwise the modified value.</returns>
+    int? ModifyMaxTargets(int current, CardUsageContext context);
 }
 
 /// <summary>

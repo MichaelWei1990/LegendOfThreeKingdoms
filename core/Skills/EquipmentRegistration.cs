@@ -28,6 +28,7 @@ public static class EquipmentRegistration
         registry.RegisterEquipmentSkill("twin_swords", new Equipment.TwinSwordsSkillFactory());
         registry.RegisterEquipmentSkill("kirin_bow", new Equipment.KirinBowSkillFactory());
         registry.RegisterEquipmentSkill("zhuge_crossbow", new Equipment.ZhugeCrossbowSkillFactory());
+        registry.RegisterEquipmentSkill("fang_tian_hua_ji", new Equipment.FangTianHuaJiSkillFactory());
 
         // Register armor skills by DefinitionId
         registry.RegisterEquipmentSkill("renwang_shield", new Equipment.RenwangShieldSkillFactory());

@@ -164,6 +164,23 @@ public sealed class SkillRuleModifier : IRuleModifier
 
         return null;
     }
+
+    /// <inheritdoc />
+    public int? ModifyMaxTargets(int current, CardUsageContext context)
+    {
+        if (!_skill.IsActive(_game, _owner))
+            return null;
+
+        if ((_skill.Capabilities & SkillCapability.ModifiesRules) == 0)
+            return null;
+
+        if (_skill is IRuleModifyingSkill ruleModifyingSkill)
+        {
+            return ruleModifyingSkill.ModifyMaxTargets(current, context);
+        }
+
+        return null;
+    }
 }
 
 /// <summary>

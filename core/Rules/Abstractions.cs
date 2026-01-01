@@ -409,6 +409,15 @@ public interface IRuleModifier
     /// <param name="player">The player whose draw count is being checked.</param>
     /// <returns>Null if no modification, otherwise the modified value.</returns>
     int? ModifyDrawCount(int current, Game game, Player player);
+
+    /// <summary>
+    /// Modifies the maximum number of targets for a card usage.
+    /// Returns null if no modification is needed, otherwise returns the modified value.
+    /// </summary>
+    /// <param name="current">The current maximum target count.</param>
+    /// <param name="context">The card usage context.</param>
+    /// <returns>Null if no modification, otherwise the modified value.</returns>
+    int? ModifyMaxTargets(int current, CardUsageContext context);
 }
 
 /// <summary>
