@@ -137,7 +137,8 @@ public sealed class BasicRoleAssignmentService : IRoleAssignmentService
             DrawPile = game.DrawPile,
             DiscardPile = game.DiscardPile,
             IsFinished = game.IsFinished,
-            WinnerDescription = game.WinnerDescription
+            WinnerDescription = game.WinnerDescription,
+            State = game.State
         };
     }
 
