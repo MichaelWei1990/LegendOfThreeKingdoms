@@ -85,11 +85,11 @@ public sealed class GameInitializationTests
             Assert.AreEqual(gameConfig.InitialHandCardCount, hand.Count);
         }
 
-        // Total deck size is deterministic in BuildDeckCardIds (108 cards: 53 basic + 36 trick + 19 equipment).
-        // 3 players * 4 cards = 12 cards dealt, so 96 should remain in draw pile.
+        // Total deck size is deterministic in BuildDeckCardIds (107 cards: 53 basic + 35 trick + 19 equipment).
+        // 3 players * 4 cards = 12 cards dealt, so 95 should remain in draw pile.
         Assert.IsInstanceOfType(game.DrawPile, typeof(Zone));
         var remainingDeck = ((Zone)game.DrawPile).Cards;
-        Assert.AreEqual(96, remainingDeck.Count);
+        Assert.AreEqual(95, remainingDeck.Count);
 
         // Turn engine integration: first player and phase should be initialized.
         Assert.AreEqual(0, game.CurrentPlayerSeat);
@@ -111,12 +111,20 @@ public sealed class GameInitializationTests
             InitialHandCardCount = 10 // deliberately too large for the small test deck
         };
 
+        // Create a small deck with only 30 cards (4 players * 10 cards = 40 needed, so this will fail)
+        var smallDeck = new List<string>();
+        for (int i = 0; i < 30; i++)
+        {
+            smallDeck.Add("Base.Slash");
+        }
+
         var random = new FixedRandomSource(0);
         var options = new GameInitializationOptions
         {
             GameConfig = gameConfig,
             Random = random,
-            GameMode = new DummyGameMode()
+            GameMode = new DummyGameMode(),
+            PrebuiltDeckCardIds = smallDeck // Use small deck instead of standard deck
         };
 
         var initializer = new BasicGameInitializer();

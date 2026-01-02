@@ -115,7 +115,7 @@ public sealed class BasicGameInitializer : IGameInitializer
 
     /// <summary>
     /// Builds a complete standard edition deck list based on the supplied <see cref="DeckConfig"/>.
-    /// Standard edition contains 108 cards: 53 basic cards, 36 trick cards, and 19 equipment cards.
+    /// Standard edition contains 107 cards: 53 basic cards, 35 trick cards, and 19 equipment cards.
     /// </summary>
     private static IReadOnlyList<string> BuildDeckCardIds(DeckConfig deckConfig)
     {
@@ -145,7 +145,7 @@ public sealed class BasicGameInitializer : IGameInitializer
             result.Add("Base.Peach");
         }
 
-        // Trick cards (36 cards total)
+        // Trick cards (35 cards total)
         // 过河拆桥 (Guohe Chaiqiao): 6 cards
         for (var i = 0; i < 6; i++)
         {
@@ -248,8 +248,8 @@ public sealed class BasicGameInitializer : IGameInitializer
         result.Add("Equip.Dilu");                 // 的卢
         result.Add("Equip.Zixing");               // 紫騂
 
-        // Total: 53 (basic) + 36 (trick) + 19 (equipment) = 108 cards
-        // Breakdown: 53 basic + 36 trick + 10 weapons + 3 armor + 6 horses = 108 cards
+        // Total: 53 (basic) + 35 (trick) + 19 (equipment) = 107 cards
+        // Breakdown: 53 basic + 35 trick + 10 weapons + 3 armor + 6 horses = 107 cards
         return result;
     }
 
