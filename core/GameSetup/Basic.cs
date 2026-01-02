@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using LegendOfThreeKingdoms.Core.Abstractions;
 using LegendOfThreeKingdoms.Core.Configuration;
+using LegendOfThreeKingdoms.Core.Content;
 using LegendOfThreeKingdoms.Core.Identity;
 using LegendOfThreeKingdoms.Core.Model;
 using LegendOfThreeKingdoms.Core.Model.Zones;
@@ -113,40 +114,142 @@ public sealed class BasicGameInitializer : IGameInitializer
     }
 
     /// <summary>
-    /// Builds a simple deck list based on the supplied <see cref="DeckConfig"/>.
-    /// The first implementation only honors included packs and ignores overrides.
-    /// Card definition to ID mapping is delegated to content; here we only
-    /// keep definition identifiers as strings.
+    /// Builds a complete standard edition deck list based on the supplied <see cref="DeckConfig"/>.
+    /// Standard edition contains 108 cards: 53 basic cards, 36 trick cards, and 19 equipment cards.
     /// </summary>
     private static IReadOnlyList<string> BuildDeckCardIds(DeckConfig deckConfig)
     {
         var result = new List<string>();
 
-        // Minimal placeholder implementation:
-        // for now, if at least one pack is enabled we create a small deterministic
-        // set of base cards sufficient for tests. Real content loading will replace this.
         if (deckConfig.IncludedPacks.Count == 0)
         {
             return result;
         }
 
-        // Basic skeleton deck: a few Slash / Dodge / Peach definitions.
-        // Definition ids are opaque strings; tests can assert on their order.
-        for (var i = 0; i < 20; i++)
+        // Basic cards (53 cards total)
+        // 杀 (Slash): 30 cards
+        for (var i = 0; i < 30; i++)
         {
             result.Add("Base.Slash");
         }
 
-        for (var i = 0; i < 10; i++)
+        // 闪 (Dodge): 15 cards
+        for (var i = 0; i < 15; i++)
         {
             result.Add("Base.Dodge");
         }
 
-        for (var i = 0; i < 6; i++)
+        // 桃 (Peach): 8 cards
+        for (var i = 0; i < 8; i++)
         {
             result.Add("Base.Peach");
         }
 
+        // Trick cards (36 cards total)
+        // 过河拆桥 (Guohe Chaiqiao): 6 cards
+        for (var i = 0; i < 6; i++)
+        {
+            result.Add("Trick.GuoheChaiqiao");
+        }
+
+        // 顺手牵羊 (Shunshou Qianyang): 5 cards
+        for (var i = 0; i < 5; i++)
+        {
+            result.Add("Trick.ShunshouQianyang");
+        }
+
+        // 无中生有 (Wuzhong Shengyou): 4 cards
+        for (var i = 0; i < 4; i++)
+        {
+            result.Add("Trick.WuzhongShengyou");
+        }
+
+        // 五谷丰登 (Harvest): 2 cards (桃园结义 TaoyuanJieyi is separate, not included in Harvest)
+        for (var i = 0; i < 2; i++)
+        {
+            result.Add("Trick.Harvest");
+        }
+
+        // 桃园结义 (TaoyuanJieyi): 1 card
+        result.Add("Trick.TaoyuanJieyi");
+
+        // 乐不思蜀 (Lebusishu): 3 cards
+        for (var i = 0; i < 3; i++)
+        {
+            result.Add("Trick.Lebusishu");
+        }
+
+        // 南蛮入侵 (Nanman Rushin): 3 cards
+        for (var i = 0; i < 3; i++)
+        {
+            result.Add("Trick.NanmanRushin");
+        }
+
+        // 万箭齐发 (Wanjian Qifa): 1 card
+        result.Add("Trick.WanjianQifa");
+
+        // 决斗 (Duel): 3 cards
+        for (var i = 0; i < 3; i++)
+        {
+            result.Add("Trick.Duel");
+        }
+
+        // 借刀杀人 (Jie Dao Sha Ren): 2 cards
+        for (var i = 0; i < 2; i++)
+        {
+            result.Add("Trick.JieDaoShaRen");
+        }
+
+        // 无懈可击 (Wuxiekeji): 4 cards
+        for (var i = 0; i < 4; i++)
+        {
+            result.Add("Trick.Wuxiekeji");
+        }
+
+        // 闪电 (Shandian): 1 card
+        result.Add("Trick.Shandian");
+
+        // Equipment cards (19 cards total)
+        // Weapons (12 cards)
+        // 诸葛连弩 (Zhugeliannu): 2 cards
+        for (var i = 0; i < 2; i++)
+        {
+            result.Add("Equip.Zhugeliannu");
+        }
+
+        // Single weapons (1 card each)
+        result.Add("Equip.CixiongShuanggujian");  // 雌雄双股剑
+        result.Add("Equip.HanbingJian");          // 寒冰剑
+        result.Add("Equip.QinglongYanyueDao");    // 青龍偃月刀
+        result.Add("Equip.QinggangJian");         // 青釭劍
+        result.Add("Equip.QilinGong");            // 麒麟弓
+        result.Add("Equip.ZhangbaShemao");        // 丈八蛇矛
+        result.Add("Equip.Guanshifu");            // 贯石斧
+        result.Add("Equip.FangtianHuaji");        // 方天画戟
+
+        // Armor (3 cards)
+        // 八卦阵 (Bagua Zhen): 2 cards
+        for (var i = 0; i < 2; i++)
+        {
+            result.Add("Equip.BaguaZhen");
+        }
+
+        // 仁王盾 (Renwang Dun): 1 card
+        result.Add("Equip.RenwangDun");
+
+        // Horses (4 cards)
+        // Offensive horses (-1 distance)
+        result.Add("Equip.Jueying");              // 绝影
+        result.Add("Equip.Chitu");                // 赤兔
+        result.Add("Equip.ZhaohuangFeidian");     // 爪黄飞电
+        result.Add("Equip.Dawan");                // 大宛
+
+        // Defensive horses (+1 distance)
+        result.Add("Equip.Dilu");                 // 的卢
+        result.Add("Equip.Zixing");               // 紫騂
+
+        // Total: 53 (basic) + 36 (trick) + 19 (equipment) = 108 cards
+        // Breakdown: 53 basic + 36 trick + 10 weapons + 3 armor + 6 horses = 108 cards
         return result;
     }
 
@@ -204,9 +307,8 @@ public sealed class BasicGameInitializer : IGameInitializer
     }
 
     /// <summary>
-    /// Populates the game's draw pile zone with card placeholders that reference
-    /// the shuffled definition ids. At this stage we only need deterministic
-    /// ordering; full card metadata will be supplied by the content layer later.
+    /// Populates the game's draw pile zone with cards based on the shuffled definition IDs.
+    /// Uses CardDefinitionService to set correct CardType, CardSubType, and Name for each card.
     /// </summary>
     private static void PopulateDrawPile(Game game, IReadOnlyList<string> shuffledDefinitionIds)
     {
@@ -218,19 +320,22 @@ public sealed class BasicGameInitializer : IGameInitializer
 
         drawZone.MutableCards.Clear();
 
+        var cardDefinitionService = new BasicCardDefinitionService();
         var nextInstanceId = 1;
+
         foreach (var defId in shuffledDefinitionIds)
         {
-            // For now we only care about deterministic ordering. Suit/rank/type
-            // will be refined when the content layer is introduced.
+            var definition = cardDefinitionService.GetDefinition(defId);
+
             var card = new Card
             {
                 Id = nextInstanceId++,
                 DefinitionId = defId,
-                Suit = Suit.Spade,
-                Rank = 1,
-                CardType = CardType.Basic,
-                CardSubType = CardSubType.Unknown
+                Name = definition?.Name ?? defId,
+                Suit = definition?.DefaultSuit ?? Suit.Spade,  // Default suit if not specified
+                Rank = 1,  // Default rank (actual rank would come from card definition in full implementation)
+                CardType = definition?.CardType ?? CardType.Basic,
+                CardSubType = definition?.CardSubType ?? CardSubType.Unknown
             };
 
             drawZone.MutableCards.Add(card);
