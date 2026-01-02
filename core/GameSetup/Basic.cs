@@ -145,7 +145,7 @@ public sealed class BasicGameInitializer : IGameInitializer
             result.Add("Base.Peach");
         }
 
-        // Trick cards (35 cards total)
+        // Trick cards (36 cards total, including EX cards)
         // 过河拆桥 (Guohe Chaiqiao): 6 cards
         for (var i = 0; i < 6; i++)
         {
@@ -206,8 +206,9 @@ public sealed class BasicGameInitializer : IGameInitializer
             result.Add("Trick.Wuxiekeji");
         }
 
-        // 闪电 (Shandian): 1 card
+        // 闪电 (Shandian): 2 cards (1 standard + 1 EX)
         result.Add("Trick.Shandian");
+        result.Add("Trick.Shandian"); // EX version (♥Q)
 
         // Equipment cards (19 cards total)
         // Weapons (12 cards)
@@ -248,8 +249,8 @@ public sealed class BasicGameInitializer : IGameInitializer
         result.Add("Equip.Dilu");                 // 的卢
         result.Add("Equip.Zixing");               // 紫騂
 
-        // Total: 53 (basic) + 35 (trick) + 19 (equipment) = 107 cards
-        // Breakdown: 53 basic + 35 trick + 10 weapons + 3 armor + 6 horses = 107 cards
+        // Total: 53 (basic) + 36 (trick, including EX) + 19 (equipment) = 108 cards
+        // Breakdown: 53 basic + 36 trick + 10 weapons + 3 armor + 6 horses = 108 cards
         return result;
     }
 
