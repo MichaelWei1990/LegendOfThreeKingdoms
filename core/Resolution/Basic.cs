@@ -311,6 +311,8 @@ public sealed class UseCardResolver : IResolver
                 CardSubType.WanjianQifa => new ImmediateTrickResolver(),
                 CardSubType.NanmanRushin => new ImmediateTrickResolver(),
                 CardSubType.Duel => new ImmediateTrickResolver(),
+                CardSubType.Harvest => new ImmediateTrickResolver(),
+                CardSubType.JieDaoShaRen => new JieDaoShaRenResolver(),
                 CardSubType.Lebusishu => new DelayedTrickResolver(),
                 CardSubType.Shandian => new DelayedTrickResolver(),
                 _ => null

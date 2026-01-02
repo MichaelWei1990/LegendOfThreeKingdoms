@@ -325,4 +325,176 @@ public sealed class BasicTurnExecutorTests
         // (Dead players are handled by IdentityGameFlowService, but executor should handle gracefully)
         Assert.IsNotNull(game);
     }
+
+    /// <summary>
+    /// Tests that ExecuteTurn handles Play phase correctly when player cancels action selection.
+    /// ExecuteTurn should execute all remaining phases (Play -> Discard -> End -> next player's Start).
+    /// </summary>
+    [TestMethod]
+    public void ExecuteTurn_PlayPhase_PlayerCancelsActionSelection_EndsPhase()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var mode = new FixedFirstSeatGameMode(firstSeat: 0);
+        var eventBus = new BasicEventBus();
+        var turnEngine = new BasicTurnEngine(mode, eventBus);
+        turnEngine.InitializeTurnState(game);
+        
+        // Advance to Play phase
+        turnEngine.AdvancePhase(game); // Start -> Judge
+        turnEngine.AdvancePhase(game); // Judge -> Draw
+        turnEngine.AdvancePhase(game); // Draw -> Play
+        
+        // Create getPlayerChoice that returns null (player cancels)
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            if (request.ChoiceType == ChoiceType.SelectOption)
+            {
+                // Player cancels action selection
+                return new ChoiceResult(
+                    RequestId: request.RequestId,
+                    PlayerSeat: request.PlayerSeat,
+                    SelectedTargetSeats: null,
+                    SelectedCardIds: null,
+                    SelectedOptionId: null,
+                    Confirmed: false);
+            }
+            // For other choice types, return empty choice
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null,
+                SelectedOptionId: null,
+                Confirmed: false);
+        };
+        
+        var executor = CreateTurnExecutor(turnEngine: turnEngine, eventBus: eventBus, getPlayerChoice: getPlayerChoice);
+        var player = game.Players[0];
+
+        // Act
+        executor.ExecuteTurn(game, player);
+
+        // Assert: ExecuteTurn should execute all remaining phases
+        // After Play -> Discard -> End -> next player's Start
+        // Since there are 2 players, next player is player 1, so phase should be Start
+        Assert.AreEqual(Phase.Start, game.CurrentPhase);
+        // Verify it's the next player's turn
+        Assert.AreEqual(1, game.CurrentPlayerSeat);
+    }
+
+    /// <summary>
+    /// Tests that ExecuteTurn handles Play phase correctly when player selects an action.
+    /// </summary>
+    [TestMethod]
+    public void ExecuteTurn_PlayPhase_PlayerSelectsAction_ExecutesAction()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var mode = new FixedFirstSeatGameMode(firstSeat: 0);
+        var eventBus = new BasicEventBus();
+        var turnEngine = new BasicTurnEngine(mode, eventBus);
+        turnEngine.InitializeTurnState(game);
+        
+        // Advance to Play phase
+        turnEngine.AdvancePhase(game); // Start -> Judge
+        turnEngine.AdvancePhase(game); // Judge -> Draw
+        turnEngine.AdvancePhase(game); // Draw -> Play
+        
+        var player = game.Players[0];
+        string? selectedActionId = null;
+        
+        // Create getPlayerChoice that selects the first available action
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            if (request.ChoiceType == ChoiceType.SelectOption && request.Options is not null && request.Options.Count > 0)
+            {
+                // Select the first action option
+                selectedActionId = request.Options[0].OptionId;
+                return new ChoiceResult(
+                    RequestId: request.RequestId,
+                    PlayerSeat: request.PlayerSeat,
+                    SelectedTargetSeats: null,
+                    SelectedCardIds: null,
+                    SelectedOptionId: selectedActionId,
+                    Confirmed: true);
+            }
+            // For other choice types (like target selection), return empty choice
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null,
+                SelectedOptionId: null,
+                Confirmed: false);
+        };
+        
+        var executor = CreateTurnExecutor(turnEngine: turnEngine, eventBus: eventBus, getPlayerChoice: getPlayerChoice);
+
+        // Act
+        executor.ExecuteTurn(game, player);
+
+        // Assert: Should have processed the action selection
+        // The action might not execute if it requires targets and player cancels,
+        // but the selection should have been attempted
+        Assert.IsTrue(game.CurrentPhase == Phase.Discard || game.CurrentPhase == Phase.Start,
+            "Phase should have advanced from Play phase");
+    }
+
+    /// <summary>
+    /// Tests that ExecuteTurn handles Play phase correctly when selected action is no longer available.
+    /// ExecuteTurn should execute all remaining phases (Play -> Discard -> End -> next player's Start).
+    /// </summary>
+    [TestMethod]
+    public void ExecuteTurn_PlayPhase_SelectedActionNoLongerAvailable_EndsPhase()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var mode = new FixedFirstSeatGameMode(firstSeat: 0);
+        var eventBus = new BasicEventBus();
+        var turnEngine = new BasicTurnEngine(mode, eventBus);
+        turnEngine.InitializeTurnState(game);
+        
+        // Advance to Play phase
+        turnEngine.AdvancePhase(game); // Start -> Judge
+        turnEngine.AdvancePhase(game); // Judge -> Draw
+        turnEngine.AdvancePhase(game); // Draw -> Play
+        
+        var player = game.Players[0];
+        
+        // Create getPlayerChoice that selects a non-existent action ID
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            if (request.ChoiceType == ChoiceType.SelectOption)
+            {
+                // Select a non-existent action ID
+                return new ChoiceResult(
+                    RequestId: request.RequestId,
+                    PlayerSeat: request.PlayerSeat,
+                    SelectedTargetSeats: null,
+                    SelectedCardIds: null,
+                    SelectedOptionId: "NonExistentAction",
+                    Confirmed: true);
+            }
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null,
+                SelectedOptionId: null,
+                Confirmed: false);
+        };
+        
+        var executor = CreateTurnExecutor(turnEngine: turnEngine, eventBus: eventBus, getPlayerChoice: getPlayerChoice);
+
+        // Act
+        executor.ExecuteTurn(game, player);
+
+        // Assert: ExecuteTurn should execute all remaining phases
+        // After Play -> Discard -> End -> next player's Start
+        // Since there are 2 players, next player is player 1, so phase should be Start
+        Assert.AreEqual(Phase.Start, game.CurrentPhase);
+        // Verify it's the next player's turn
+        Assert.AreEqual(1, game.CurrentPlayerSeat);
+    }
 }

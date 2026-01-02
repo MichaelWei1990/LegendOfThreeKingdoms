@@ -80,6 +80,16 @@ public enum CardSubType
     /// </summary>
     Duel,
 
+    /// <summary>
+    /// 五谷丰登 (Wugu Fengdeng / Harvest).
+    /// </summary>
+    Harvest,
+
+    /// <summary>
+    /// 借刀杀人 (Jie Dao Sha Ren / Borrow Knife).
+    /// </summary>
+    JieDaoShaRen,
+
     // Specific delayed tricks
     /// <summary>
     /// 乐不思蜀 (Le Bu Si Shu).

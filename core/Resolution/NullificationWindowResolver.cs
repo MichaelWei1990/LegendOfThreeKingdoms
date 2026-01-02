@@ -70,22 +70,38 @@ internal sealed class NullificationWindowResolver : IResolver
     /// </summary>
     private int GetNullificationCount(ResolutionContext context, ResponseWindowResult responseResult)
     {
+        // Check if this is a chain nullification window by checking if resultKey contains "_Chain_"
+        // For chain windows, we need to extract the original result key to find the chain count
+        string originalResultKey = _resultKey;
+        if (_resultKey.Contains("_Chain_"))
+        {
+            // Extract original result key: "JieDaoShaRenNullification_1_Chain_1" -> "JieDaoShaRenNullification_1"
+            var lastChainIndex = _resultKey.LastIndexOf("_Chain_");
+            if (lastChainIndex > 0)
+            {
+                originalResultKey = _resultKey.Substring(0, lastChainIndex);
+            }
+        }
+
         // Check if there's an existing nullification count for this effect
-        var chainKey = $"{_resultKey}_ChainCount";
+        var chainKey = $"{originalResultKey}_ChainCount";
         if (context.IntermediateResults is not null &&
             context.IntermediateResults.TryGetValue(chainKey, out var countObj) &&
             countObj is int existingCount)
         {
+            // This is a chain nullification window (not the first one)
             // Increment the count if a nullification was played
             if (responseResult.State == ResponseWindowState.ResponseSuccess &&
                 responseResult.ResponseCard?.CardSubType == CardSubType.Wuxiekeji)
             {
                 return existingCount + 1;
             }
+            // If no nullification was played in the chain window, keep the existing count
+            // The chain handler will process this result
             return existingCount;
         }
 
-        // First nullification in the chain
+        // First nullification in the chain (not a chain window)
         if (responseResult.State == ResponseWindowState.ResponseSuccess &&
             responseResult.ResponseCard?.CardSubType == CardSubType.Wuxiekeji)
         {
@@ -173,14 +189,15 @@ internal sealed class NullificationChainHandlerResolver : IResolver
             currentCount = _previousCount;
         }
 
-        // Check if another nullification was played in the chain
-        // Look for the latest chain result
-        var latestChainKey = $"{_resultKey}_Chain_{currentCount - 1}";
+        // Check if the chain nullification window has completed
+        // Look for the latest chain result (the chain window result key is "{_resultKey}_Chain_{currentCount}")
+        var latestChainKey = $"{_resultKey}_Chain_{currentCount}";
         if (context.IntermediateResults is not null &&
             context.IntermediateResults.TryGetValue(latestChainKey, out var chainResultObj) &&
             chainResultObj is NullificationResult chainResult)
         {
-            // Another nullification was played, increment count
+            // Chain window has completed
+            // If another nullification was played in the chain, increment count
             if (chainResult.IsNullified)
             {
                 currentCount++;
@@ -189,11 +206,14 @@ internal sealed class NullificationChainHandlerResolver : IResolver
                     context.IntermediateResults[_chainKey] = currentCount;
                 }
             }
+            // If chain window had no response (IsNullified = false), keep currentCount as is
+            // This means the first nullification stands, so effect is nullified (odd count = nullified)
         }
+        // If chain result doesn't exist yet, the chain window hasn't executed yet
+        // In this case, use the previous count (which should be the first nullification count)
 
-        // Check if we need to continue the chain
-        // If the latest nullification was nullified, we might need another round
-        // But for simplicity, we'll stop here and calculate the final result
+        // Calculate final result based on current count
+        // Odd count (1, 3, 5...) = nullified, even count (0, 2, 4...) = not nullified
         var finalCount = currentCount;
         var isNullified = NullificationHelper.IsNullified(finalCount);
 

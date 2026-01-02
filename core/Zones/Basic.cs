@@ -37,6 +37,7 @@ public sealed class BasicCardMoveService : ICardMoveService
     private readonly Action<CardMoveEvent>? _onAfterMove;
 
     private readonly IEventBus? _eventBus;
+    private readonly IDeckManager? _deckManager;
 
     /// <summary>
 
@@ -104,6 +105,30 @@ public sealed class BasicCardMoveService : ICardMoveService
 
         IEventBus? eventBus)
 
+        : this(onBeforeMove, onAfterMove, eventBus, deckManager: null)
+
+    {
+
+    }
+
+    /// <summary>
+
+    /// Creates a basic card move service with optional event callbacks, event bus, and deck manager.
+
+    /// When deck manager is provided, DrawCards will support automatic reshuffle from discard pile.
+
+    /// </summary>
+
+    public BasicCardMoveService(
+
+        Action<CardMoveEvent>? onBeforeMove,
+
+        Action<CardMoveEvent>? onAfterMove,
+
+        IEventBus? eventBus,
+
+        IDeckManager? deckManager)
+
     {
 
         _onBeforeMove = onBeforeMove;
@@ -111,6 +136,8 @@ public sealed class BasicCardMoveService : ICardMoveService
         _onAfterMove = onAfterMove;
 
         _eventBus = eventBus;
+
+        _deckManager = deckManager;
 
     }
 
@@ -470,6 +497,66 @@ public sealed class BasicCardMoveService : ICardMoveService
 
 
 
+        // If deck manager is available, use it for automatic reshuffle support
+        if (_deckManager is not null)
+        {
+            // Draw cards from draw pile (with automatic reshuffle if needed)
+            var drawn = _deckManager.Draw(game, count);
+
+            // Move drawn cards to player's hand
+            if (drawn.Count > 0)
+            {
+                var descriptor = new CardMoveDescriptor(
+                    SourceZone: drawZone,
+                    TargetZone: handZone,
+                    Cards: drawn,
+                    Reason: CardMoveReason.Draw,
+                    Ordering: CardMoveOrdering.PreserveRelativeOrder,
+                    Game: game);
+
+                // Note: Cards are already removed from draw pile by DeckManager.Draw
+                // We just need to add them to hand zone
+                foreach (var card in drawn)
+                {
+                    handZone.MutableCards.Add(card);
+                }
+
+                // Publish card move events for the draw operation
+                var cardIds = drawn.Select(c => c.Id).ToArray();
+                var beforeEvent = new CardMoveEvent(
+                    SourceZoneId: drawZone.ZoneId,
+                    SourceOwnerSeat: drawZone.OwnerSeat,
+                    TargetZoneId: handZone.ZoneId,
+                    TargetOwnerSeat: handZone.OwnerSeat,
+                    CardIds: cardIds,
+                    Reason: CardMoveReason.Draw,
+                    Ordering: CardMoveOrdering.PreserveRelativeOrder,
+                    Timing: CardMoveEventTiming.Before);
+
+                var afterEvent = new CardMoveEvent(
+                    SourceZoneId: drawZone.ZoneId,
+                    SourceOwnerSeat: drawZone.OwnerSeat,
+                    TargetZoneId: handZone.ZoneId,
+                    TargetOwnerSeat: handZone.OwnerSeat,
+                    CardIds: cardIds,
+                    Reason: CardMoveReason.Draw,
+                    Ordering: CardMoveOrdering.PreserveRelativeOrder,
+                    Timing: CardMoveEventTiming.After);
+
+                _onBeforeMove?.Invoke(beforeEvent);
+                _onAfterMove?.Invoke(afterEvent);
+
+                if (_eventBus is not null)
+                {
+                    _eventBus.Publish(new CardMovedEvent(game, beforeEvent));
+                    _eventBus.Publish(new CardMovedEvent(game, afterEvent));
+                }
+            }
+
+            return drawn;
+        }
+
+        // Legacy behavior: no reshuffle support, throw exception if insufficient cards
         var drawCards = drawZone.MutableCards;
 
         if (drawCards.Count < count)
@@ -484,7 +571,7 @@ public sealed class BasicCardMoveService : ICardMoveService
 
 
 
-        var drawn = new List<Card>(count);
+        var legacyDrawn = new List<Card>(count);
 
 
 
@@ -500,13 +587,13 @@ public sealed class BasicCardMoveService : ICardMoveService
 
             handZone.MutableCards.Add(card);
 
-            drawn.Add(card);
+            legacyDrawn.Add(card);
 
         }
 
 
 
-        return drawn;
+        return legacyDrawn;
 
     }
 

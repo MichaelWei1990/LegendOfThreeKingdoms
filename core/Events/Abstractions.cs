@@ -535,6 +535,56 @@ public sealed record SkillsRegisteredEvent(
 }
 
 /// <summary>
+/// Event published when a game is created.
+/// </summary>
+public sealed record GameCreatedEvent(
+    Game Game,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
+/// Event published when identities have been assigned to all players.
+/// </summary>
+public sealed record IdentitiesAssignedEvent(
+    Game Game,
+    IReadOnlyList<(int PlayerSeat, string Role)> Assignments,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
+/// Event published when the Lord's role is revealed.
+/// </summary>
+public sealed record LordRevealedEvent(
+    Game Game,
+    int LordPlayerSeat,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
+/// Event published when the game starts (after all heroes are selected).
+/// </summary>
+public sealed record GameStartedEvent(
+    Game Game,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
 /// Event published when the game ends due to a win condition being met.
 /// </summary>
 public sealed record GameEndedEvent(
@@ -542,6 +592,74 @@ public sealed record GameEndedEvent(
     Identity.WinType WinType,
     IReadOnlyList<int> WinningPlayerSeats,
     string EndReason,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
+/// Event published before Jie Dao Sha Ren (借刀杀人) effect is executed.
+/// This event is published after nullification check passes, before forcing slash use or weapon transfer.
+/// </summary>
+public sealed record BeforeJieDaoShaRenEffectEvent(
+    Game Game,
+    int UserSeat,
+    int TargetASeat,
+    int TargetBSeat,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
+/// Event published when a forced slash use is requested in Jie Dao Sha Ren effect.
+/// This event is published when player A is asked to use Slash on player B.
+/// </summary>
+public sealed record ForcedSlashUseRequestedEvent(
+    Game Game,
+    int ActorSeat,
+    int TargetSeat,
+    int RequesterSeat,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
+/// Event published when a forced slash use is resolved in Jie Dao Sha Ren effect.
+/// This event indicates whether the actor used slash or declined (resulting in weapon transfer).
+/// </summary>
+public sealed record ForcedSlashUseResolvedEvent(
+    Game Game,
+    int ActorSeat,
+    int TargetSeat,
+    int RequesterSeat,
+    bool SlashUsed,
+    DateTime Timestamp = default
+) : IGameEvent
+{
+    /// <inheritdoc />
+    public DateTime Timestamp { get; init; } = Timestamp == default ? DateTime.UtcNow : Timestamp;
+}
+
+/// <summary>
+/// Event published when a weapon is transferred due to Jie Dao Sha Ren effect.
+/// This event is published when player A declines to use slash or cannot use slash,
+/// resulting in their weapon being transferred to the requester.
+/// </summary>
+public sealed record WeaponTransferredEvent(
+    Game Game,
+    int FromSeat,
+    int ToSeat,
+    int WeaponCardId,
+    CardSubType WeaponSubType,
+    string Reason,
     DateTime Timestamp = default
 ) : IGameEvent
 {

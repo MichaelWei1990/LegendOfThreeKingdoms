@@ -72,6 +72,7 @@ public sealed class TargetSelectionService
             CardSubType.NanmanRushin => TargetSelectionType.AllOther,
             CardSubType.Shandian => TargetSelectionType.Self,
             CardSubType.Peach => TargetSelectionType.PeachTargets,
+            CardSubType.JieDaoShaRen => TargetSelectionType.SingleOtherNoDistance, // Basic type, actual validation in resolver
             _ => TargetSelectionType.None
         };
     }

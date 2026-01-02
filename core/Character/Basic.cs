@@ -374,7 +374,8 @@ public sealed class BasicCharacterSelectionService : ICharacterSelectionService
             DrawPile = originalGame.DrawPile,
             DiscardPile = originalGame.DiscardPile,
             IsFinished = originalGame.IsFinished,
-            WinnerDescription = originalGame.WinnerDescription
+            WinnerDescription = originalGame.WinnerDescription,
+            State = originalGame.State
         };
     }
 }

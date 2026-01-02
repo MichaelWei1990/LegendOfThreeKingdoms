@@ -289,6 +289,14 @@ public enum ChoiceType
 }
 
 /// <summary>
+/// Represents an option in a SelectOption choice request.
+/// </summary>
+public sealed record ChoiceOption(
+    string OptionId,
+    string DisplayKey
+);
+
+/// <summary>
 /// Base DTO that describes a choice the player has to make.
 /// Engine/network/UI layers are responsible for presenting and resolving the choice.
 /// </summary>
@@ -299,7 +307,8 @@ public sealed record ChoiceRequest(
     TargetConstraints? TargetConstraints,
     IReadOnlyList<Card>? AllowedCards,
     string? ResponseWindowId = null,
-    bool CanPass = true
+    bool CanPass = true,
+    IReadOnlyList<ChoiceOption>? Options = null
 );
 
 /// <summary>

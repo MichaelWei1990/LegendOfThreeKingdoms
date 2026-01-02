@@ -5,11 +5,46 @@ using LegendOfThreeKingdoms.Core.Turns;
 namespace LegendOfThreeKingdoms.Core.Model;
 
 /// <summary>
+/// Game state enumeration for identity mode flow control.
+/// </summary>
+public enum GameState
+{
+    /// <summary>
+    /// Game has been created but identities have not been assigned yet.
+    /// </summary>
+    Created,
+
+    /// <summary>
+    /// Identities have been assigned to all players.
+    /// </summary>
+    IdentitiesAssigned,
+
+    /// <summary>
+    /// All players have selected their heroes.
+    /// </summary>
+    HeroesSelected,
+
+    /// <summary>
+    /// Game is running (turns are in progress).
+    /// </summary>
+    Running,
+
+    /// <summary>
+    /// Game has finished (win condition met).
+    /// </summary>
+    Finished
+}
+
+/// <summary>
 /// Pure state representation of a single game instance.
 /// Contains only data; rules and progression logic live in higher layers.
 /// </summary>
 public sealed class Game
 {
+    /// <summary>
+    /// Current state of the game in identity mode flow.
+    /// </summary>
+    public GameState State { get; set; } = GameState.Created;
     /// <summary>
     /// Player states in seat order starting from 0.
     /// </summary>
@@ -104,7 +139,8 @@ public sealed class Game
             DrawPile = new Zone(ZoneIds.DrawPile, ownerSeat: null, isPublic: false),
             DiscardPile = new Zone(ZoneIds.DiscardPile, ownerSeat: null, isPublic: true),
             IsFinished = false,
-            WinnerDescription = null
+            WinnerDescription = null,
+            State = GameState.Created
         };
     }
 }
