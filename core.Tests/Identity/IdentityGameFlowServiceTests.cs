@@ -583,8 +583,11 @@ public sealed class IdentityGameFlowServiceTests
         }
 
         // Step 6: Execute turn cycles until win condition is checked
-        // We may need to execute multiple cycles if current player is dead
-        int maxCycles = 10;
+        // After killing all other players, ExecuteTurnCycle will check win conditions
+        // before executing the turn, so it should end immediately if Renegade is the sole survivor
+        // We may need to execute at most 1-2 cycles: one to check win condition, 
+        // and possibly one more if current player is not Renegade
+        int maxCycles = 3;
         int cyclesExecuted = 0;
         while (!game.IsFinished && cyclesExecuted < maxCycles)
         {
@@ -617,7 +620,7 @@ public sealed class IdentityGameFlowServiceTests
         eventBus.Subscribe<PhaseStartEvent>(evt => phaseEvents.Add((evt.Phase, evt.PlayerSeat)));
         
         var service = CreateFlowService(eventBus: eventBus);
-        var config = CreateConfig(2);
+        var config = CreateConfig(4); // Identity mode requires at least 4 players
         
         // Complete setup
         var game = service.CreateGame(config);
@@ -670,7 +673,7 @@ public sealed class IdentityGameFlowServiceTests
         eventBus.Subscribe<TurnEndEvent>(evt => turnEndEvents.Add(evt));
         
         var service = CreateFlowService(eventBus: eventBus);
-        var config = CreateConfig(2);
+        var config = CreateConfig(4); // Identity mode requires at least 4 players
         
         // Complete setup
         var game = service.CreateGame(config);

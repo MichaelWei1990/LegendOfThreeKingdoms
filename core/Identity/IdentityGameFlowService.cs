@@ -251,6 +251,13 @@ public sealed class IdentityGameFlowService
         if (currentPlayer is null)
             throw new InvalidOperationException($"Player at seat {game.CurrentPlayerSeat} not found.");
 
+        // Check win conditions before executing turn (e.g., if only Renegade is alive)
+        var winResultBeforeTurn = _winConditionService.CheckWinConditions(game);
+        if (winResultBeforeTurn.IsGameOver)
+        {
+            return EndGame(game, winResultBeforeTurn);
+        }
+
         // Skip dead players
         if (!currentPlayer.IsAlive)
         {
@@ -258,21 +265,30 @@ public sealed class IdentityGameFlowService
             return game;
         }
 
+        // Store current player seat before executing turn
+        var playerSeatBeforeTurn = game.CurrentPlayerSeat;
+
         // Execute turn (minimal implementation - no-op for now)
+        // Note: ExecuteTurn will call StartNextTurn internally when reaching End phase
         _turnExecutor.ExecuteTurn(game, currentPlayer);
 
         // Publish TurnEndEvent after turn execution
-        _eventBus.Publish(new TurnEndEvent(game, currentPlayer.Seat, game.TurnNumber));
+        _eventBus.Publish(new TurnEndEvent(game, playerSeatBeforeTurn, game.TurnNumber));
 
-        // Check win conditions
+        // Check win conditions after turn execution
         var winResult = _winConditionService.CheckWinConditions(game);
         if (winResult.IsGameOver)
         {
             return EndGame(game, winResult);
         }
 
-        // Advance to next turn
-        _turnEngine.StartNextTurn(game);
+        // Only call StartNextTurn if ExecuteTurn didn't already call it
+        // ExecuteTurn calls StartNextTurn when advancing from End phase, which changes CurrentPlayerSeat
+        // If CurrentPlayerSeat hasn't changed, we need to call StartNextTurn ourselves
+        if (game.CurrentPlayerSeat == playerSeatBeforeTurn && !game.IsFinished)
+        {
+            _turnEngine.StartNextTurn(game);
+        }
 
         return game;
     }
