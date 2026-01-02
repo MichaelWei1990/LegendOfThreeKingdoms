@@ -30,6 +30,7 @@ public sealed class TargetConstraintsFactory
             // Factory function: create new instance based on card subtype
             return key switch
             {
+                // Basic cards
                 CardSubType.Slash => new TargetConstraints(
                     MinTargets: 1,
                     MaxTargets: 1,
@@ -38,14 +39,73 @@ public sealed class TargetConstraintsFactory
                     MinTargets: 0,
                     MaxTargets: 0,
                     FilterType: TargetFilterType.SelfOrFriends),
+                
+                // Equipment cards (no targets required)
+                CardSubType.Weapon => new TargetConstraints(
+                    MinTargets: 0,
+                    MaxTargets: 0,
+                    FilterType: TargetFilterType.Any),
+                CardSubType.Armor => new TargetConstraints(
+                    MinTargets: 0,
+                    MaxTargets: 0,
+                    FilterType: TargetFilterType.Any),
+                CardSubType.OffensiveHorse => new TargetConstraints(
+                    MinTargets: 0,
+                    MaxTargets: 0,
+                    FilterType: TargetFilterType.Any),
+                CardSubType.DefensiveHorse => new TargetConstraints(
+                    MinTargets: 0,
+                    MaxTargets: 0,
+                    FilterType: TargetFilterType.Any),
+                
+                // Immediate trick cards
                 CardSubType.GuoheChaiqiao => new TargetConstraints(
                     MinTargets: 1,
                     MaxTargets: 1,
                     FilterType: TargetFilterType.Any),
+                CardSubType.ShunshouQianyang => new TargetConstraints(
+                    MinTargets: 1,
+                    MaxTargets: 1,
+                    FilterType: TargetFilterType.Any),
+                CardSubType.WuzhongShengyou => new TargetConstraints(
+                    MinTargets: 0,
+                    MaxTargets: 0,
+                    FilterType: TargetFilterType.Any),
+                CardSubType.TaoyuanJieyi => new TargetConstraints(
+                    MinTargets: 0,
+                    MaxTargets: 0,
+                    FilterType: TargetFilterType.Any),
+                CardSubType.WanjianQifa => new TargetConstraints(
+                    MinTargets: 0,
+                    MaxTargets: 0,
+                    FilterType: TargetFilterType.Any),
+                CardSubType.NanmanRushin => new TargetConstraints(
+                    MinTargets: 0,
+                    MaxTargets: 0,
+                    FilterType: TargetFilterType.Any),
+                CardSubType.Duel => new TargetConstraints(
+                    MinTargets: 1,
+                    MaxTargets: 1,
+                    FilterType: TargetFilterType.Any),
+                CardSubType.Harvest => new TargetConstraints(
+                    MinTargets: 0,
+                    MaxTargets: 0,
+                    FilterType: TargetFilterType.Any),
+                CardSubType.JieDaoShaRen => new TargetConstraints(
+                    MinTargets: 2,
+                    MaxTargets: 2,
+                    FilterType: TargetFilterType.Any),
+                
+                // Delayed trick cards
                 CardSubType.Lebusishu => new TargetConstraints(
                     MinTargets: 1,
                     MaxTargets: 1,
                     FilterType: TargetFilterType.Any),
+                CardSubType.Shandian => new TargetConstraints(
+                    MinTargets: 1,
+                    MaxTargets: 1,
+                    FilterType: TargetFilterType.Any),
+                
                 // Add more mappings as needed
                 _ => null
             };

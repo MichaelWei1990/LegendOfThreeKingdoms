@@ -55,8 +55,11 @@ public sealed class BasicTurnExecutorTests
             actionMapper = concreteActionMapper;
         }
         
-        // Register basic action handlers (extension method requires concrete type)
-        concreteActionMapper.RegisterUseSlashHandler(cardMoveService, ruleService, getPlayerChoice);
+        // Register all card action handlers (extension method requires concrete type)
+        concreteActionMapper.RegisterUseSlashHandler(cardMoveService, ruleService, getPlayerChoice, skillManager);
+        concreteActionMapper.RegisterUsePeachHandler(cardMoveService, ruleService, getPlayerChoice, skillManager);
+        concreteActionMapper.RegisterUseEquipHandler(cardMoveService, ruleService, getPlayerChoice, skillManager);
+        concreteActionMapper.RegisterUseTrickHandlers(cardMoveService, ruleService, getPlayerChoice, skillManager);
         
         // Default getPlayerChoice: return empty choice (pass)
         getPlayerChoice = getPlayerChoice ?? ((request) => new ChoiceResult(
@@ -497,4 +500,390 @@ public sealed class BasicTurnExecutorTests
         // Verify it's the next player's turn
         Assert.AreEqual(1, game.CurrentPlayerSeat);
     }
+
+    #region Play Phase Integration Tests
+
+    /// <summary>
+    /// Tests that ExecutePlayPhase can use Peach card.
+    /// </summary>
+    [TestMethod]
+    public void ExecutePlayPhase_CanUsePeach()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var mode = new FixedFirstSeatGameMode(firstSeat: 0);
+        var eventBus = new BasicEventBus();
+        var turnEngine = new BasicTurnEngine(mode, eventBus);
+        turnEngine.InitializeTurnState(game);
+        
+        // Advance to Play phase
+        turnEngine.AdvancePhase(game); // Start -> Judge
+        turnEngine.AdvancePhase(game); // Judge -> Draw
+        turnEngine.AdvancePhase(game); // Draw -> Play
+        
+        var player = game.Players[0];
+        // MaxHealth is init-only, use existing value and set CurrentHealth to be less than MaxHealth
+        player.CurrentHealth = player.MaxHealth - 1;
+        
+        var peach = new Card
+        {
+            Id = 1,
+            DefinitionId = "peach_basic",
+            CardType = CardType.Basic,
+            CardSubType = CardSubType.Peach,
+            Suit = Suit.Heart,
+            Rank = 1
+        };
+        ((Zone)player.HandZone).MutableCards.Add(peach);
+        
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            if (request.ChoiceType == ChoiceType.SelectOption)
+            {
+                // Select UsePeach action if available
+                var usePeachOption = request.Options?.FirstOrDefault(o => o.OptionId == "UsePeach");
+                if (usePeachOption is not null)
+                {
+                    return new ChoiceResult(
+                        RequestId: request.RequestId,
+                        PlayerSeat: request.PlayerSeat,
+                        SelectedTargetSeats: null,
+                        SelectedCardIds: null,
+                        SelectedOptionId: "UsePeach",
+                        Confirmed: true);
+                }
+                // If UsePeach not found, return first available option or pass
+                if (request.Options is not null && request.Options.Count > 0)
+                {
+                    return new ChoiceResult(
+                        RequestId: request.RequestId,
+                        PlayerSeat: request.PlayerSeat,
+                        SelectedTargetSeats: null,
+                        SelectedCardIds: null,
+                        SelectedOptionId: request.Options[0].OptionId,
+                        Confirmed: true);
+                }
+            }
+            else if (request.ChoiceType == ChoiceType.SelectCards && request.AllowedCards is not null && request.AllowedCards.Count > 0)
+            {
+                // Select the peach card if available, otherwise select first card
+                var peachCard = request.AllowedCards.FirstOrDefault(c => c.CardSubType == CardSubType.Peach);
+                var cardToSelect = peachCard ?? request.AllowedCards[0];
+                return new ChoiceResult(
+                    RequestId: request.RequestId,
+                    PlayerSeat: request.PlayerSeat,
+                    SelectedTargetSeats: null,
+                    SelectedCardIds: new[] { cardToSelect.Id },
+                    SelectedOptionId: null,
+                    Confirmed: true);
+            }
+            else if (request.ChoiceType == ChoiceType.SelectTargets)
+            {
+                // For target selection, return empty (no targets needed for Peach)
+                return new ChoiceResult(
+                    RequestId: request.RequestId,
+                    PlayerSeat: request.PlayerSeat,
+                    SelectedTargetSeats: null,
+                    SelectedCardIds: null,
+                    SelectedOptionId: null,
+                    Confirmed: true);
+            }
+            // Default: pass
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null,
+                SelectedOptionId: null,
+                Confirmed: false);
+        };
+        
+        var executor = CreateTurnExecutor(turnEngine: turnEngine, eventBus: eventBus, getPlayerChoice: getPlayerChoice);
+
+        // Act
+        executor.ExecuteTurn(game, player);
+
+        // Assert
+        Assert.AreEqual(player.MaxHealth, player.CurrentHealth, "Player health should be restored to max health");
+        Assert.IsFalse(player.HandZone.Cards.Contains(peach), "Peach card should be removed from hand");
+        Assert.IsTrue(game.DiscardPile.Cards.Contains(peach), "Peach card should be in discard pile");
+    }
+
+    /// <summary>
+    /// Tests that ExecutePlayPhase can use Equip card.
+    /// </summary>
+    [TestMethod]
+    public void ExecutePlayPhase_CanUseEquip()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var mode = new FixedFirstSeatGameMode(firstSeat: 0);
+        var eventBus = new BasicEventBus();
+        var turnEngine = new BasicTurnEngine(mode, eventBus);
+        turnEngine.InitializeTurnState(game);
+        
+        // Advance to Play phase
+        turnEngine.AdvancePhase(game); // Start -> Judge
+        turnEngine.AdvancePhase(game); // Judge -> Draw
+        turnEngine.AdvancePhase(game); // Draw -> Play
+        
+        var player = game.Players[0];
+        
+        var weapon = new Card
+        {
+            Id = 1,
+            DefinitionId = "weapon_basic",
+            CardType = CardType.Equip,
+            CardSubType = CardSubType.Weapon,
+            Suit = Suit.Spade,
+            Rank = 5
+        };
+        ((Zone)player.HandZone).MutableCards.Add(weapon);
+        
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            if (request.ChoiceType == ChoiceType.SelectOption)
+            {
+                // Select UseEquip action if available
+                var useEquipOption = request.Options?.FirstOrDefault(o => o.OptionId == "UseEquip");
+                if (useEquipOption is not null)
+                {
+                    return new ChoiceResult(
+                        RequestId: request.RequestId,
+                        PlayerSeat: request.PlayerSeat,
+                        SelectedTargetSeats: null,
+                        SelectedCardIds: null,
+                        SelectedOptionId: "UseEquip",
+                        Confirmed: true);
+                }
+                // If UseEquip not found, return first available option or pass
+                if (request.Options is not null && request.Options.Count > 0)
+                {
+                    return new ChoiceResult(
+                        RequestId: request.RequestId,
+                        PlayerSeat: request.PlayerSeat,
+                        SelectedTargetSeats: null,
+                        SelectedCardIds: null,
+                        SelectedOptionId: request.Options[0].OptionId,
+                        Confirmed: true);
+                }
+            }
+            else if (request.ChoiceType == ChoiceType.SelectCards && request.AllowedCards is not null && request.AllowedCards.Count > 0)
+            {
+                // Select the weapon card if available, otherwise select first card
+                var weaponCard = request.AllowedCards.FirstOrDefault(c => c.CardSubType == CardSubType.Weapon);
+                var cardToSelect = weaponCard ?? request.AllowedCards[0];
+                return new ChoiceResult(
+                    RequestId: request.RequestId,
+                    PlayerSeat: request.PlayerSeat,
+                    SelectedTargetSeats: null,
+                    SelectedCardIds: new[] { cardToSelect.Id },
+                    SelectedOptionId: null,
+                    Confirmed: true);
+            }
+            else if (request.ChoiceType == ChoiceType.SelectTargets)
+            {
+                // For target selection, return empty (no targets needed for Equip)
+                return new ChoiceResult(
+                    RequestId: request.RequestId,
+                    PlayerSeat: request.PlayerSeat,
+                    SelectedTargetSeats: null,
+                    SelectedCardIds: null,
+                    SelectedOptionId: null,
+                    Confirmed: true);
+            }
+            // Default: pass
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null,
+                SelectedOptionId: null,
+                Confirmed: false);
+        };
+        
+        var executor = CreateTurnExecutor(turnEngine: turnEngine, eventBus: eventBus, getPlayerChoice: getPlayerChoice);
+
+        // Act
+        executor.ExecuteTurn(game, player);
+
+        // Assert
+        Assert.IsFalse(player.HandZone.Cards.Contains(weapon), "Weapon card should be removed from hand");
+        Assert.IsTrue(player.EquipmentZone.Cards.Contains(weapon), "Weapon card should be in equipment zone");
+    }
+
+    /// <summary>
+    /// Tests that ExecutePlayPhase can use trick cards.
+    /// </summary>
+    [TestMethod]
+    public void ExecutePlayPhase_CanUseTrickCards()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var mode = new FixedFirstSeatGameMode(firstSeat: 0);
+        var eventBus = new BasicEventBus();
+        var turnEngine = new BasicTurnEngine(mode, eventBus);
+        turnEngine.InitializeTurnState(game);
+        
+        // Advance to Play phase
+        turnEngine.AdvancePhase(game); // Start -> Judge
+        turnEngine.AdvancePhase(game); // Judge -> Draw
+        turnEngine.AdvancePhase(game); // Draw -> Play
+        
+        var player = game.Players[0];
+        
+        var trick = new Card
+        {
+            Id = 1,
+            DefinitionId = "trick_wuzhongshengyou",
+            CardType = CardType.Trick,
+            CardSubType = CardSubType.WuzhongShengyou,
+            Suit = Suit.Spade,
+            Rank = 1
+        };
+        ((Zone)player.HandZone).MutableCards.Add(trick);
+        
+        // Add some cards to draw pile
+        for (int i = 0; i < 5; i++)
+        {
+            var drawCard = new Card
+            {
+                Id = 100 + i,
+                DefinitionId = $"draw_card_{i}",
+                CardType = CardType.Basic,
+                CardSubType = CardSubType.Slash,
+                Suit = Suit.Spade,
+                Rank = 1
+            };
+            ((Zone)game.DrawPile).MutableCards.Add(drawCard);
+        }
+        
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            if (request.ChoiceType == ChoiceType.SelectOption)
+            {
+                // Select UseWuzhongShengyou action if available
+                var useTrickOption = request.Options?.FirstOrDefault(o => o.OptionId == "UseWuzhongShengyou");
+                if (useTrickOption is not null)
+                {
+                    return new ChoiceResult(
+                        RequestId: request.RequestId,
+                        PlayerSeat: request.PlayerSeat,
+                        SelectedTargetSeats: null,
+                        SelectedCardIds: null,
+                        SelectedOptionId: "UseWuzhongShengyou",
+                        Confirmed: true);
+                }
+                // If UseWuzhongShengyou not found, return first available option or pass
+                if (request.Options is not null && request.Options.Count > 0)
+                {
+                    return new ChoiceResult(
+                        RequestId: request.RequestId,
+                        PlayerSeat: request.PlayerSeat,
+                        SelectedTargetSeats: null,
+                        SelectedCardIds: null,
+                        SelectedOptionId: request.Options[0].OptionId,
+                        Confirmed: true);
+                }
+            }
+            else if (request.ChoiceType == ChoiceType.SelectCards && request.AllowedCards is not null && request.AllowedCards.Count > 0)
+            {
+                // Select the trick card if available, otherwise select first card
+                var trickCard = request.AllowedCards.FirstOrDefault(c => c.CardSubType == CardSubType.WuzhongShengyou);
+                var cardToSelect = trickCard ?? request.AllowedCards[0];
+                return new ChoiceResult(
+                    RequestId: request.RequestId,
+                    PlayerSeat: request.PlayerSeat,
+                    SelectedTargetSeats: null,
+                    SelectedCardIds: new[] { cardToSelect.Id },
+                    SelectedOptionId: null,
+                    Confirmed: true);
+            }
+            else if (request.ChoiceType == ChoiceType.SelectTargets)
+            {
+                // For target selection, return empty (no targets needed for WuzhongShengyou)
+                return new ChoiceResult(
+                    RequestId: request.RequestId,
+                    PlayerSeat: request.PlayerSeat,
+                    SelectedTargetSeats: null,
+                    SelectedCardIds: null,
+                    SelectedOptionId: null,
+                    Confirmed: true);
+            }
+            // Default: pass
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null,
+                SelectedOptionId: null,
+                Confirmed: false);
+        };
+        
+        var executor = CreateTurnExecutor(turnEngine: turnEngine, eventBus: eventBus, getPlayerChoice: getPlayerChoice);
+        var initialHandCount = player.HandZone.Cards.Count;
+
+        // Act
+        executor.ExecuteTurn(game, player);
+
+        // Assert
+        Assert.IsFalse(player.HandZone.Cards.Contains(trick), "Trick card should be removed from hand");
+        Assert.IsTrue(game.DiscardPile.Cards.Contains(trick), "Trick card should be in discard pile");
+        // WuzhongShengyou draws 2 cards, so hand count should increase by 1 (trick removed, 2 added)
+        Assert.AreEqual(initialHandCount + 1, player.HandZone.Cards.Count, "Player should have drawn 2 cards from WuzhongShengyou");
+    }
+
+    /// <summary>
+    /// Tests that ExecutePlayPhase can end phase without executing any action.
+    /// ExecuteTurn should execute all remaining phases (Play -> Discard -> End -> next player's Start).
+    /// This test verifies that when a player chooses not to execute any action (returns Confirmed: false),
+    /// the Play phase ends correctly and the turn continues to subsequent phases.
+    /// </summary>
+    [TestMethod]
+    public void ExecutePlayPhase_CanEndPhaseWithoutAction()
+    {
+        // Arrange
+        var game = CreateDefaultGame(2);
+        var mode = new FixedFirstSeatGameMode(firstSeat: 0);
+        var eventBus = new BasicEventBus();
+        var turnEngine = new BasicTurnEngine(mode, eventBus);
+        turnEngine.InitializeTurnState(game);
+        
+        // Advance to Play phase
+        turnEngine.AdvancePhase(game); // Start -> Judge
+        turnEngine.AdvancePhase(game); // Judge -> Draw
+        turnEngine.AdvancePhase(game); // Draw -> Play
+        
+        var player = game.Players[0];
+        var initialPlayerSeat = player.Seat;
+        
+        // Create getPlayerChoice that returns empty choice with Confirmed: false (player chooses to end phase)
+        Func<ChoiceRequest, ChoiceResult> getPlayerChoice = (request) =>
+        {
+            // Return empty choice to indicate player wants to end phase
+            return new ChoiceResult(
+                RequestId: request.RequestId,
+                PlayerSeat: request.PlayerSeat,
+                SelectedTargetSeats: null,
+                SelectedCardIds: null,
+                SelectedOptionId: null,
+                Confirmed: false);
+        };
+        
+        var executor = CreateTurnExecutor(turnEngine: turnEngine, eventBus: eventBus, getPlayerChoice: getPlayerChoice);
+
+        // Act
+        executor.ExecuteTurn(game, player);
+
+        // Assert: ExecuteTurn should execute all remaining phases
+        // After Play -> Discard -> End -> next player's Start
+        // Since there are 2 players, next player is player 1, so phase should be Start
+        Assert.AreEqual(Phase.Start, game.CurrentPhase, "Phase should advance to next player's Start phase after completing turn");
+        // Verify it's the next player's turn
+        Assert.AreEqual(1, game.CurrentPlayerSeat, "Current player seat should advance to next player");
+        // Verify that the turn completed successfully (player was able to choose to end Play phase)
+        Assert.AreNotEqual(initialPlayerSeat, game.CurrentPlayerSeat, "Turn should have completed and advanced to next player");
+    }
+
+    #endregion
 }

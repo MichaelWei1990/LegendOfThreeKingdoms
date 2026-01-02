@@ -410,7 +410,7 @@ public sealed class BasicTurnExecutor : ITurnExecutor
         choiceResult = null;
 
         // Action doesn't require targets, but might need card selection
-        // For actions like "UsePeach", the card is already in CardCandidates
+        // For actions like "UsePeach" or "UseEquip", the card is already in CardCandidates
         if (selectedAction.CardCandidates is not null && selectedAction.CardCandidates.Count > 0)
         {
             // For simplicity, select the first available card
@@ -423,9 +423,12 @@ public sealed class BasicTurnExecutor : ITurnExecutor
                 SelectedCardIds: new[] { selectedCard.Id },
                 SelectedOptionId: null,
                 Confirmed: null);
+            return true;
         }
 
-        return true;
+        // If CardCandidates is empty or null, we cannot prepare a valid choice
+        // This should not happen for valid actions, but handle gracefully
+        return false;
     }
 
     /// <summary>

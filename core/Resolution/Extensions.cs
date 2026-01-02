@@ -128,23 +128,37 @@ public static class ResolutionExtensions
     }
 
     /// <summary>
-    /// Registers the UseSlash action handler that uses the resolution pipeline.
+    /// Generic method to register a card usage action handler that uses the resolution pipeline.
+    /// This method can be used for any card type that follows the standard UseCardResolver flow.
     /// </summary>
     /// <param name="mapper">The action resolution mapper to register with.</param>
+    /// <param name="actionId">The action ID to register (e.g., "UsePeach", "UseEquip").</param>
     /// <param name="cardMoveService">The card move service for card operations.</param>
     /// <param name="ruleService">The rule service for validation.</param>
     /// <param name="getPlayerChoice">Function to get player choice for response windows. May be null if response windows are not supported.</param>
-    public static void RegisterUseSlashHandler(
+    /// <param name="skillManager">Optional skill manager for card conversion.</param>
+    /// <param name="eventBus">Optional event bus for publishing events.</param>
+    /// <param name="logCollector">Optional log collector for logging events.</param>
+    /// <param name="equipmentSkillRegistry">Optional equipment skill registry.</param>
+    /// <param name="judgementService">Optional judgement service.</param>
+    public static void RegisterUseCardHandler(
         this ActionResolutionMapper mapper,
+        string actionId,
         ICardMoveService cardMoveService,
         IRuleService ruleService,
-        Func<ChoiceRequest, ChoiceResult>? getPlayerChoice = null)
+        Func<ChoiceRequest, ChoiceResult>? getPlayerChoice = null,
+        SkillManager? skillManager = null,
+        IEventBus? eventBus = null,
+        ILogCollector? logCollector = null,
+        EquipmentSkillRegistry? equipmentSkillRegistry = null,
+        IJudgementService? judgementService = null)
     {
         if (mapper is null) throw new ArgumentNullException(nameof(mapper));
+        if (string.IsNullOrWhiteSpace(actionId)) throw new ArgumentException("Action ID must not be null or empty.", nameof(actionId));
         if (cardMoveService is null) throw new ArgumentNullException(nameof(cardMoveService));
         if (ruleService is null) throw new ArgumentNullException(nameof(ruleService));
 
-        mapper.Register("UseSlash", (context, action, originalRequest, playerChoice) =>
+        mapper.Register(actionId, (context, action, originalRequest, playerChoice) =>
         {
             // Create resolution stack
             var stack = new BasicResolutionStack();
@@ -158,12 +172,12 @@ public static class ResolutionExtensions
                 stack,
                 cardMoveService,
                 ruleService,
-                skillManager: null, // TODO: Get SkillManager from context if available
+                skillManager: skillManager,
                 getPlayerChoice: getPlayerChoice,
-                eventBus: null,
-                logCollector: null,
-                equipmentSkillRegistry: null,
-                judgementService: null);
+                eventBus: eventBus,
+                logCollector: logCollector,
+                equipmentSkillRegistry: equipmentSkillRegistry,
+                judgementService: judgementService);
 
             // Create and push UseCardResolver
             var useCardResolver = new UseCardResolver();
@@ -181,6 +195,36 @@ public static class ResolutionExtensions
                 }
             }
         });
+    }
+
+    /// <summary>
+    /// Registers the UseSlash action handler that uses the resolution pipeline.
+    /// </summary>
+    /// <param name="mapper">The action resolution mapper to register with.</param>
+    /// <param name="cardMoveService">The card move service for card operations.</param>
+    /// <param name="ruleService">The rule service for validation.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for response windows. May be null if response windows are not supported.</param>
+    public static void RegisterUseSlashHandler(
+        this ActionResolutionMapper mapper,
+        ICardMoveService cardMoveService,
+        IRuleService ruleService,
+        Func<ChoiceRequest, ChoiceResult>? getPlayerChoice = null,
+        SkillManager? skillManager = null,
+        IEventBus? eventBus = null,
+        ILogCollector? logCollector = null,
+        EquipmentSkillRegistry? equipmentSkillRegistry = null,
+        IJudgementService? judgementService = null)
+    {
+        mapper.RegisterUseCardHandler(
+            "UseSlash",
+            cardMoveService,
+            ruleService,
+            getPlayerChoice,
+            skillManager,
+            eventBus,
+            logCollector,
+            equipmentSkillRegistry,
+            judgementService);
     }
 
     /// <summary>
@@ -625,5 +669,219 @@ public static class ResolutionExtensions
                 }
             }
         });
+    }
+
+    /// <summary>
+    /// Registers the UsePeach action handler that uses the resolution pipeline.
+    /// </summary>
+    /// <param name="mapper">The action resolution mapper to register with.</param>
+    /// <param name="cardMoveService">The card move service for card operations.</param>
+    /// <param name="ruleService">The rule service for validation.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for response windows. May be null if response windows are not supported.</param>
+    /// <param name="skillManager">Optional skill manager for card conversion.</param>
+    /// <param name="eventBus">Optional event bus for publishing events.</param>
+    /// <param name="logCollector">Optional log collector for logging events.</param>
+    /// <param name="equipmentSkillRegistry">Optional equipment skill registry.</param>
+    /// <param name="judgementService">Optional judgement service.</param>
+    public static void RegisterUsePeachHandler(
+        this ActionResolutionMapper mapper,
+        ICardMoveService cardMoveService,
+        IRuleService ruleService,
+        Func<ChoiceRequest, ChoiceResult>? getPlayerChoice = null,
+        SkillManager? skillManager = null,
+        IEventBus? eventBus = null,
+        ILogCollector? logCollector = null,
+        EquipmentSkillRegistry? equipmentSkillRegistry = null,
+        IJudgementService? judgementService = null)
+    {
+        mapper.RegisterUseCardHandler(
+            "UsePeach",
+            cardMoveService,
+            ruleService,
+            getPlayerChoice,
+            skillManager,
+            eventBus,
+            logCollector,
+            equipmentSkillRegistry,
+            judgementService);
+    }
+
+    /// <summary>
+    /// Registers the UseEquip action handler that uses the resolution pipeline.
+    /// </summary>
+    /// <param name="mapper">The action resolution mapper to register with.</param>
+    /// <param name="cardMoveService">The card move service for card operations.</param>
+    /// <param name="ruleService">The rule service for validation.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for response windows. May be null if response windows are not supported.</param>
+    /// <param name="skillManager">Optional skill manager for card conversion.</param>
+    /// <param name="eventBus">Optional event bus for publishing events.</param>
+    /// <param name="logCollector">Optional log collector for logging events.</param>
+    /// <param name="equipmentSkillRegistry">Optional equipment skill registry.</param>
+    /// <param name="judgementService">Optional judgement service.</param>
+    public static void RegisterUseEquipHandler(
+        this ActionResolutionMapper mapper,
+        ICardMoveService cardMoveService,
+        IRuleService ruleService,
+        Func<ChoiceRequest, ChoiceResult>? getPlayerChoice = null,
+        SkillManager? skillManager = null,
+        IEventBus? eventBus = null,
+        ILogCollector? logCollector = null,
+        EquipmentSkillRegistry? equipmentSkillRegistry = null,
+        IJudgementService? judgementService = null)
+    {
+        mapper.RegisterUseCardHandler(
+            "UseEquip",
+            cardMoveService,
+            ruleService,
+            getPlayerChoice,
+            skillManager,
+            eventBus,
+            logCollector,
+            equipmentSkillRegistry,
+            judgementService);
+    }
+
+    /// <summary>
+    /// Registers all immediate trick card action handlers that use the resolution pipeline.
+    /// This includes: WuzhongShengyou, TaoyuanJieyi, ShunshouQianyang, GuoheChaiqiao,
+    /// WanjianQifa, NanmanRushin, Duel, Harvest, and JieDaoShaRen.
+    /// </summary>
+    /// <param name="mapper">The action resolution mapper to register with.</param>
+    /// <param name="cardMoveService">The card move service for card operations.</param>
+    /// <param name="ruleService">The rule service for validation.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for response windows. May be null if response windows are not supported.</param>
+    /// <param name="skillManager">Optional skill manager for card conversion.</param>
+    /// <param name="eventBus">Optional event bus for publishing events.</param>
+    /// <param name="logCollector">Optional log collector for logging events.</param>
+    /// <param name="equipmentSkillRegistry">Optional equipment skill registry.</param>
+    /// <param name="judgementService">Optional judgement service.</param>
+    public static void RegisterUseImmediateTrickHandlers(
+        this ActionResolutionMapper mapper,
+        ICardMoveService cardMoveService,
+        IRuleService ruleService,
+        Func<ChoiceRequest, ChoiceResult>? getPlayerChoice = null,
+        SkillManager? skillManager = null,
+        IEventBus? eventBus = null,
+        ILogCollector? logCollector = null,
+        EquipmentSkillRegistry? equipmentSkillRegistry = null,
+        IJudgementService? judgementService = null)
+    {
+        // Register all immediate trick card handlers
+        var immediateTrickActionIds = new[]
+        {
+            "UseWuzhongShengyou",
+            "UseTaoyuanJieyi",
+            "UseShunshouQianyang",
+            "UseGuoheChaiqiao",
+            "UseWanjianQifa",
+            "UseNanmanRushin",
+            "UseDuel",
+            "UseHarvest",
+            "UseJieDaoShaRen"
+        };
+
+        foreach (var actionId in immediateTrickActionIds)
+        {
+            mapper.RegisterUseCardHandler(
+                actionId,
+                cardMoveService,
+                ruleService,
+                getPlayerChoice,
+                skillManager,
+                eventBus,
+                logCollector,
+                equipmentSkillRegistry,
+                judgementService);
+        }
+    }
+
+    /// <summary>
+    /// Registers all delayed trick card action handlers that use the resolution pipeline.
+    /// This includes: Lebusishu and Shandian.
+    /// </summary>
+    /// <param name="mapper">The action resolution mapper to register with.</param>
+    /// <param name="cardMoveService">The card move service for card operations.</param>
+    /// <param name="ruleService">The rule service for validation.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for response windows. May be null if response windows are not supported.</param>
+    /// <param name="skillManager">Optional skill manager for card conversion.</param>
+    /// <param name="eventBus">Optional event bus for publishing events.</param>
+    /// <param name="logCollector">Optional log collector for logging events.</param>
+    /// <param name="equipmentSkillRegistry">Optional equipment skill registry.</param>
+    /// <param name="judgementService">Optional judgement service.</param>
+    public static void RegisterUseDelayedTrickHandlers(
+        this ActionResolutionMapper mapper,
+        ICardMoveService cardMoveService,
+        IRuleService ruleService,
+        Func<ChoiceRequest, ChoiceResult>? getPlayerChoice = null,
+        SkillManager? skillManager = null,
+        IEventBus? eventBus = null,
+        ILogCollector? logCollector = null,
+        EquipmentSkillRegistry? equipmentSkillRegistry = null,
+        IJudgementService? judgementService = null)
+    {
+        // Register all delayed trick card handlers
+        var delayedTrickActionIds = new[]
+        {
+            "UseLebusishu",
+            "UseShandian"
+        };
+
+        foreach (var actionId in delayedTrickActionIds)
+        {
+            mapper.RegisterUseCardHandler(
+                actionId,
+                cardMoveService,
+                ruleService,
+                getPlayerChoice,
+                skillManager,
+                eventBus,
+                logCollector,
+                equipmentSkillRegistry,
+                judgementService);
+        }
+    }
+
+    /// <summary>
+    /// Registers all trick card action handlers (both immediate and delayed) that use the resolution pipeline.
+    /// </summary>
+    /// <param name="mapper">The action resolution mapper to register with.</param>
+    /// <param name="cardMoveService">The card move service for card operations.</param>
+    /// <param name="ruleService">The rule service for validation.</param>
+    /// <param name="getPlayerChoice">Function to get player choice for response windows. May be null if response windows are not supported.</param>
+    /// <param name="skillManager">Optional skill manager for card conversion.</param>
+    /// <param name="eventBus">Optional event bus for publishing events.</param>
+    /// <param name="logCollector">Optional log collector for logging events.</param>
+    /// <param name="equipmentSkillRegistry">Optional equipment skill registry.</param>
+    /// <param name="judgementService">Optional judgement service.</param>
+    public static void RegisterUseTrickHandlers(
+        this ActionResolutionMapper mapper,
+        ICardMoveService cardMoveService,
+        IRuleService ruleService,
+        Func<ChoiceRequest, ChoiceResult>? getPlayerChoice = null,
+        SkillManager? skillManager = null,
+        IEventBus? eventBus = null,
+        ILogCollector? logCollector = null,
+        EquipmentSkillRegistry? equipmentSkillRegistry = null,
+        IJudgementService? judgementService = null)
+    {
+        mapper.RegisterUseImmediateTrickHandlers(
+            cardMoveService,
+            ruleService,
+            getPlayerChoice,
+            skillManager,
+            eventBus,
+            logCollector,
+            equipmentSkillRegistry,
+            judgementService);
+
+        mapper.RegisterUseDelayedTrickHandlers(
+            cardMoveService,
+            ruleService,
+            getPlayerChoice,
+            skillManager,
+            eventBus,
+            logCollector,
+            equipmentSkillRegistry,
+            judgementService);
     }
 }

@@ -17,11 +17,31 @@ public sealed class ActionIdMapper
     static ActionIdMapper()
     {
         // Initialize default mappings
+        
+        // Basic cards
         Register(CardSubType.Slash, "UseSlash");
         Register(CardSubType.Peach, "UsePeach");
+        
+        // Equipment cards (all use "UseEquip")
+        Register(CardSubType.Weapon, "UseEquip");
+        Register(CardSubType.Armor, "UseEquip");
+        Register(CardSubType.OffensiveHorse, "UseEquip");
+        Register(CardSubType.DefensiveHorse, "UseEquip");
+        
+        // Immediate trick cards
+        Register(CardSubType.WuzhongShengyou, "UseWuzhongShengyou");
+        Register(CardSubType.TaoyuanJieyi, "UseTaoyuanJieyi");
+        Register(CardSubType.ShunshouQianyang, "UseShunshouQianyang");
         Register(CardSubType.GuoheChaiqiao, "UseGuoheChaiqiao");
+        Register(CardSubType.WanjianQifa, "UseWanjianQifa");
+        Register(CardSubType.NanmanRushin, "UseNanmanRushin");
+        Register(CardSubType.Duel, "UseDuel");
+        Register(CardSubType.Harvest, "UseHarvest");
+        Register(CardSubType.JieDaoShaRen, "UseJieDaoShaRen");
+        
+        // Delayed trick cards
         Register(CardSubType.Lebusishu, "UseLebusishu");
-        // Add more default mappings as needed
+        Register(CardSubType.Shandian, "UseShandian");
     }
 
     /// <summary>
